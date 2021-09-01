@@ -1,9 +1,9 @@
 ============= go ===============
 how to run:                    | 
                                | 
-./smoketest host port          |
+./smoketest -h host -p port    |
                                |
 something like this:           |
                                |
-./smoketest localhost 5001     |
+./smoketest -h localhost -p 123|
 ============= go ===============
