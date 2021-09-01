@@ -3,9 +3,8 @@
  * This source code is licensed under Apache 2.0 License,
  * combined with Common Clause Condition 1.0, as detailed in the NOTICE file.
  *
- * src/test/examples/testlibpq.c
- *
- * testlibpq.c
+ * gcc -o smokeTest smokeTest.c -I/path/postgresql-11.5-rel/include -L/path/postgresql-11.5-rel/lib -lpq
+ * ./smokeTest "dbname = postgres host=127.0.0.1 port=5401 user=abc password=abc"
  *
  * Test the C version of libpq, the PostgreSQL frontend library.
  */
@@ -121,6 +120,31 @@ main(int argc, char **argv)
 	}
 	PQclear(res);
 
+	res = PQexec(conn, "select * from t1");
+	if (PQresultStatus(res) != PGRES_TUPLES_OK)
+	{
+		fprintf(stderr, "select failed: %s", PQerrorMessage(conn));
+		PQclear(res);
+		exit_nicely(conn);
+	} else {
+		int nFields = PQnfields(res);
+		for(i=0;i<nFields;i++)
+		{
+			fprintf(stderr, "%s\t\t",PQfname(res,i));
+		}
+		fprintf(stderr, "\n");
+		
+		for(i=0;i<PQntuples(res);i++)
+		{
+			for(j=0;j<nFields;j++)
+			{
+				fprintf(stderr, "%s\t\t",PQgetvalue(res,i,j));
+			}
+			fprintf(stderr, "\n");
+		}
+	}
+	PQclear(res);
+	
 	res = PQexec(conn, "delete from t1 where id = 1");
 	if (PQresultStatus(res) != PGRES_COMMAND_OK)
 	{
