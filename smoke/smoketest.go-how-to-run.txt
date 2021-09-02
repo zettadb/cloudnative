@@ -1,9 +1,0 @@
-============= go ===============
-how to run:                    | 
-                               | 
-./smoketest -h host -p port    |
-                               |
-something like this:           |
-                               |
-./smoketest -h localhost -p 123|
-============= go ===============
