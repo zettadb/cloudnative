@@ -72,7 +72,7 @@ def getuuid_from_cnf(cnfpath):
 	    return linec
     return None
 
-def generate_install_scripts(jscfg):
+def generate_install_scripts(jscfg, installtype):
     global defuser
     global defbase
     localip = '127.0.0.1'
@@ -100,14 +100,16 @@ def generate_install_scripts(jscfg):
     metaf.close()
 
     # commands like:
-    # sudo python2 install-mysql.py dbcfg=./template.cnf mgr_config=./mysql_meta.json target_node_index=0
+    # sudo --preserve-env=PATH LD_LIBRARY_PATH=$LD_LIBRARY_PATH python2 \
+    # install-mysql.py dbcfg=./template.cnf mgr_config=./mysql_meta.json target_node_index=0
     targetdir='percona-8.0.18-bin-rel/dba_tools'
     i=0
     secmdlist=[]
     for node in meta['nodes']:
 	addNodeToFilesMap(filesmap, node, my_metaname, targetdir)
 	addIpToMachineMap(machines, node['ip'])
-	cmdpat = r'sudo python2 install-mysql.py dbcfg=./template.cnf mgr_config=./%s target_node_index=%d'
+	cmdpat = 'sudo --preserve-env=PATH LD_LIBRARY_PATH=$LD_LIBRARY_PATH python2 \
+		install-mysql.py dbcfg=./template.cnf mgr_config=./%s target_node_index=%d'
 	if node.get('is_primary', False):
 		addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (my_metaname, i))
 	else:
@@ -116,6 +118,8 @@ def generate_install_scripts(jscfg):
 	addToDirMap(dirmap, node['ip'], node['log_dir_path'])
 	i+=1
 
+    commandslist.extend(secmdlist)
+    secmdlist = []
     targetdir='percona-8.0.18-bin-rel/dba_tools'
     datas = cluster['data']
     i=1
@@ -132,7 +136,8 @@ def generate_install_scripts(jscfg):
 	    for node in shard['nodes']:
 		addNodeToFilesMap(filesmap, node, my_shardname, targetdir)
 		addIpToMachineMap(machines, node['ip'])
-		cmdpat = r'sudo python2 install-mysql.py dbcfg=./template.cnf mgr_config=./%s target_node_index=%d'
+		cmdpat = 'sudo --preserve-env=PATH LD_LIBRARY_PATH=$LD_LIBRARY_PATH python2 \
+			install-mysql.py dbcfg=./template.cnf mgr_config=./%s target_node_index=%d'
 		if node.get('is_primary', False):
 			pries.append([node['ip'], targetdir, cmdpat % (my_shardname, j)])
 		else:
@@ -217,6 +222,7 @@ def generate_install_scripts(jscfg):
 
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid clustermgr.cnf >& run.log </dev/null &
     mgr_name = 'clustermgr.cnf'
+    os.system('mkdir -p install')
     mgrf = open(r'install/%s' % mgr_name, 'w')
     mgrtempf = open(r'clustermgr.cnf.template','r')
     firstmeta = meta['nodes'][0]
@@ -236,42 +242,33 @@ def generate_install_scripts(jscfg):
     comf = open(r'install/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
 
-    # dir making
-    for ip in dirmap:
+    # files copy.
+    for ip in machines:
 	mach = machines.get(ip)
-	dirs=dirmap[ip]
-	dirs.append(mach['basedir'])
-	for d in dirs:
-	    mkstr = "bash remote_run.sh --user=%s %s 'sudo mkdir -p %s && sudo chown -R %s:`id -gn %s` %s'\n"
-	    tup= (mach['user'], ip, d, mach['user'], mach['user'], d)
-	    comf.write(mkstr % tup)
-
-    # files copy and extract
-    for ip in filesmap:
-	mach = machines.get(ip)
-
+	mkstr = "bash remote_run.sh --user=%s %s 'sudo mkdir -p %s && sudo chown -R %s:`id -gn %s` %s'\n"
+	tup= (mach['user'], ip, mach['basedir'], mach['user'], mach['user'], mach['basedir'])
+	comf.write(mkstr % tup)
 	# Set up the files
-	comstr = "bash dist.sh --hosts=%s --user=%s %s %s\n"
-	comf.write(comstr % (ip, mach['user'], 'percona-8.0.18-bin-rel.tgz', mach['basedir']))
-	comf.write(comstr % (ip, mach['user'], 'postgresql-11.5-rel.tgz', mach['basedir']))
-	comf.write(comstr % (ip, mach['user'], 'cluster_mgr_rel.tgz', mach['basedir']))
-	extstr = "bash remote_run.sh --user=%s %s 'cd %s && tar -xzf %s'\n"
-	comf.write(extstr % (mach['user'], ip, mach['basedir'], 'percona-8.0.18-bin-rel.tgz'))
-	comf.write(extstr % (mach['user'], ip, mach['basedir'], 'postgresql-11.5-rel.tgz'))
-	comf.write(extstr % (mach['user'], ip, mach['basedir'], 'cluster_mgr_rel.tgz'))
+	if installtype == 'full':
+	    comstr = "bash dist.sh --hosts=%s --user=%s %s %s\n"
+	    comf.write(comstr % (ip, mach['user'], 'percona-8.0.18-bin-rel.tgz', mach['basedir']))
+	    comf.write(comstr % (ip, mach['user'], 'postgresql-11.5-rel.tgz', mach['basedir']))
+	    comf.write(comstr % (ip, mach['user'], 'cluster_mgr_rel.tgz', mach['basedir']))
+	    extstr = "bash remote_run.sh --user=%s %s 'cd %s && tar -xzf %s'\n"
+	    comf.write(extstr % (mach['user'], ip, mach['basedir'], 'percona-8.0.18-bin-rel.tgz'))
+	    comf.write(extstr % (mach['user'], ip, mach['basedir'], 'postgresql-11.5-rel.tgz'))
+	    comf.write(extstr % (mach['user'], ip, mach['basedir'], 'cluster_mgr_rel.tgz'))
 
 	# files
-	filesmap[ip]['build_driver.sh'] = 'postgresql-11.5-rel/resources'
-	filesmap[ip]['process_deps.sh'] = '.'
-	fmap = filesmap[ip]
+	fmap = {'build_driver.sh': 'postgresql-11.5-rel/resources', 'process_deps.sh': '.'}
 	for fname in fmap:
 	    comstr = "bash dist.sh --hosts=%s --user=%s install/%s %s/%s\n"
 	    tup=(ip, mach['user'], fname, mach['basedir'], fmap[fname])
 	    comf.write(comstr % tup)
 
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s/postgresql-11.5-rel || exit 1; test -d etc && echo > etc/instances_list.txt 2>/dev/null'\n"
+	comstr = "bash remote_run.sh --user=%s %s 'cd %s/postgresql-11.5-rel || exit 1; test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0'\n"
 	comf.write(comstr % (mach['user'], ip, mach['basedir']))
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s/percona-8.0.18-bin-rel || exit 1; test -d etc && echo > etc/instances_list.txt 2>/dev/null'\n"
+	comstr = "bash remote_run.sh --user=%s %s 'cd %s/percona-8.0.18-bin-rel || exit 1; test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0'\n"
 	comf.write(comstr % (mach['user'], ip, mach['basedir']))
 
 	# Set up the env.sh
@@ -283,10 +280,30 @@ def generate_install_scripts(jscfg):
 	comf.write(extstr % exttup)
 	comf.write("\n")
 
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s && source ./env.sh && cd percona-8.0.18-bin-rel/lib && bash ../../process_deps.sh'\n"
-	comf.write(comstr % (mach['user'], ip, mach['basedir']))
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s && source ./env.sh && cd postgresql-11.5-rel/lib && bash ../../process_deps.sh'\n"
-	comf.write(comstr % (mach['user'], ip, mach['basedir']))
+	if installtype == 'full':
+	    comstr = "bash remote_run.sh --user=%s %s 'cd %s && source ./env.sh && cd percona-8.0.18-bin-rel/lib && bash ../../process_deps.sh'\n"
+	    comf.write(comstr % (mach['user'], ip, mach['basedir']))
+	    comstr = "bash remote_run.sh --user=%s %s 'cd %s && source ./env.sh && cd postgresql-11.5-rel/lib && bash ../../process_deps.sh'\n"
+	    comf.write(comstr % (mach['user'], ip, mach['basedir']))
+
+    # dir making
+    for ip in dirmap:
+	mach = machines.get(ip)
+	dirs=dirmap[ip]
+	for d in dirs:
+	    mkstr = "bash remote_run.sh --user=%s %s 'sudo mkdir -p %s && sudo chown -R %s:`id -gn %s` %s'\n"
+	    tup= (mach['user'], ip, d, mach['user'], mach['user'], d)
+	    comf.write(mkstr % tup)
+
+    # files copy.
+    for ip in filesmap:
+	mach = machines.get(ip)
+	# files
+	fmap = filesmap[ip]
+	for fname in fmap:
+	    comstr = "bash dist.sh --hosts=%s --user=%s install/%s %s/%s\n"
+	    tup=(ip, mach['user'], fname, mach['basedir'], fmap[fname])
+	    comf.write(comstr % tup)
 
     # The reason for not using commands map is that,
     # we need to keep the order for the commands.
@@ -322,7 +339,7 @@ def generate_start_scripts(jscfg):
     targetdir='percona-8.0.18-bin-rel/dba_tools'
     for node in meta['nodes']:
 	addIpToMachineMap(machines, node['ip'])
-	cmdpat = r'bash startmysql.sh %s'
+	cmdpat = r'sudo bash startmysql.sh %s'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
 
     # bash startmysql.sh [port]
@@ -331,7 +348,7 @@ def generate_start_scripts(jscfg):
     for shard in datas:
 	    for node in shard['nodes']:
 		addIpToMachineMap(machines, node['ip'])
-		cmdpat = r'bash startmysql.sh %s'
+		cmdpat = r'sudo bash startmysql.sh %s'
 		addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
     
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid clustermgr.cnf >& run.log </dev/null &
@@ -349,6 +366,7 @@ def generate_start_scripts(jscfg):
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
 
     com_name = 'commands.sh'
+    os.system('mkdir -p start')
     comf = open(r'start/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
 
@@ -390,7 +408,7 @@ def generate_stop_scripts(jscfg):
     cmdpat = r"bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat)
 
-    # bash startmysql.sh [port]
+    # bash stopmysql.sh [port]
     targetdir='percona-8.0.18-bin-rel/dba_tools'
     datas = cluster['data']
     for shard in datas:
@@ -409,6 +427,7 @@ def generate_stop_scripts(jscfg):
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
     
     com_name = 'commands.sh'
+    os.system('mkdir -p stop')
     comf = open(r'stop/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
 
@@ -422,7 +441,7 @@ def generate_stop_scripts(jscfg):
     comf.close()
 
 # The order is: comp-nodes -> cluster_mgr -> data shards -> meta shard
-def generate_clean_scripts(jscfg):
+def generate_clean_scripts(jscfg, cleantype):
     global defuser
     global defbase
     localip = '127.0.0.1'
@@ -444,7 +463,7 @@ def generate_clean_scripts(jscfg):
 	addIpToMachineMap(machines, node['ip'])
 	cmdpat = r'pg_ctl -D %s stop -m immediate'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['datadir'])
-	cmdpat = r'sudo rm -fr %s/*'
+	cmdpat = r'sudo rm -fr %s'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['datadir'])
 
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop
@@ -452,7 +471,7 @@ def generate_clean_scripts(jscfg):
     cmdpat = r"bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat)
 
-    # bash startmysql.sh [port]
+    # bash stopmysql.sh [port]
     targetdir='percona-8.0.18-bin-rel/dba_tools'
     datas = cluster['data']
     for shard in datas:
@@ -460,9 +479,11 @@ def generate_clean_scripts(jscfg):
 		addIpToMachineMap(machines, node['ip'])
 		cmdpat = r'bash stopmysql.sh %d'
 		addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
-		cmdpat = r'sudo rm -fr %s/*'
+		cmdpat = r'sudo rm -fr %s'
 		addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['log_dir_path'])
 		addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['data_dir_path'])
+		if node.has_key('innodb_log_dir_path'):
+			addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['innodb_log_dir_path'])
 
     meta = cluster['meta']
     # commands like:
@@ -472,15 +493,20 @@ def generate_clean_scripts(jscfg):
 	addIpToMachineMap(machines, node['ip'])
 	cmdpat = r'bash stopmysql.sh %d'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
-	cmdpat = r'sudo rm -fr %s/*'
+	cmdpat = r'sudo rm -fr %s'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['log_dir_path'])
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['data_dir_path'])
+	if node.has_key('innodb_log_dir_path'):
+		addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['innodb_log_dir_path'])
 
-    for ip in machines:
-	    mach =machines[ip]
-	    cmdpat = 'sudo rm -fr %s/*'
-	    addToCommandsList(commandslist, ip, "/", cmdpat % mach['basedir'])
+    if cleantype == 'full':
+        for ip in machines:
+            mach =machines[ip]
+            cmdpat = 'sudo rm -fr %s/*'
+            addToCommandsList(commandslist, ip, "/", cmdpat % mach['basedir'])
+
     com_name = 'commands.sh'
+    os.system('mkdir -p clean')
     comf = open(r'clean/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
 
@@ -733,7 +759,8 @@ def generate_restore_scripts(jscfg):
     metaf.close()
 
     # commands like:
-    # sudo python2 install-mysql.py dbcfg=./template.cnf mgr_config=./mysql_meta.json target_node_index=0
+    # sudo --preserve-env=PATH LD_LIBRARY_PATH=$LD_LIBRARY_PATH python2 \
+    # install-mysql.py dbcfg=./template.cnf mgr_config=./mysql_meta.json target_node_index=0
     targetdir='percona-8.0.18-bin-rel/dba_tools'
     i=0
     pricmdlist=[]
@@ -758,7 +785,7 @@ def generate_restore_scripts(jscfg):
 	cnfpath='%s/percona-8.0.18-bin-rel/etc/my_%d.cnf' % (mach['basedir'], node['port'])
 	cmdpat = r'xtrabackup --defaults-file=%s --copy-back --target-dir=base > copyback.out' % cnfpath
 	addToCommandsList(commandslist, node['ip'], backuptargetd, cmdpat)
-	cmdpat = r'bash startmysql.sh %d'
+	cmdpat = r'sudo bash startmysql.sh %d'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
 	cmdpat = r'bash wait_mysqlup.sh %d'
 	addToCommandsList(commandslist, node['ip'], ".", cmdpat % node['port'])
@@ -804,7 +831,7 @@ def generate_restore_scripts(jscfg):
 		cnfpath='%s/percona-8.0.18-bin-rel/etc/my_%d.cnf' % (mach['basedir'], node['port'])
 		cmdpat = r'xtrabackup --defaults-file=%s --copy-back --target-dir=base > copyback.out' % cnfpath
 		addToCommandsList(commandslist, node['ip'], backuptargetd, cmdpat)
-		cmdpat = r'bash startmysql.sh %d'
+		cmdpat = r'sudo bash startmysql.sh %d'
 		addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
 		cmdpat = r'bash wait_mysqlup.sh %d'
 		addToCommandsList(commandslist, node['ip'], ".", cmdpat % node['port'])
@@ -976,8 +1003,11 @@ def checkdirs(dirs):
 	    os.mkdir(d)
 
 def usage():
-    print 'Usage: generate-scripts.py action=install|start|stop|clean|backup|restore config=/path/to/confile/file \
-defuser=default_user defbase=default_base backuptype=full|incremental|init fulldir=path/to/full_backup incrdir=path/to/incr_backup'
+    print 'Usage: generate-scripts.py action=install|start|stop|clean|backup|restore\n\
+config=/path/to/confile/file defuser=default_user defbase=default_base\n\
+For install: installtype=full|cluster  - default is full\n\
+For clean: cleantype=full|cluster - default is full\n\
+For backup: backuptype=full|incremental|init fulldir=path/to/full_backup incrdir=path/to/incr_backup'
 
 if  __name__ == '__main__':
     args = dict([arg.split('=') for arg in sys.argv[1:]])
@@ -1007,13 +1037,21 @@ if  __name__ == '__main__':
     # print str(jscfg)
 
     if action == 'install':
-	generate_install_scripts(jscfg)
+	installtype=args.get('installtype', 'full')
+	if installtype not in ['full', 'cluster']:
+	    usage()
+	    sys.exit(1)
+	generate_install_scripts(jscfg, installtype)
     elif action == 'start':
 	generate_start_scripts(jscfg)
     elif action == 'stop':
 	generate_stop_scripts(jscfg)
     elif action == 'clean':
-	generate_clean_scripts(jscfg)
+	cleantype=args.get('cleantype', 'full')
+	if cleantype not in ['full', 'cluster']:
+	    usage()
+	    sys.exit(1)
+	generate_clean_scripts(jscfg, cleantype)
     elif action == 'backup':
 	if not args.has_key('fulldir'):
 	    usage()
@@ -1030,6 +1068,6 @@ if  __name__ == '__main__':
 	    generate_backup_scripts(jscfg, args['backuptype'], args['fulldir'], args['incrdir'])
     elif action == 'restore':
 	generate_restore_scripts(jscfg)
-    else:
+    else :
 	usage()
 	sys.exit(1)
