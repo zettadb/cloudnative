@@ -1,0 +1,50 @@
+221a222,245
+> SET(MYSQLBINLOGCHECKER_SOURCES
+>   mysqlbinlogchecker.cc
+>   ${CMAKE_SOURCE_DIR}/sql/log_event.cc
+>   ${CMAKE_SOURCE_DIR}/sql/rpl_utility.cc
+>   ${CMAKE_SOURCE_DIR}/sql/rpl_gtid_sid_map.cc
+>   ${CMAKE_SOURCE_DIR}/sql/rpl_gtid_misc.cc
+>   ${CMAKE_SOURCE_DIR}/sql/rpl_gtid_set.cc
+>   ${CMAKE_SOURCE_DIR}/sql/rpl_gtid_specification.cc
+>   ${CMAKE_SOURCE_DIR}/sql/rpl_tblmap.cc
+>   ${CMAKE_SOURCE_DIR}/sql/basic_istream.cc
+>   ${CMAKE_SOURCE_DIR}/sql/binlog_istream.cc
+>   ${CMAKE_SOURCE_DIR}/sql/binlog_reader.cc
+>   ${CMAKE_SOURCE_DIR}/sql/stream_cipher.cc
+>   ${CMAKE_SOURCE_DIR}/sql/rpl_log_encryption.cc
+>   ${CMAKE_SOURCE_DIR}/libbinlogevents/src/trx_boundary_parser.cpp
+>   )
+> 
+> SET(MYSQLBINLOGCHECKER_LIBRARIES
+>   binlogevents_static
+>   client_base
+>   mysqlclient
+>   )
+> 
+> 
+223a248
+>   LIST(APPEND MYSQLBINLOGCHECKER_LIBRARIES json_binlog)
+225a251
+>   LIST(APPEND MYSQLBINLOGCHECKER_LIBRARIES json_binlog_static)
+233a260,266
+> MYSQL_ADD_EXECUTABLE(mysqlbinlogchecker
+>   ${MYSQLBINLOGCHECKER_SOURCES}
+>   DEPENDENCIES GenError
+>   LINK_LIBRARIES ${MYSQLBINLOGCHECKER_LIBRARIES}
+>   )
+> 
+> 
+241a275,281
+>     ADD_CUSTOM_COMMAND(TARGET mysqlbinlogchecker POST_BUILD
+>       COMMAND install_name_tool -change
+>       "@rpath/$<TARGET_FILE_NAME:json_binlog>"
+>       "@loader_path/../lib/$<TARGET_FILE_NAME:json_binlog>"
+>       "$<TARGET_FILE:mysqlbinlogchecker>"
+>       )
+> 
+243a284
+>     ADD_INSTALL_RPATH(mysqlbinlogchecker "\$ORIGIN/../${INSTALL_LIBDIR}")
+248a290,291
+> TARGET_COMPILE_DEFINITIONS(mysqlbinlogchecker PRIVATE DISABLE_PSI_MUTEX)
+> TARGET_INCLUDE_DIRECTORIES(mysqlbinlogchecker PRIVATE ${CMAKE_SOURCE_DIR}/sql)
