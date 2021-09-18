@@ -327,11 +327,11 @@ create table donothingbrtrig_test1 (b text, a int);
 create table donothingbrtrig_test2 (c text, b text, a int);
 alter table donothingbrtrig_test2 drop column c;
 create or replace function donothingbrtrig_func() returns trigger as $$begin raise notice 'b: %', new.b; return NULL; end$$ language plpgsql;
-create trigger donothingbrtrig1 before insert on donothingbrtrig_test1 for each row execute procedure donothingbrtrig_func();
-create trigger donothingbrtrig2 before insert on donothingbrtrig_test2 for each row execute procedure donothingbrtrig_func();
-alter table donothingbrtrig_test attach partition donothingbrtrig_test1 for values in (1);
-alter table donothingbrtrig_test attach partition donothingbrtrig_test2 for values in (2);
-insert into donothingbrtrig_test values (1, 'foo'), (2, 'bar');
+--create trigger donothingbrtrig1 before insert on donothingbrtrig_test1 for each row execute procedure donothingbrtrig_func();
+--create trigger donothingbrtrig2 before insert on donothingbrtrig_test2 for each row execute procedure donothingbrtrig_func();
+--alter table donothingbrtrig_test attach partition donothingbrtrig_test1 for values in (1);
+--alter table donothingbrtrig_test attach partition donothingbrtrig_test2 for values in (2);
+--insert into donothingbrtrig_test values (1, 'foo'), (2, 'bar');
 copy donothingbrtrig_test from stdout;
 1	baz
 2	qux
