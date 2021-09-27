@@ -12,8 +12,10 @@ import json
 import shlex
 import tarfile
 import glob
+import shutil
 import mysql.connector
 from distutils.util import strtobool
+import ConfigParser
 
 
 # Below is the real story
@@ -33,7 +35,10 @@ class AnonymousArgs:
         try:
             # initialize the mysql connection
             self.mysqlcnx = mysql.connector.connect(
-                    option_files=self.etcfile, user=self.mysqluser, password=self.mysqlpwd, auth_plugin='mysql_native_password'
+                    option_files=self.etcfile, 
+                    user=self.mysqluser, 
+                    password=self.mysqlpwd, 
+                    auth_plugin='mysql_native_password'
                     )
             if self.mysqlcnx.is_connected() is not True:
                 raise mysql.connector.Error 
@@ -48,9 +53,15 @@ class AnonymousArgs:
             print "MySQL connect successfully!\n"
             return True
 
-    def parse_relaypath_from_etc():
-        # TODO
-        pass
+    @classmethod
+    def parse_relaypath_from_etc(self):
+        try:
+            config_file_parser = ConfigParser.RawConfigParser(allow_no_value=True)
+            config_file_parser.read(self.etcfile)
+            self.relayLogPath = os.path.dirname(config_file_parser.get("mysqld","relay-log"))
+            print self.relayLogPath
+        except Exception,e:
+            raise Exception,e
 
 
 def sort_by_value(str_array):
@@ -74,12 +85,16 @@ def extract_tar(file_path, target_path):
 
 
 def transfer_backup(backuppath, relaypath):
+    
+    backup_file = AnonymousArgs.backup_file_name;
+    os.system("mkdir -p %s" % relaypath)
+    shutil.copy(backuppath+backup_file,relaypath)
     # TODO
-
     pass
 
 
 def rename_binlog_backup_to_relay(relay_log_path):
+    channel_name = AnonymousArgs.channel_name
     try:
         os.chdir(relay_log_path)
         # Attention : cwd have already changed to relay_log_path
@@ -97,18 +112,19 @@ def rename_binlog_backup_to_relay(relay_log_path):
         binlog_indexs = sort_by_value(binlog_indexs)
 
         src_file_prefix = "./logfiles/binlog."
-        dst_file_prefix = "./logfiles/relay."
+        dst_file_prefix = "./logfiles/relay-" + channel_name + "." 
 
-        relay_index_file_name = "./logfiles/relay.index"
+        relay_index_file_name = "./logfiles/relay-%s.index" % channel_name
         file_hd = open(relay_index_file_name, "w")
 
         for index in binlog_indexs:
             os.rename(src_file_prefix + index, dst_file_prefix + index)
-            file_hd.write(AnonymousArgs.relayLogPath + "/relay." + index + "\n")
+            file_hd.write(AnonymousArgs.relayLogPath + "relay-" + channel_name + "." + index + "\n")
         file_hd.close()
 
         # TODO
         # all the processed relay log and index file is in ./logfiles dirctory
+        os.system("mv ./logfiles/* ./")
 
     except Exception, e:
         raise Exception, e
@@ -121,7 +137,7 @@ def prepare_binlog_from_backup_path():
         relay_log_path = AnonymousArgs.relayLogPath
 
         # move backup.tgz to the relay path
-        transfer_backup(binlog_backup_path, relaylogpath)
+        transfer_backup(binlog_backup_path, relay_log_path)
 
         # do rename staff
         rename_binlog_backup_to_relay(relay_log_path)
@@ -137,15 +153,17 @@ def generate_fake_replica_channel(start_relay_file_name, start_relay_file_pos):
 
         # initialize the sql statement
         do_change_master = \
-                "change master to \
-                master_host='2.3.4.255',\
-                master_port=7890, \
-                master_user='repl',\
-                master_password='repl',\
-                relay_log_file='%s',\
-                relay_log_pos=%s \
-                for channel '%s'" \
+                "change master to " +\
+                "master_host='2.3.4.255'," +\
+                "master_port=7890, " +\
+                "master_user='repl'," +\
+                "master_password='repl'," +\
+                "relay_log_file='%s', " +\
+                "relay_log_pos=%s " +\
+                "for channel '%s'" \
                 % (start_relay_file_name,start_relay_file_pos,channel_name)
+        print do_change_master
+
 
         try:
             cursor = mysql_cnx.cursor()
@@ -171,7 +189,7 @@ def start_slave_sql_thread():
         # initialize the sql statement
         # TODO
         # Specify the start point from the xtrabackup metadata point
-        do_start_thread = "start slave sql_thread for %s" % channel_name
+        do_start_thread = "start slave sql_thread for channel '%s'" % channel_name
 
         try:
             # execute the change master statement
@@ -206,8 +224,8 @@ def check_sql_thread_state():
 
             if Slave_SQL_Running == 'No':
                 if rows['Last_SQL_Errno'] == 0:
-                    errinfo = "Slave_SQL is not running, but Last_SQL_Errno is 0, \
-                            maybe the sql_thread is failed, try restart.\n"
+                    errinfo = "Slave_SQL is not running, but Last_SQL_Errno is 0, " +\
+                            "maybe the sql_thread is failed, try restart.\n"
                 else:
                     errinfo = "Slave_SQL is not running, Last_SQL_Errno is %s, Last_SQL_Error is %s"\
                             % (rows['Last_SQL_Errno'],rows['Last_SQL_Error'])
@@ -239,29 +257,33 @@ def sync_confirm_relay_apply():
     else:
         return True
 
+def do_finish_ops():
+    # do STOP SLAVE SQL_THREAD FOR CHANNEL 'fast_apply_binlog'
+    # do RESET SLAVE ALL
+    pass
+
+
 def start_fast_apply():
-    try:
-        # 1.Prepare the binlog from backup , rename the binlog to relay
-        prepare_binlog_from_backup_path()
 
-        # 2.Generate the fake slave channel
-        generate_fake_replica_channel()
+    # 1.Prepare the binlog from backup , rename the binlog to relay
+    prepare_binlog_from_backup_path()
 
-        # 3.start slave sql_thread
-        start_slave_sql_thread()
+    # 2.Generate the fake slave channel
+    generate_fake_replica_channel("relay-fast_apply_channel.000001","957")
 
-        # 4.confirm whether the apply finished
-        sync_confirm_relay_apply()
+    # 3.start slave sql_thread
+    start_slave_sql_thread()
 
-        # 5.clean the replica info.
-        do_finish_ops()
+    # 4.confirm whether the apply finished
+    sync_confirm_relay_apply()
 
-    except Exception, e:
-        raise Exception, e
+    # 5.clean the replica info.
+    do_finish_ops()
+
 
 
 def print_usage():
-    print "Usage: fast_apply_binlog.py binlogBackupPath=/path/to/binlog/backup/ etcfile=mysql-config-file "
+    print "Usage: apply_binlog_fast.py binlogBackupPath=/path/to/binlog/backup/ etcfile=mysql-config-file "
 
 
 if __name__ == "__main__":
@@ -286,6 +308,8 @@ if __name__ == "__main__":
     AnonymousArgs.binlog_backup_path = binlog_backup_path
     AnonymousArgs.etcfile = etcfile
     AnonymousArgs.parse_relaypath_from_etc()
+    AnonymousArgs.init_mysql_cnx()
+    
 
     # entry of the fast apply binlog.
     start_fast_apply()
