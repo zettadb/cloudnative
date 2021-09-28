@@ -28,7 +28,7 @@ else
 	for i in `seq 1 $1`;
 	do
 		echo $i times
-		./tpcc.lua --db-driver=pgsql --pgsql-host=$host --mysql-ignore-errors=1062 --pgsql-port=$port --pgsql-user=$user --pgsql-password=$pwds --pgsql-db=$db --time=$time --threads=$thread --report-interval=1 --tables=$table --scale=$wh --trx_level=RC --db-ps-mode=auto  run
+		./tpcc.lua --db-driver=pgsql --pgsql-host=$host --mysql-ignore-errors=1062 --pgsql-port=$port --pgsql-user=$user --pgsql-password=$pwds --pgsql-db=$db --time=$time --threads=$thread --report-interval=60 --tables=$table --scale=$wh --trx_level=RC --db-ps-mode=auto  run
 		
 		sleep 5
 	done

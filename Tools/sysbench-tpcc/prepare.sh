@@ -6,7 +6,7 @@ host=${1:-'192.168.0.113'} #defult host
 echo host = ${host}
 echo host=${host} >> par.sh
 
-port=${2:-'5021'} #defult port
+port=${2:-'8881'} #defult port
 echo port = ${port}
 echo port=${port} >> par.sh
 
