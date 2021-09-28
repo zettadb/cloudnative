@@ -1,0 +1,9 @@
+host=192.168.0.113
+port=5021
+db=tpcc
+user=abc
+pwds=abc
+table=2
+wh=2
+thread=30
+time=15
