@@ -1,11 +1,17 @@
 ============= go ===============
 
 how to run:                  
-                              
-./smoketest host port        
+
+1.build:
+
+  go build
+
+2.
+
+  ./smoketest host port        
                              
 something like this:         
                              
-./smoketest localhost 5001   
+  ./smoketest localhost 5001   
 
 ============= go ===============
