@@ -1,8 +1,13 @@
 const { findSourceMap } = require('module');
 const { CLIENT_RENEG_LIMIT } = require('tls');
 const pg=require('./node_modules/pg');
-var conString = "postgres://abc:abc@192.168.0.113:5401/postgres";
+
+var arguments = process.argv.splice(2);
+console.log('host：', arguments[0], 'port: ', arguments[1]);
+
+var conString = ('postgres://abc:abc@'+arguments[0]+':'+arguments[1]+'/postgres');
 var client = new pg.Client(conString);
+
 
 client.connect(function(err){
     if(err){
