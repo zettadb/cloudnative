@@ -1,21 +1,21 @@
 
-=============readme=================
+# =============readme=================
 
-how to run smoketest.js
+## how to run smoketest.js
 
-  node smoketest.js host port
+###  node smoketest.js host port
 
-  like :
+##  like :
 
-    node smoketest.js 192.168.0.1 1000
+###    node smoketest.js 192.168.0.1 1000
 
-install pg
+## install pg
 
-  npm install pg
+###  npm install pg
 
-before install pg,you need to install npm
+## before install pg,you need to install npm
 
-  sudo install npm
+###  sudo install npm
 
-=============readme=================
+# =============readme=================
 
