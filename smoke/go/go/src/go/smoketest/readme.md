@@ -4,14 +4,14 @@
 
 ## 1.build:
 
-### go build
+```go build```
 
 ## 2.
 
-### ./smoketest host port        
+ ```./smoketest host port```      
                              
 ## something like this:         
                              
-### ./smoketest localhost 5001   
+```./smoketest localhost 5001```
 
 ============= go ===============
