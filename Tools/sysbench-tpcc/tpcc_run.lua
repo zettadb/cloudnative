@@ -29,7 +29,7 @@ require("tpcc_common")
 --math.randomseed(next)
 
 require("socket")
-math.randomseed(tostring(socket.gettime()):reverse():sub(1, 6))
+math.randomseed(tostring(socket.gettime()):reverse():sub(1, 100))
 
 --local num = 10086    
 --math.randomseed((tostring(num) .. tostring(os.time()%10000)):reverse():sub(1,10))
@@ -222,15 +222,20 @@ r1w=d_next_o_id+rand10000
 --		:ol_supply_w_id, :ol_quantity, :ol_amount,
 --		:ol_dist_info);
 
-rand2=math.random(200,900000)
-r2w=d_next_o_id+rand2
+rand2=math.random(3000,900000)
+r2w=rand2+d_next_o_id
 	con:query(([[INSERT INTO order_line%d
                                  (ol_o_id, ol_d_id, ol_w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info)
 	                  VALUES (%d,%d,%d,%d,%d,%d,%d,%d,'%s')]]):
-	                  format(table_num, r2w, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info))
+	                  format(table_num, rand2 , d_id , w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info))
 
+--  con:query(([[INSERT INTO order_line%d
+--                                 ( ol_d_id, ol_w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info)
+--                    VALUES (%d,%d,%d,%d,%d,%d,%d,'%s')]]):
+--                    format(table_num, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info))
+    
   end
-
+--    con:query([[select pg_sleep(5)]])
   con:query("COMMIT")
 
 end
@@ -411,11 +416,13 @@ function payment()
 --		               :w_id, 
 --			       :datetime,
 --			       :h_amount, :h_data);*/
-			       
+
+ran3=math.random(3000,9000000)
+
   con:query(([[INSERT INTO history%d
                            (h_c_d_id, h_c_w_id, h_c_id, h_d_id,  h_w_id, h_date, h_amount, h_data)
                     VALUES (%d,%d,%d,%d,%d,NOW(),%d,'%s')]])
-            :format(table_num, c_d_id, c_w_id, c_id, d_id,  w_id, h_amount, string.format("%10s %10s   ",w_name,d_name)))
+            :format(table_num, ran3, c_w_id, c_id, d_id,  w_id, h_amount, string.format("%10s %10s   ",w_name,d_name)))
 
   con:query("COMMIT")
 

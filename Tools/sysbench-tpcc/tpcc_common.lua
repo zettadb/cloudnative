@@ -52,7 +52,7 @@ sysbench.cmdline.options = {
    force_pk =
       {"Force using auto-inc PK on history table", 0},
    trx_level =
-      {"Transaction isolation level (RC, RR or SER)", "RR"},
+      {"Transaction isolation level (RC, RR or SER)", "RC"},
    enable_purge =
       {"Use purge transaction (yes, no)", "no"},
    report_csv =
@@ -138,6 +138,7 @@ function create_tables(drv, con, table_num)
    local extra_table_options = ""
    local query
    local tinyint_type="smallint"
+   local bigint_type="bigint"
    local datetime_type="timestamp"   
    
    if drv:name() == "mysql" or drv:name() == "attachsql" or
@@ -224,46 +225,21 @@ function create_tables(drv, con, table_num)
 
    con:query(query)
 
-   print(string.format("create partition_table customer%d_5\n", table_num))
+   con:query(query)
+   for cus=1,3 do
+       high=cus*1000+1
+       low=(cus-1)*1000+1
+       print(string.format("create partition_table customer%d_%d\n", table_num, cus))
+       query = string.format([[
+       create table customer%d_%d partition of customer%d for values from ('%d') to ('%d') %s %s
+       ]], table_num, cus, table_num, low, high, engine_def, extra_table_options )
+       con:query(query)
+   end
+
+   print(string.format("create partition_table customer%d_4\n",table_num))
    query = string.format([[
-    create table customer%d_5 partition of customer%d for values from ('1') to ('501') %s %s
-    ]],table_num,table_num,engine_def, extra_table_options )
-   con:query(query)
-
-   print(string.format("create partition_table customer%d_10\n", table_num))
-    query = string.format([[
-    create table customer%d_10 partition of customer%d for values from ('501') to ('1001') %s %s
-    ]],table_num,table_num,engine_def, extra_table_options )
-   con:query(query)
-    
-   print(string.format("create partition_table customer%d_15\n", table_num))
-    query = string.format([[
-    create table customer%d_15 partition of customer%d for values from ('1001') to ('1501') %s %s
-    ]],table_num,table_num,engine_def, extra_table_options )
-   con:query(query)
-    
-   print(string.format("create partition_table customer%d_20\n", table_num))
-    query = string.format([[
-    create table customer%d_20 partition of customer%d for values from ('1501') to ('2001') %s %s
-    ]],table_num,table_num,engine_def, extra_table_options )
-   con:query(query)
-
-   print(string.format("create partition_table customer%d_25\n", table_num))
-    query = string.format([[
-    create table customer%d_25 partition of customer%d for values from ('2001') to ('2501') %s %s
-    ]],table_num,table_num,engine_def, extra_table_options )
-   con:query(query)
-
-   print(string.format("create partition_table customer%d_30\n", table_num))
-    query = string.format([[
-    create table customer%d_30 partition of customer%d for values from ('2501') to ('3001') %s %s
-    ]],table_num,table_num,engine_def, extra_table_options )
-   con:query(query)
-
-   print(string.format("create partition_table customer%d_35\n", table_num))
-    query = string.format([[
-    create table customer%d_35 partition of customer%d for values from ('3001') to ('10000000') %s %s
-    ]],table_num,table_num,engine_def, extra_table_options )
+   create table customer%d_4 partition of customer%d for values from ('3001') to ('10000000') %s %s
+   ]],table_num, table_num, engine_def, extra_table_options )
    con:query(query)
 
 -- HISTORY TABLE
@@ -277,21 +253,22 @@ function create_tables(drv, con, table_num)
 	create table IF NOT EXISTS history%d (
         %s
 	h_c_id int, 
-	h_c_d_id ]] .. tinyint_type .. [[, 
+	h_c_d_id ]] .. bigint_type .. [[, 
 	h_c_w_id bigint,
 	h_d_id ]] .. tinyint_type .. [[,
 	h_w_id bigint,
 	h_date ]] .. datetime_type .. [[,
 	h_amount decimal(6,2), 
-	h_data varchar(24) %s
+	h_data varchar(24), %s
+    PRIMARY KEY(h_c_id, h_c_d_id, h_w_id)
 	) partition by range(h_c_id) %s %s]],
       table_num, hist_auto_inc, hist_pk, engine_def, extra_table_options)
 
    con:query(query)
 	
-   for his=1,6 do
-	   high=his*500+1
-	   low=(his-1)*500+1
+   for his=1,3 do
+	   high=his*1000+1
+	   low=(his-1)*1000+1
 	   print(string.format("create partition_table history%d_%d\n", table_num,his))
 	   query = string.format([[
 	   create table history%d_%d partition of history%d for values from (%d) to (%d) %s %s
@@ -300,9 +277,9 @@ function create_tables(drv, con, table_num)
 
    end
 
-   print(string.format("create partition_table history%d_7\n", table_num,his))
+   print(string.format("create partition_table history%d_4\n", table_num,his))
    query = string.format([[
-       create table history%d_7 partition of history%d for values from (3001) to (1000000) %s %s
+       create table history%d_4 partition of history%d for values from (3001) to (1000000) %s %s
        ]], table_num, table_num, engine_def, extra_table_options )
    con:query(query)
 
@@ -322,9 +299,9 @@ function create_tables(drv, con, table_num)
 
    con:query(query)
 
-   for ord=1,6 do
-           high=ord*500+1
-           low=(ord-1)*500+1
+   for ord=1,3 do
+           high=ord*1000+1
+           low=(ord-1)*1000+1
            print(string.format("create table orders%d_%d\n", table_num,ord))
            query = string.format([[
            create table orders%d_%d partition of orders%d for values from (%d) to (%d) %s %s
@@ -333,9 +310,9 @@ function create_tables(drv, con, table_num)
 
    end
 
-    print(string.format("create table orders%d_7\n", table_num,ord))
+    print(string.format("create table orders%d_4\n", table_num,ord))
     query = string.format([[
-           create table orders%d_7 partition of orders%d for values from (3001) to (10000000) %s %s
+           create table orders%d_4 partition of orders%d for values from (3001) to (10000000) %s %s
            ]], table_num, table_num, engine_def, extra_table_options )
     con:query(query)
 
@@ -370,9 +347,9 @@ function create_tables(drv, con, table_num)
       table_num, engine_def, extra_table_options)
 
    con:query(query)
-   for oli=1,60 do
-           high=oli*50+1
-           low=(oli-1)*50+1
+   for oli=1,6 do
+           high=oli*500+1
+           low=(oli-1)*500+1
            print(string.format("create partition_table order_line%d_%d\n", table_num,oli))
            query = string.format([[
            create table order_line%d_%d partition of order_line%d for values from (%d) to (%d) %s %s
@@ -380,9 +357,9 @@ function create_tables(drv, con, table_num)
            con:query(query)
 
    end
-
+    print(string.format("create partition_table orderline%d_7\n",table_num))
    query = string.format([[
-           create table order_line%d_61 partition of order_line%d for values from (3001) to (1000000) %s %s
+           create table order_line%d_7 partition of order_line%d for values from (3001) to (1000000) %s %s
            ]], table_num,  table_num, engine_def, extra_table_options )
            con:query(query)
 
@@ -413,9 +390,9 @@ function create_tables(drv, con, table_num)
 
    con:query(query)
 
-   for sto=1,20 do
-           high=sto*5000+1
-           low=(sto-1)*5000+1
+   for sto=1,5 do
+           high=sto*20000+1
+           low=(sto-1)*20000+1
            print(string.format("create partition_table stock%d_%d\n", table_num,sto))
            query = string.format([[
            create table stock%d_%d partition of stock%d for values from (%d) to (%d) %s %s
@@ -424,9 +401,9 @@ function create_tables(drv, con, table_num)
 
    end
 
-   print(string.format("create partition_table stock%d_21\n", table_num,sto))
+   print(string.format("create partition_table stock%d_6\n", table_num,sto))
    query = string.format([[
-              create table stock%d_21 partition of stock%d for values from (100001) to (10000000) %s %s
+              create table stock%d_6 partition of stock%d for values from (100001) to (10000000) %s %s
            ]], table_num, table_num, engine_def, extra_table_options )
     con:query(query)
    local i = table_num
@@ -444,9 +421,9 @@ function create_tables(drv, con, table_num)
 
    con:query(query)
 
-   for ite=1,10 do
-           high=ite*10000+1
-           low=(ite-1)*10000+1
+   for ite=1,5 do
+           high=ite*20000+1
+           low=(ite-1)*20000+1
            print(string.format("create partition_table item%d_%d\n", table_num,ite))
            query = string.format([[
            create table item%d_%d partition of item%d for values from (%d) to (%d) %s %s
@@ -455,9 +432,9 @@ function create_tables(drv, con, table_num)
 
    end
 
-   print(string.format("create partition_table item%d_11\n", table_num))
+   print(string.format("create partition_table item%d_6\n", table_num))
    query = string.format([[
-           create table item%d_11 partition of item%d for values from (100001) to (10000000) %s %s
+           create table item%d_6 partition of item%d for values from (100001) to (10000000) %s %s
            ]], table_num, table_num, engine_def, extra_table_options )
     con:query(query)
 
