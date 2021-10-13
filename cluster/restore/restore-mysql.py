@@ -11,13 +11,14 @@ import socket
 import subprocess
 import json
 import shlex
+from distutils.util import strtobool
 
 
 def param_replace(string, rep_dict):
     pattern = re.compile("|".join([re.escape(k) for k in rep_dict.keys()]), re.M)
     return pattern.sub(lambda x: rep_dict[x.group(0)], string)
 
-def make_mgr_args(config_path, replace_items, target_node_index):
+def make_mgr_args(config_path, replace_items, target_node_index, usemgr):
     jsconf = open(config_path)
     jstr = jsconf.read()
     jscfg = json.loads(jstr)
@@ -85,12 +86,13 @@ def make_mgr_args(config_path, replace_items, target_node_index):
     log_arch = log_path + "/dblogs/arch"
 
     replace_items["place_holder_ip"] = local_ip
-    replace_items["place_holder_mgr_recovery_retry_count"] = str(mgr_num_nodes*100)
-    replace_items["place_holder_mgr_local_address"] = local_addr
-    replace_items["place_holder_mgr_seeds"] = seeds
-    replace_items["place_holder_mgr_whitelist"] = white_list
-    replace_items["place_holder_mgr_member_weight"] = str(weight)
-    replace_items["place_holder_mgr_group_name"] = group_uuid
+    if usemgr:
+        replace_items["place_holder_mgr_recovery_retry_count"] = str(mgr_num_nodes*100)
+        replace_items["place_holder_mgr_local_address"] = local_addr
+        replace_items["place_holder_mgr_seeds"] = seeds
+        replace_items["place_holder_mgr_whitelist"] = white_list
+        replace_items["place_holder_mgr_member_weight"] = str(weight)
+        replace_items["place_holder_mgr_group_name"] = group_uuid
     replace_items["prod_dir"] = prod_dir
     replace_items["data_dir"] = data_dir
     replace_items["innodb_dir"] = innodb_dir
@@ -115,27 +117,30 @@ def make_mgr_args(config_path, replace_items, target_node_index):
     jsconf.close()
     return is_master_node, server_port, data_path, log_path, log_dir, db_inst_user
 
-def generate_cnf_file(config_template_file, install_path,  server_id, cluster_id, shard_id, config_path, target_node_index):
+def generate_cnf_file(config_template_file, install_path,  server_id, cluster_id, shard_id, config_path, target_node_index, usemgr):
     replace_items = {
 	    "base_dir": install_path,
 	    "place_holder_server_id": str(server_id),
 	    "place_holder_shard_id": str(shard_id),
 	    "place_holder_cluster_id": str(cluster_id),
     }
-    is_master, server_port, data_path, log_path, log_dir, user = make_mgr_args(config_path, replace_items, target_node_index)
+    is_master, server_port, data_path, log_path, log_dir, user = make_mgr_args(config_path, replace_items, target_node_index, usemgr)
     config_template = open(config_template_file, 'r').read()
     conf = param_replace(config_template, replace_items)
     etc_path = install_path + "/etc"
     if not os.path.exists(etc_path):
 	os.mkdir(etc_path)
-    cnf_file_path = etc_path+"/my_"+ str(server_port) +".cnf"
+    conf_list_file = etc_path+"/instances_list.txt"
+    cnf_file_path = data_path +"/my_"+ str(server_port) +".cnf"
     cnf_file = open(cnf_file_path, 'w')
     cnf_file.write(conf)
     cnf_file.close()
     os.system("sed -e 's/#skip_name_resolve=on/skip_name_resolve=on/' -i " + cnf_file_path)
-    os.system("sed -e 's/#super_read_only=OFF/super_read_only=ON/' -i " + cnf_file_path)
-    os.system("sed -e 's/^#group_replication_/group_replication_/' -i " + cnf_file_path)
-    os.system("sed -e 's/^#clone_/clone_/' -i " + cnf_file_path)
+    if usemgr:
+        os.system("sed -e 's/#super_read_only=OFF/super_read_only=ON/' -i " + cnf_file_path)
+        os.system("sed -e 's/^#group_replication_/group_replication_/' -i " + cnf_file_path)
+        os.system("sed -e 's/^#clone_/clone_/' -i " + cnf_file_path)
+    os.system("echo \"" + str(server_port) + "==>" + cnf_file_path + "\" >> " + conf_list_file)
 
 def print_usage():
     print 'Usage: restore-mysql.py config=/path/of/config/file target_node_index=idx [dbcfg=/db/config/template/path/template.cnf] [cluster_id=ID] [shard_id=N] [server_id=N]'
@@ -159,15 +164,16 @@ if __name__ == "__main__":
             server_id = int(args['server_id'])
         else:
             server_id = str(random.randint(1,65535))
-
+        usemgr=args.get('usemgr', 'True')
+        usemgr=strtobool(usemgr)
         if args.has_key('dbcfg') :
             config_template_file = args['dbcfg']
         else:
             config_template_file = "./template.cnf"
         if not os.path.exists(config_template_file):
             raise ValueError("DB config template file {} doesn't exist!".format(config_template_file))
-        install_path = os.getcwd()[:-8]
-        generate_cnf_file(config_template_file, install_path, server_id, cluster_id, shard_id, config_path, target_node_index)
+        install_path = os.getcwd()[:-9]
+        generate_cnf_file(config_template_file, install_path, server_id, cluster_id, shard_id, config_path, target_node_index, usemgr)
     except KeyError, e:
         print_usage()
         print e

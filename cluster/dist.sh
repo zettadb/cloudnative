@@ -18,7 +18,9 @@ for hostitem in $hosts; do
         hname="${hostitem#*:}"
 
 
-	echo "=========== [`date`] transfer ($from) to $to on $host($hname) ==========="
+  echo "=== [`date`] on $host ===" 
+  echo "=== transfer ($from) to $to ==="
+	#echo "=========== [`date`] transfer ($from) to $to on $host($hname) ==========="
         if `ping -c 2 $host >/dev/null 2>/dev/null`; then
                 :
         else
@@ -27,15 +29,19 @@ for hostitem in $hosts; do
         fi
 
 	if test "$SSHPASS" = ""; then
-		eval scp -r $from $REMOTE_USER@$host:$to || ufail=1
+		eval scp -q -r $from $REMOTE_USER@$host:$to || ufail=1
 	else
 		eval sshpass -p "$REMOTE_PASSWORD" scp -r $from $REMOTE_USER@$host:$to || ufail=1
 	fi
 
-	if test "$ufail" = "1"; then
-		ffail=1
-		echo "!!!FAILURES!!!"
-	fi
+  if test "$ufail" = "1"; then
+  	ffail=1
+    echo -e "=== \033[31m !!!FAILURES!!! on $host \033[0m ==="
+    echo " "
+  else
+    echo -e "=== \033[32m !!!SUCCESS!!! on $host \033[0m ===" 
+    echo " "
+  fi
 
 done
 

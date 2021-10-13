@@ -18,7 +18,8 @@ ffail=0
 host="${hostitem%:*}"
 hname="${hostitem#*:}"
 
-echo "=========== [`date`] execute ($cmd) on $host($hname) ==========="
+echo "=== [`date`] on $host ===" 
+echo "=== execute ($cmd) ==="
 if `ping -c 2 $host >/dev/null 2>/dev/null`; then
         :
 else
@@ -31,7 +32,7 @@ sed -i "s#HOST_IP_ADDR#$host#g" $tmpscript
 sed -i "s#HOST_NAME#$hname#g" "$tmpscript"
 
 if test "$SSHPASS" = ""; then
-	scp $tmpscript $REMOTE_USER@$host:/tmp
+	scp -q $tmpscript $REMOTE_USER@$host:/tmp
 	ssh $REMOTE_USER@$host "bash $tmpscript" < /dev/null || ufail=1
 	test "$clear" = "true" && ssh $REMOTE_USER@$host "rm -f $tmpscript"
 else
@@ -42,7 +43,11 @@ fi
 
 if test "$ufail" = "1"; then
 	ffail=1
-	echo "!!!FAILURES!!!"
+  echo -e "=== \033[31m !!!FAILURES!!! on $host \033[0m ==="
+  echo " "
+else
+  echo -e "=== \033[32m !!!SUCCESS!!! on $host \033[0m ===" 
+  echo " "
 fi
 
 rm -f $tmpscript
