@@ -1,4 +1,3 @@
-#!/bin/python2
 # Copyright (c) 2019 ZettaDB inc. All rights reserved.
 # This source code is licensed under Apache 2.0 License,
 # combined with Common Clause Condition 1.0, as detailed in the NOTICE file.
@@ -19,7 +18,7 @@ defbase = "/kunlun"
 def addIpToMachineMap(map, ip):
     global defuser
     global defbase
-    if not map.has_key(ip):
+    if not map.__contains__(ip):
         mac = {"ip": ip, "user": defuser, "basedir": defbase}
         map[ip] = mac
 
@@ -30,10 +29,10 @@ def addMachineToMap(map, ip, user, basedir):
 
 
 def addIpToFilesMap(map, ip, fname, targetdir):
-    if not map.has_key(ip):
+    if not map.__contains__(ip):
         map[ip] = {}
     tmap = map[ip]
-    if not tmap.has_key(fname):
+    if not tmap.__contains__(fname):
         tmap[fname] = targetdir
 
 
@@ -49,7 +48,7 @@ def addNodeToIpset(set, node):
 
 # Not used currently.
 def addToCommandsMap(map, ip, targetdir, command):
-    if not map.has_key(ip):
+    if not map.__contains__(ip):
         map[ip] = []
     cmds = map[ip]
     cmds.append([targetdir, command])
@@ -61,7 +60,7 @@ def addToCommandsList(cmds, ip, targetdir, command):
 
 
 def addToDirMap(map, ip, newdir):
-    if not map.has_key(ip):
+    if not map.__contains__(ip):
         map[ip] = []
     dirs = map[ip]
     dirs.append(newdir)
@@ -103,7 +102,7 @@ def generate_install_scripts(jscfg, installtype):
     cluster = jscfg["cluster"]
     cluster_name = cluster["name"]
     meta = cluster["meta"]
-    if not meta.has_key("group_uuid"):
+    if not meta.__contains__("group_uuid"):
         meta["group_uuid"] = getuuid()
     my_metaname = "mysql_meta.json"
     metaf = open(r"install/%s" % my_metaname, "w")
@@ -141,7 +140,7 @@ def generate_install_scripts(jscfg, installtype):
     pries = []
     secs = []
     for shard in datas:
-        if not shard.has_key("group_uuid"):
+        if not shard.__contains__("group_uuid"):
             shard["group_uuid"] = getuuid()
         my_shardname = "mysql_shard%d.json" % i
         shardf = open(r"install/%s" % my_shardname, "w")
@@ -545,7 +544,7 @@ def generate_clean_scripts(jscfg, cleantype):
             addToCommandsList(
                 commandslist, node["ip"], targetdir, cmdpat % node["data_dir_path"]
             )
-            if node.has_key("innodb_log_dir_path"):
+            if node.__contains__("innodb_log_dir_path"):
                 addToCommandsList(
                     commandslist,
                     node["ip"],
@@ -568,7 +567,7 @@ def generate_clean_scripts(jscfg, cleantype):
         addToCommandsList(
             commandslist, node["ip"], targetdir, cmdpat % node["data_dir_path"]
         )
-        if node.has_key("innodb_log_dir_path"):
+        if node.__contains__("innodb_log_dir_path"):
             addToCommandsList(
                 commandslist,
                 node["ip"],
@@ -736,7 +735,7 @@ def generate_backup_scripts(jscfg, backuptype, fulldir, incrdir):
     global defbase
     localip = "127.0.0.1"
 
-    curtime = str(long(time.time()))
+    curtime = str(int(time.time()))
     machines = {}
     for mach in jscfg["machines"]:
         ip = mach["ip"]
@@ -767,11 +766,11 @@ def generate_backup_scripts(jscfg, backuptype, fulldir, incrdir):
     isfull = False
     if metagtid == "0":
         isfull = True
-    targetdir = metafulldir
+    targetdir = "%s/%s" % (metafulldir,curtime)
     if not isfull:
         targetdir = "%s/%s" % (metaincrdir, curtime)
-        comf.write("mkdir -p %s\n" % targetdir)
-    mysqlbackups.append([targetdir, gtidfile])
+    comf.write("mkdir -p %s\n" % targetdir)
+    mysqlbackups.append([targetdir, gtidfile, metaincrdir])
     for node in meta["nodes"]:
         # All the log/dir should exists and has data, so no need to create.
         addIpToMachineMap(machines, node["ip"])
@@ -805,11 +804,11 @@ def generate_backup_scripts(jscfg, backuptype, fulldir, incrdir):
         isfull = False
         if gtid == "0":
             isfull = True
-        targetdir = shardfulldir
+        targetdir = "%s/%s" % (shardfulldir,curtime)
         if not isfull:
             targetdir = "%s/%s" % (shardincrdir, curtime)
-            comf.write("mkdir -p %s\n" % targetdir)
-        mysqlbackups.append([targetdir, gtidfile])
+        comf.write("mkdir -p %s\n" % targetdir)
+        mysqlbackups.append([targetdir, gtidfile, shardincrdir])
         for node in shard["nodes"]:
             # All the log/dir should exists and has data, so no need to create.
             addIpToMachineMap(machines, node["ip"])
@@ -864,10 +863,17 @@ def generate_backup_scripts(jscfg, backuptype, fulldir, incrdir):
     for ba in mysqlbackups:
         tdir = ba[0]
         gtidpath = ba[1]
-        comf.write(
-            "cd %s && tar -xzf backup.tar.gz && cd - && cp -fr %s/gtid %s\n"
-            % (tdir, tdir, gtidpath)
-        )
+        incrdir = ba[2]
+        if backuptype == "incremental":
+            comf.write(
+                "cd %s && tar -xzf backup.tar.gz && cd - && cp -fr %s/gtid %s && cp -fr %s/backup.tar.gz %s\n"
+                % (tdir, tdir, gtidpath, tdir, incrdir))
+        else:
+            comf.write(
+                "cd %s && tar -xzf backup.tar.gz && cd - && cp -fr %s/gtid %s && cp -fr %s/backup.tar.gz %s\n"
+                % (tdir, tdir, gtidpath, tdir, fulldir))
+
+
 
     comf.close()
 
@@ -877,6 +883,7 @@ def generate_restore_scripts(jscfg):
     global defbase
     localip = "127.0.0.1"
 
+    stop_time = jscfg["restore_time"]
     machines = {}
     for mach in jscfg["machines"]:
         ip = mach["ip"]
@@ -919,22 +926,25 @@ def generate_restore_scripts(jscfg):
         addToDirMap(dirmap, node["ip"], node["log_dir_path"])
         mach = machines.get(node["ip"])
         backuptargetd = "restore/meta"
+        backuptargetd_binlog = "restore/meta/binlog"
         addToDirMap(dirmap, node["ip"], "%s/%s" % (mach["basedir"], backuptargetd))
+        addToDirMap(dirmap, node["ip"], "%s/%s" % (mach["basedir"], backuptargetd_binlog))
         addNodeToFilesMap(
             filesmap, node, "%s/backup.tar.gz" % metafulldir, backuptargetd
         )
+        addNodeToFilesMap(
+            filesmap, node, "%s/backup.tar.gz" % metaincrdir, backuptargetd_binlog
+        )
         cmdpat = r"tar -xzf backup.tar.gz;mv base/backup-my.cnf base/.backup-my.cnf;"
         addToCommandsList(commandslist, node["ip"], backuptargetd, cmdpat)
+        cmdpat = r"cp -fr base/xtrabackup_binlog_info binlog/gtid"
+        addToCommandsList(commandslist, node["ip"], backuptargetd, cmdpat )
         cmdpat = r"xtrabackup --prepare --target-dir=base > prepare.out"
         addToCommandsList(commandslist, node["ip"], backuptargetd, cmdpat)
         cmdpat = r"python2 restore-mysql.py dbcfg=./template.cnf config=%s target_node_index=%d"
         addToCommandsList(
             commandslist, node["ip"], targetdir, cmdpat % (my_metaname, i)
         )
-        #cnfpath = "%s/percona-8.0.18-bin-rel/etc/my_%d.cnf" % (
-        #    mach["basedir"],
-        #    node["port"],
-        #)
         cnfpath = "%s/%d/my_%d.cnf" % (
             node["data_dir_path"],
             node["port"],
@@ -949,6 +959,17 @@ def generate_restore_scripts(jscfg):
         addToCommandsList(commandslist, node["ip"], targetdir, cmdpat % node["port"])
         cmdpat = r"bash wait_mysqlup.sh %d %s"
         addToCommandsList(commandslist, node["ip"], ".", cmdpat % (node["port"],cnfpath))
+
+        # Process the incremental binlog backup and do the fast_apply_binlog 
+        if len(stop_time) != 0:
+            cmdpat = r"python3 ./apply_binlog_fast.py binlogBackupPath=%s etcfile=%s gtidinfo=%s/gtid stoptime=\'%s\'"\
+                    % (backuptargetd_binlog,cnfpath,backuptargetd_binlog,stop_time)
+        else:
+            cmdpat = r"python3 ./apply_binlog_fast.py binlogBackupPath=%s etcfile=%s gtidinfo=%s/gtid"\
+                    % (backuptargetd_binlog,cnfpath,backuptargetd_binlog)
+            
+        addToCommandsList(commandslist, node["ip"], ".", cmdpat)
+
         cmdpat = r"bash start_mgr.sh %d %s %s"
         if node.get("is_primary", False):
             addToCommandsList(
@@ -986,11 +1007,18 @@ def generate_restore_scripts(jscfg):
             addToDirMap(dirmap, node["ip"], node["log_dir_path"])
             mach = machines.get(node["ip"])
             backuptargetd = "restore/%s" % shardname
+            backuptargetd_binlog = "restore/%s/binlog" % shardname
             addToDirMap(dirmap, node["ip"], "%s/%s" % (mach["basedir"], backuptargetd))
+            addToDirMap(dirmap, node["ip"], "%s/%s" % (mach["basedir"], backuptargetd_binlog))
             addNodeToFilesMap(
                 filesmap, node, "%s/backup.tar.gz" % fulldir, backuptargetd
             )
+            addNodeToFilesMap(
+                filesmap, node, "%s/backup.tar.gz" % incrdir, backuptargetd_binlog
+            )
             cmdpat = r"tar -xzf backup.tar.gz;mv base/backup-my.cnf base/.backup-my.cnf;"
+            addToCommandsList(commandslist, node["ip"], backuptargetd, cmdpat)
+            cmdpat = r"cp -fr base/xtrabackup_binlog_info binlog/gtid"
             addToCommandsList(commandslist, node["ip"], backuptargetd, cmdpat)
             cmdpat = r"xtrabackup --prepare --target-dir=base > prepare.out"
             addToCommandsList(commandslist, node["ip"], backuptargetd, cmdpat)
@@ -998,10 +1026,6 @@ def generate_restore_scripts(jscfg):
             addToCommandsList(
                 commandslist, node["ip"], targetdir, cmdpat % (my_shardname, j)
             )
-            #cnfpath = "%s/percona-8.0.18-bin-rel/etc/my_%d.cnf" % (
-            #    mach["basedir"],
-            #    node["port"],
-            #)
             cnfpath = "%s/%d/my_%d.cnf" % (
                 node["data_dir_path"],
                 node["port"],
@@ -1018,6 +1042,17 @@ def generate_restore_scripts(jscfg):
             )
             cmdpat = r"bash wait_mysqlup.sh %d %s"
             addToCommandsList(commandslist, node["ip"], ".", cmdpat % (node["port"],cnfpath))
+
+            # Process the incremental binlog backup and do the fast_apply_binlog 
+            if len(stop_time) !=0:
+                cmdpat = r"python3 ./apply_binlog_fast.py binlogBackupPath=%s etcfile=%s gtidinfo=%s/gtid stoptime=\'%s\'"\
+                        % (backuptargetd_binlog,cnfpath,backuptargetd_binlog,stop_time)
+            else:
+                cmdpat = r"python3 ./apply_binlog_fast.py binlogBackupPath=%s etcfile=%s gtidinfo=%s/gtid"\
+                        % (backuptargetd_binlog,cnfpath,backuptargetd_binlog)
+
+            addToCommandsList(commandslist, node["ip"], ".", cmdpat)
+
             if False:
                 cmdpat = r"bash start_mgr.sh %d %s %s"
                 if node.get("is_primary", False):
@@ -1174,6 +1209,8 @@ def generate_restore_scripts(jscfg):
         fmap["restore/wait_mysqlup.sh"] = "."
         fmap["restore/wait_pgup.sh"] = "."
         fmap["restore/start_mgr.sh"] = "."
+        fmap["restore/mysqlbinlog"] = "."
+        fmap["restore/apply_binlog_fast.py"] = "."
         for fname in fmap:
             comstr = "bash dist.sh --hosts=%s --user=%s %s %s/%s\n"
             tup = (ip, mach["user"], fname, mach["basedir"], fmap[fname])
@@ -1212,35 +1249,35 @@ def checkdirs(dirs):
 
 
 def usage():
-    print "Usage: generate-scripts.py action=install|start|stop|clean|backup|restore\n\
+    print ("Usage: generate-scripts.py action=install|start|stop|clean|backup|restore\n\
 config=/path/to/confile/file defuser=default_user defbase=default_base\n\
 For install: installtype=full|cluster  - default is full\n\
 For clean: cleantype=full|cluster - default is full\n\
-For backup: backuptype=full|incremental|init fulldir=path/to/full_backup incrdir=path/to/incr_backup"
+For backup: backuptype=full|incremental|init fulldir=path/to/full_backup incrdir=path/to/incr_backup")
     
 
 
 if __name__ == "__main__":
     args = dict([arg.split("=") for arg in sys.argv[1:]])
     action = "install"
-    if args.has_key("action"):
+    if args.__contains__("action"):
         action = args["action"]
     else:
         args["action"] = action
 
-    if args.has_key("defuser"):
+    if args.__contains__("defuser"):
         defuser = args["defuser"]
-    if args.has_key("defbase"):
+    if args.__contains__("defbase"):
         defbase = args["defbase"]
 
-    if not args.has_key("config"):
+    if not args.__contains__("config"):
         usage()
         sys.exit(1)
 
     actions = ["install", "start", "stop", "clean"]
     checkdirs(actions)
 
-    print str(args)
+    print (str(args))
 
     jsconf = open(args["config"])
     jstr = jsconf.read()
@@ -1264,13 +1301,13 @@ if __name__ == "__main__":
             sys.exit(1)
         generate_clean_scripts(jscfg, cleantype)
     elif action == "backup":
-        if not args.has_key("fulldir"):
+        if not args.__contains__("fulldir"):
             usage()
             sys.exit(1)
-        if not args.has_key("incrdir"):
+        if not args.__contains__("incrdir"):
             usage()
             sys.exit(1)
-        if not args.has_key("backuptype"):
+        if not args.__contains__("backuptype"):
             usage()
             sys.exit(1)
         if args["backuptype"] == "init":

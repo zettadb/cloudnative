@@ -1,12 +1,10 @@
-#! /usr/bin/python
-
 import os
 import sys
 import re
 
 def addLogToMap(lmap, logf, dirf):
-	numdir = long(dirf)
-	if not lmap.has_key(logf) or numdir > lmap[logf]:
+	numdir = int(dirf)
+	if not lmap.__contains__(logf) or numdir > lmap[logf]:
 		lmap[logf] = numdir
 	# if not lmap.has_key(logf):
 	#	lmap[logf] = [numdir]
@@ -24,8 +22,8 @@ def merge_binlog(incrdir, binlogpref, targetd):
 				addLogToMap(logmap, l, d)
 	
 	for f in logmap:
-		print "%s %d" % (f, logmap[f])
-		os.system("cp -f %s/%d/logfiles/%s %s" % (incrdir, logmap[f], f, targetd))
+		print ("%s %d" % (f, logmap[f]))
+		#os.system("cp -f %s/%d/logfiles/%s %s" % (incrdir, logmap[f], f, targetd))
 
 if __name__ == '__main__':
 	incrdir=sys.argv[1]

@@ -1,21 +1,14 @@
-#!/usr/bin/python2.7
 import os
 import sys
-import re
-import time
-import random
-import fcntl
-import struct
-import socket
-import subprocess
-import json
-import shlex
 import tarfile
 import glob
+import time
 import shutil
+import json
+import subprocess
 import mysql.connector
 from distutils.util import strtobool
-import ConfigParser
+import configparser
 
 
 # Below is the real story
@@ -29,6 +22,12 @@ class AnonymousArgs:
     mysqlcnx = None
     cursor = None
     channel_name = "fast_apply_channel"
+    gtidset = None
+    start_gtid = None
+    start_relay_log_name = None
+    start_relay_log_pos = None
+    mysqlbinlog_util_abspath = None
+    stop_time = None
 
     @classmethod
     def init_mysql_cnx(self):
@@ -47,29 +46,95 @@ class AnonymousArgs:
             self.cursor = self.mysqlcnx.cursor(dictionary=True)
 
         except mysql.connector.Error as err:
-            print "MySQL connect failed: {}\n".format(err)
-            raise Exception, err
+            print ("MySQL connect failed: {}\n".format(err))
+            raise Exception(err)
         else:
-            print "MySQL connect successfully!\n"
+            print ("MySQL connect successfully!\n")
             return True
 
     @classmethod
     def parse_relaypath_from_etc(self):
         try:
-            config_file_parser = ConfigParser.RawConfigParser(allow_no_value=True)
+            config_file_parser = configparser.RawConfigParser(allow_no_value=True)
             config_file_parser.read(self.etcfile)
-            self.relayLogPath = os.path.dirname(config_file_parser.get("mysqld","relay-log"))
-            print self.relayLogPath
-        except Exception,e:
-            raise Exception,e
+            self.relayLogPath = os.path.join(
+                    os.path.dirname(config_file_parser.get("mysqld","relay-log")),"")
+        except Exception as e:
+            raise Exception(e)
 
+    @classmethod
+    def pick_bounderay_from_gtid_set(self):
+        try:
+            #parse the gtid str from the given gtid info file
+            fd = open(self.gtidinfo,'r')
+            info = fd.readlines()
+            for line in info:
+                self.gtidset = line.split()[2] 
+                break;
+
+            # 2209fde0-27fd-11ec-a801-7c8ae18d3c61:1,c7cbb8de-2706-11ec-9057-7c8ae18d3c61:1-12483
+            sets = self.gtidset.split(",")
+            sid = None
+            gid = None
+            for set_l in sets:
+                sid = set_l.split(":")[0]
+                gid_range = set_l.split(":")[1]
+                if len(gid_range.split("-")) < 2:
+                    continue;
+                gid = gid_range.split("-")[1]
+            gid = int(gid)+1;
+            
+            self.start_gtid = "%s:%d" % (sid,gid)
+            print ("start gtid is '%s'" % self.start_gtid);
+        except Exception as e:
+            raise Exception(e)
+
+    @classmethod
+    def truncate_file_by_stoptime(self,index_file_name):
+        if self.stop_time is None:
+            return
+        try:
+            util_name=self.mysqlbinlog_util_abspath
+            input_args1="--binlog-index-file=%s" % index_file_name
+            input_args2="--stop-datetime=%s" % self.stop_time;
+            input_args3="--truncate-file-by-stoptime"
+            result=subprocess.check_output(\
+                    [util_name, input_args1, input_args2, input_args3],\
+                    shell=False)
+        except subprocess.CalledProcessError as err:
+            result = err.output
+            print (result)
+
+
+    @classmethod
+    def get_filepos_by_start_gtid(self,index_file_name):
+        try:
+            util_name=self.mysqlbinlog_util_abspath
+            input_args1="--binlog-index-file=%s" % index_file_name
+            input_args2="--gtid-to-filepos=%s" % self.start_gtid
+            result=subprocess.check_output([util_name, input_args1, input_args2],\
+                    shell=False)
+            result_dict = json.loads(result);
+            self.start_relay_log_name = result_dict['filename'];
+            self.start_relay_log_pos = result_dict['pos'];
+        except subprocess.CalledProcessError as e:
+            # can't find the specified gtid in given binlog.
+            # just assign the first binlog name and pos to the
+            # start_* info variables.
+            self.start_relay_log_pos = "4";
+            fd = open(index_file_name,"r");
+            filenames = fd.readlines();
+            for filename in filenames:
+                self.start_relay_log_name = filename.strip();
+                # just assign the first file
+                break;
 
 def sort_by_value(str_array):
     dic_by_value = {}
     for item in str_array:
         dic_by_value[int(item)] = item
     keys = dic_by_value.keys()
-    keys.sort()
+    keys = sorted(keys)
     return [dic_by_value[key] for key in keys]
 
 
@@ -80,8 +145,8 @@ def extract_tar(file_path, target_path):
         for file_name in file_names:
             tar.extract(file_name, target_path)
         tar.close()
-    except Exception, e:
-        raise Exception, e
+    except Exception as e:
+        raise Exception(e)
 
 
 def transfer_backup(backuppath, relaypath):
@@ -124,10 +189,21 @@ def rename_binlog_backup_to_relay(relay_log_path):
 
         # TODO
         # all the processed relay log and index file is in ./logfiles dirctory
-        os.system("mv ./logfiles/* ./")
+        cmd = "mv %s/logfiles/* %s/" % (AnonymousArgs.relayLogPath,AnonymousArgs.relayLogPath)
+        print (cmd)
+        os.system(cmd)
 
-    except Exception, e:
-        raise Exception, e
+        # Here to identify the file and pos info to feed the change
+        # master statment to generate the virtual slave channel to 
+        # apply the relay(backup-binlog) to the new server.
+        index_file_name = "%s/relay-%s.index" % (AnonymousArgs.relayLogPath,channel_name)
+        relay_index_file_name = os.path.abspath(index_file_name)
+        AnonymousArgs.get_filepos_by_start_gtid(index_file_name)
+        AnonymousArgs.truncate_file_by_stoptime(index_file_name)
+
+
+    except Exception as e:
+        raise Exception(e)
 
 
 def prepare_binlog_from_backup_path():
@@ -141,28 +217,28 @@ def prepare_binlog_from_backup_path():
 
         # do rename staff
         rename_binlog_backup_to_relay(relay_log_path)
-    except Exception, e:
-        raise Exception, e
+    except Exception as e:
+        raise Exception(e)
 
 
-def generate_fake_replica_channel(start_relay_file_name, start_relay_file_pos):
+def generate_fake_replica_channel():
     try:
         # localize the variable from global argument container
         channel_name = AnonymousArgs.channel_name
         mysql_cnx = AnonymousArgs.mysqlcnx
+        start_relay_log_name = AnonymousArgs.start_relay_log_name
+        start_relay_log_pos = AnonymousArgs.start_relay_log_pos
 
         # initialize the sql statement
         do_change_master = \
                 "change master to " +\
-                "master_host='2.3.4.255'," +\
+                "master_host='2.3.4.158'," +\
                 "master_port=7890, " +\
                 "master_user='repl'," +\
                 "master_password='repl'," +\
-                "relay_log_file='%s', " +\
-                "relay_log_pos=%s " +\
-                "for channel '%s'" \
-                % (start_relay_file_name,start_relay_file_pos,channel_name)
-        print do_change_master
+                "relay_log_file='%s', relay_log_pos=%s for channel '%s'" \
+                % (start_relay_log_name,start_relay_log_pos,channel_name)
+        print (do_change_master)
 
 
         try:
@@ -171,14 +247,14 @@ def generate_fake_replica_channel(start_relay_file_name, start_relay_file_pos):
             cursor.execute(do_change_master)
 
         except mysql.connector.Error as err:
-            print "MySQL operation failed: {}\n".format(err)
-            raise Exception, err
+            print ("MySQL operation failed: {}\n".format(err))
+            raise Exception(err)
         else:
-            print "change master successfully!\n"
+            print ("change master successfully!\n")
             return True
 
-    except Exception, e:
-        raise Exception, e 
+    except Exception as e:
+        raise Exception(e) 
 
 def start_slave_sql_thread():
     try:
@@ -197,14 +273,14 @@ def start_slave_sql_thread():
             cursor.execute(do_start_thread)
 
         except mysql.connector.Error as err:
-            print "MySQL operation failed: {}\n".format(err)
-            raise Exception, err
+            print ("MySQL operation failed: {}\n".format(err))
+            raise Exception(err)
         else:
-            print "Do start sql_thread finish!\n"
+            print ("Do start sql_thread finish!\n")
             return True
 
-    except Exception, e:
-        raise Exception, e 
+    except Exception as e:
+        raise Exception(e) 
 
 def check_sql_thread_state():
 
@@ -218,7 +294,8 @@ def check_sql_thread_state():
     try:
         # execute the show SQL
         cursor.execute(show_slave_status_sql)
-        for rows in cursor:
+        result = cursor.fetchall()
+        for rows in result:
             Slave_SQL_Running = rows['Slave_SQL_Running']
             Slave_SQL_Running_State = rows['Slave_SQL_Running_State']
 
@@ -234,15 +311,18 @@ def check_sql_thread_state():
             Slave_SQL_Running_State = rows['Slave_SQL_Running_State']
 
             if Slave_SQL_Running_State != "Slave has read all relay log; waiting for more updates":
-                print "fast apply binlog is not finished, current Relay_Log_File is %s, \
-                        Relay_Log_Pos is %s" % (rows['Relay_Log_File'],rows['Relay_Log_Pos'])
+                print ("Fast_apply_binlog Not finished yet, current Retrieved_Gtid_Set is %s, Executed_Gtid_Set is %s" \
+                        % (rows['Retrieved_Gtid_Set'],rows['Executed_Gtid_Set']))
                 time.sleep(1)
                 return False, None
             else:
-                print "fast apply binlog finished successfully\n"
+                print ("Fast_apply_binlog finished successfully\n")
                 return True, None
     except mysql.connector.Error as err:
-        raise mysql.connector.Error, err
+        return False, mysql.connector.Error(err)
+    except Exception as err:
+        return Exception(err)
+        
 
 def sync_confirm_relay_apply():
     try:
@@ -250,17 +330,29 @@ def sync_confirm_relay_apply():
         while retval == False:
             retval,errinfo = check_sql_thread_state()
             if errinfo != None:
-                print errinfo
+                print (errinfo)
                 return False
-    except Exception, e:
-        raise Exception, e
+    except Exception as e:
+        raise Exception(e)
     else:
         return True
 
 def do_finish_ops():
-    # do STOP SLAVE SQL_THREAD FOR CHANNEL 'fast_apply_binlog'
-    # do RESET SLAVE ALL
-    pass
+    # localize the variable from global argument container
+    channel_name = AnonymousArgs.channel_name
+    cursor = AnonymousArgs.cursor
+
+    # initialize the SQL statement
+    stop_slave_sql = "stop slave for channel '%s' " % channel_name 
+
+    try:
+        # execute the show SQL
+        cursor.execute(stop_slave_sql)
+    except mysql.connector.Error as err:
+        return False, mysql.connector.Error(err)
+    except Exception as err:
+        return Exception(err)
+        
 
 
 def start_fast_apply():
@@ -269,33 +361,45 @@ def start_fast_apply():
     prepare_binlog_from_backup_path()
 
     # 2.Generate the fake slave channel
-    generate_fake_replica_channel("relay-fast_apply_channel.000001","957")
+    # TODO
+    generate_fake_replica_channel()
 
     # 3.start slave sql_thread
     start_slave_sql_thread()
 
     # 4.confirm whether the apply finished
-    sync_confirm_relay_apply()
+    retval = sync_confirm_relay_apply()
 
     # 5.clean the replica info.
     do_finish_ops()
 
+    # return as the unix-like error number style
+    if retval:
+        sys.exit(0);
+
+    sys.exit(1)
+
 
 
 def print_usage():
-    print "Usage: apply_binlog_fast.py binlogBackupPath=/path/to/binlog/backup/ etcfile=mysql-config-file "
+    print ("Usage: apply_binlog_fast.py binlogBackupPath=/path/to/binlog/backup/ "\
+            +"etcfile=mysql-config-file gtidinfo=/gtid/info/file/path"\
+            +"stoptime=datetime_str")
 
 
 if __name__ == "__main__":
 
     args = dict([arg.split("=") for arg in sys.argv[1:]])
 
-    if not args.has_key("binlogBackupPath") or not args.has_key("etcfile"):
+    if not args.__contains__("binlogBackupPath") \
+            or not args.__contains__("etcfile") \
+            or not args.__contains__("gtidinfo"):
         print_usage()
-        raise RuntimeError("Must specify binlogBackupPath or etcfile arguments.")
+        raise RuntimeError("see help info.")
 
     binlog_backup_path = args["binlogBackupPath"]
     etcfile = args["etcfile"]
+    gtidinfo = args["gtidinfo"]
 
     if not os.path.exists(binlog_backup_path):
         raise ValueError(
@@ -305,9 +409,15 @@ if __name__ == "__main__":
             raise ValueError("DB config file {} doesn't exist!".format(etcfile))
 
     # init the AnonymousArgs for global use
-    AnonymousArgs.binlog_backup_path = binlog_backup_path
-    AnonymousArgs.etcfile = etcfile
+    if args.__contains__("stoptime"):
+        stop_time = args["stoptime"]
+        AnonymousArgs.stop_time = stop_time
+    AnonymousArgs.binlog_backup_path = os.path.join(os.path.abspath(binlog_backup_path),"")
+    AnonymousArgs.etcfile = os.path.abspath(etcfile)
+    AnonymousArgs.gtidinfo = os.path.abspath(gtidinfo)
+    AnonymousArgs.mysqlbinlog_util_abspath = os.path.abspath("./mysqlbinlog")
     AnonymousArgs.parse_relaypath_from_etc()
+    AnonymousArgs.pick_bounderay_from_gtid_set();
     AnonymousArgs.init_mysql_cnx()
     
 
