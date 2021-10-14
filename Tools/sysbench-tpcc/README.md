@@ -1,5 +1,9 @@
 ========================================================================================================
 
+install sysbench before run tpcc:
+
+sudo apt-get install sysbench
+
 -prepare data :
 
 ./prepare.sh host port dbname user pwd table_num scale_num threads_num times
@@ -27,6 +31,8 @@ before do ./run.sh, you need to install the -socket environment:
         sudo make install
 
 =============================================================================================================
+
+在运行之前要先安装sysbench，apt-get install sysbench 或者 yum install sysbench就行了
 
 相较于标准的sysbench-tpcc，删除了tpcc_common.lua文件里的FOR UPDATE操作，增加了PARTITION 分区分表功能。
 

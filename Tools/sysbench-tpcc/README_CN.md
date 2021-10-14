@@ -1,5 +1,7 @@
 =============================================================================================================
 
+在运行之前，要先安装sysbench，直接 apt-get install sysbench 或者 yum install sysbench
+
 相较于标准的sysbench-tpcc，删除了tpcc_common.lua文件里的FOR UPDATE操作，增加了PARTITION 分区分表功能。
 
 增加了prepare.sh和run.sh文件，方便prepare data和运行 sysbench-tpcc。
