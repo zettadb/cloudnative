@@ -2,39 +2,39 @@
 sudo rm -rf ./par.sh
 echo
 echo ================ prepare ================
-host=${1:-'192.168.0.113'} #defult host
+host=${1:-'192.168.0.105'} #default host
 echo host = ${host}
 echo host=${host} >> par.sh
 
-port=${2:-'8881'} #defult port
+port=${2:-'5401'} #default port
 echo port = ${port}
 echo port=${port} >> par.sh
 
-db=${3:-'tpcc'} #defult dbname
+db=${3:-'postgres'} #default dbname
 echo dbname = ${db}
 echo db=${db} >> par.sh
 
-user=${4:-'abc'} #defult user
+user=${4:-'abc'} #default user
 echo user = ${user}
 echo user=${user} >> par.sh
 
-pwds=${5:-'abc'} #defult pwd
+pwds=${5:-'abc'} #default pwd
 echo pwd =  ${pwds}
 echo pwds=${pwds} >> par.sh
 
-table=${6:-'2'} #defult table num
+table=${6:-'2'} #default table num
 echo table num = ${table}
 echo table=${table} >> par.sh
 
-wh=${7:-'2'} #defult warehouse num
+wh=${7:-'5'} #default warehouse num
 echo warehouse num = ${wh}
 echo wh=${wh} >> par.sh
 
-thread=${8:-'30'} #defult threads
+thread=${8:-'30'} #default threads
 echo threads = ${thread}
 echo thread=${thread} >> par.sh
 
-time=${9:-'15'} #defult times
+time=${9:-'15'} #default times
 echo times = ${time}
 echo time=${time} >> par.sh
 
