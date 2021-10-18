@@ -25,4 +25,4 @@ fi
 
 echo "start mgr sql: $mgrsql"
 
-mysql --defaults-file=$KUNLUNBASE/percona-8.0.18-bin-rel/etc/my_$port.cnf -uroot -proot -e "$mgrsql"
+mysql --defaults-file=$3 -uroot -proot -e "$mgrsql"
