@@ -17,14 +17,7 @@ for hostitem in $hosts; do
         host="${hostitem%:*}"
         hname="${hostitem#*:}"
 
-
 	echo "=========== [`date`] transfer ($from) to $to on $host($hname) ==========="
-        if `ping -c 2 $host >/dev/null 2>/dev/null`; then
-                :
-        else
-                echo "Unable to connect $host($hname) !"
-                continue
-        fi
 
 	if test "$SSHPASS" = ""; then
 		eval scp -r $from $REMOTE_USER@$host:$to || ufail=1

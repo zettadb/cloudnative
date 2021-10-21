@@ -19,12 +19,6 @@ host="${hostitem%:*}"
 hname="${hostitem#*:}"
 
 echo "=========== [`date`] execute ($cmd) on $host($hname) ==========="
-if `ping -c 2 $host >/dev/null 2>/dev/null`; then
-        :
-else
-        echo "Unable to connect $host($hname) !"
-        exit 1
-fi
 
 echo "$cmd" > $tmpscript
 sed -i "s#HOST_IP_ADDR#$host#g" $tmpscript
