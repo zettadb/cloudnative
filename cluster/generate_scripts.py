@@ -344,6 +344,7 @@ def generate_start_scripts(jscfg, args):
 		addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (sudopfx, node['port']))
     
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid clustermgr.cnf >& run.log </dev/null &
+    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     mgr_name = 'clustermgr.cnf'
     targetdir="cluster_mgr_rel"
     cmdpat = r'bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid %s >& run.log </dev/null &'
@@ -394,6 +395,7 @@ def generate_stop_scripts(jscfg, args):
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['datadir'], "computing")
 
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop
+    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     targetdir="cluster_mgr_rel"
     cmdpat = r"bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat, "clustermgr")
@@ -459,6 +461,7 @@ def generate_clean_scripts(jscfg, args):
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (sudopfx, node['datadir']))
 
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop
+    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     targetdir="cluster_mgr_rel"
     cmdpat = r"bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat, "clustermgr")
