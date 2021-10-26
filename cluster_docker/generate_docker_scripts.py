@@ -9,12 +9,11 @@ import getpass
 import re
 import time
 import uuid
+import argparse
 
-def addIpToMachineMap(map, ip):
-    global defuser
-    global defbase
+def addIpToMachineMap(map, ip, args):
     if not map.has_key(ip):
-	mac={"ip":ip, "user":defuser, "basedir":defbase}
+	mac={"ip":ip, "user":args.defuser, "basedir":args.defbase}
 	map[ip] = mac
 
 def addMachineToMap(map, ip, user, basedir):
@@ -56,25 +55,31 @@ def addToDirMap(map, ip, newdir):
 def getuuid():
     return uuid.uuid1()
 
-def generate_install_scripts(jscfg):
-    global defuser
-    global defbase
+def generate_install_scripts(jscfg, args):
     localip = '127.0.0.1'
 
     machines = {}
     for mach in jscfg['machines']:
 	ip=mach['ip']
-	user=mach.get('user', defuser)
-	base=mach.get('basedir', defbase)
+	user=mach.get('user', args.defuser)
+	base=mach.get('basedir', args.defbase)
 	addMachineToMap(machines, ip, user, base)
 
     filesmap = {}
     commandslist = []
-    
+    storagedatadir="/storage/data"
+    storagedataattr="data_dir_path"
+    storagelogdir="/storage/log"
+    storagelogattr="log_dir_path"
+    storageinnodir="/storage/innolog"
+    stoargeinnoattr="innodb_log_dir_path"
+    compdatadir="/pgdatadir"
+    compdataattr="datadir"
+
     cluster = jscfg['cluster']
     meta = cluster['meta']
     network = jscfg.get('network', 'klnet')
-    defbufstr='1073741824'
+    defbufstr='1024M'
 
     # Meta nodes
     metanodes = []
@@ -84,38 +89,46 @@ def generate_install_scripts(jscfg):
 	name="mgr%s" % i
 	metaobj={"port":3306, "user":"pgx", "password":"pgx_pwd", "ip":name,
 		"hostip":node['ip'], "is_primary":node.get('is_primary', False),
-		"buf":node.get('innodb_buffer_pool_size', defbufstr)}
+		"buf":node.get('innodb_buffer_pool_size', defbufstr), "orig":node}
 	mgrlist.append(name+":33062")
 	metanodes.append(metaobj)
-	addIpToMachineMap(machines, node['ip'])
+	addIpToMachineMap(machines, node['ip'], args)
 	i+=1
     seed=",".join(mgrlist)
-    # docker run -itd --network klnet --name mgr1a -h mgr1a kunlun_mysql /bin/bash start_mysql.sh \
+    # docker run -itd --network klnet --name mgr1a -h mgr1a [-v path_host:path_container] kunlun_mysql /bin/bash start_mysql.sh \
     # 237d8a1c-39ec-11eb-92aa-7364f9a0e147 mgr1a:33062 mgr1a:33062,mgr1b:33062,mgr1c:33062 1 true 0 0
-    cmdpat= "sudo docker run -itd --network %s --name %s -h %s kunlun_mysql /bin/bash start_mysql.sh %s %s %s %d %s 0 0 %s"
+    cmdpat= "sudo docker run -itd --network %s --name %s -h %s %s kunlun_mysql /bin/bash start_mysql.sh %s %s %s %d %s 0 0 %s"
     waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_mysqlup.sh"
     i=1
     uuid=getuuid()
     secmdlist=[]
     priwaitlist=[]
     sewaitlist=[]
-
     for node in metanodes:
 	targetdir="."
 	buf=node['buf']
+	orig = node['orig']
+	mountarg=""
+	if orig.has_key(storagedataattr):
+		mountarg = mountarg + " -v %s:%s" % (orig[storagedataattr], storagedatadir)
+	if orig.has_key(storagelogattr):
+		mountarg = mountarg + " -v %s:%s" % (orig[storagelogattr], storagelogdir)
+	if orig.has_key(stoargeinnoattr):
+		mountarg = mountarg + " -v %s:%s" % (orig[stoargeinnoattr], storageinnodir)
 	if node['is_primary']:
 	    addToCommandsList(commandslist, node['hostip'], targetdir,
-		cmdpat % (network, node['ip'], node['ip'], uuid,
+		cmdpat % (network, node['ip'], node['ip'], mountarg, uuid,
 		    node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
 	    addToCommandsList(priwaitlist, node['hostip'], targetdir,	waitcmdpat % (node['ip']))
 	else:
 	    addToCommandsList(secmdlist, node['hostip'], targetdir,
-		cmdpat % (network, node['ip'], node['ip'], uuid,
+		cmdpat % (network, node['ip'], node['ip'], mountarg, uuid,
 		    node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
 	    addToCommandsList(sewaitlist, node['hostip'], targetdir, waitcmdpat % (node['ip']))
 	del node['hostip']
 	del node['is_primary']
 	del node['buf']
+	del node['orig']
 	i+=1
     pg_metaname = 'docker-meta.json'
     metaf = open(pg_metaname, 'w')
@@ -136,10 +149,10 @@ def generate_install_scripts(jscfg):
 	    name="%s_%d" % (shardname, j)
 	    nodeobj={"port":3306, "user":"pgx", "password":"pgx_pwd", "ip":name,
 		"hostip":node['ip'], "is_primary":node.get('is_primary', False),
-		"buf":node.get('innodb_buffer_pool_size', defbufstr)}
+		"buf":node.get('innodb_buffer_pool_size', defbufstr), "orig":node}
 	    nodelist.append(name+":33062")
 	    nodes.append(nodeobj)
-	    addIpToMachineMap(machines, node['ip'])
+	    addIpToMachineMap(machines, node['ip'], args)
 	    j += 1
 	j=1
 	seed=",".join(nodelist)
@@ -148,19 +161,28 @@ def generate_install_scripts(jscfg):
 	for node in nodes:
 	    targetdir="."
 	    buf=node['buf']
+	    orig = node['orig']
+	    mountarg=""
+	    if orig.has_key(storagedataattr):
+	        mountarg = mountarg + " -v %s:%s" % (orig[storagedataattr], storagedatadir)
+	    if orig.has_key(storagelogattr):
+	        mountarg = mountarg + " -v %s:%s" % (orig[storagelogattr], storagelogdir)
+	    if orig.has_key(stoargeinnoattr):
+	        mountarg = mountarg + " -v %s:%s" % (orig[stoargeinnoattr], storageinnodir)
 	    if node['is_primary']:
 		addToCommandsList(commandslist, node['hostip'], targetdir,
-		    cmdpat % (network, node['ip'], node['ip'], uuid,
+		    cmdpat % (network, node['ip'], node['ip'], mountarg, uuid,
 			node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
 		addToCommandsList(priwaitlist, node['hostip'], targetdir, waitcmdpat % (node['ip']))
 	    else:
 		addToCommandsList(secmdlist, node['hostip'], targetdir,
-		    cmdpat % (network, node['ip'], node['ip'], uuid,
+		    cmdpat % (network, node['ip'], node['ip'], mountarg, uuid,
 			node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
 		addToCommandsList(sewaitlist, node['hostip'], targetdir, waitcmdpat % (node['ip']))
 	    del node['hostip']
 	    del node['is_primary']
 	    del node['buf']
+	    del node['orig']
 	    j+=1
 	shard_obj={"shard_name":shardname, "shard_nodes":nodes}
 	datanodes.append(shard_obj)
@@ -177,7 +199,8 @@ def generate_install_scripts(jscfg):
     # Comp nodes
     comps = cluster['comp']['nodes']
     compnodes=[]
-    cmdpat=r'sudo docker run -itd --network %s --name %s -h %s -p %d:5432 kunlun_postgres /bin/bash start_postgres_once.sh %d %s "%s"'
+    # sudo docker run -itd --network klnet --name comp1 -h comp1 -p 6401:5432 [-v path_host:path_container] kunlun_postgres /bin/bash start_postgres.sh 1
+    cmdpat=r'sudo docker run -itd --network %s --name %s -h %s -p %d:5432 %s kunlun_postgres /bin/bash start_postgres.sh %d %s "%s"'
     waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_pgup.sh"
     waitlist=[]
     i=1
@@ -192,10 +215,13 @@ def generate_install_scripts(jscfg):
 	comp={"id":i, "user":node['user'], "password":node['password'],
 	    "name":name, "ip":name, "port":5432}
 	compnodes.append(comp)
+	mountarg=""
+	if node.has_key(compdataattr):
+	    mountarg = "-v %s:%s" % (node[compdataattr], compdatadir)
 	addToCommandsList(commandslist, localip, targetdir,
-	    cmdpat % (network, name, name, node['port'], i, node['user'], node['password']))
+	    cmdpat % (network, name, name, node['port'], mountarg, i, node['user'], node['password']))
 	addToCommandsList(waitlist, localip, targetdir,  waitcmdpat % (name))
-	addIpToMachineMap(machines, node['ip'])
+	addIpToMachineMap(machines, node['ip'], args)
 	if isfirst:
 	    isfirst = False
 	    comp1 = comp
@@ -220,7 +246,7 @@ def generate_install_scripts(jscfg):
     # clustermgr
     targetdir="."
     name="clustermgr"
-    addIpToMachineMap(machines, cluster['clustermgr']['ip'])
+    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     cmdpat="sudo docker run -itd --network %s --name %s -h %s kunlun_clustermgr /bin/bash /kunlun/start_clustermgr.sh %s"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir,
 	    cmdpat % (network, name, name, metanodes[0]['ip']))
@@ -260,16 +286,14 @@ def generate_install_scripts(jscfg):
 
     comf.close()
 
-def generate_start_scripts(jscfg):
-    global defuser
-    global defbase
+def generate_start_scripts(jscfg, args):
     localip = '127.0.0.1'
 
     machines = {}
     for mach in jscfg['machines']:
 	ip=mach['ip']
-	user=mach.get('user', defuser)
-	base=mach.get('basedir', defbase)
+	user=mach.get('user', args.defuser)
+	base=mach.get('basedir', args.defbase)
 	addMachineToMap(machines, ip, user, base)
 
     commandslist = []
@@ -287,7 +311,7 @@ def generate_start_scripts(jscfg):
 	name="mgr%s" % i
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
 	addToCommandsList(waitlist, node['ip'], targetdir, waitcmdpat % name)
-	addIpToMachineMap(machines, node['ip'])
+	addIpToMachineMap(machines, node['ip'], args)
 	i+=1
 
     # Data nodes
@@ -300,7 +324,7 @@ def generate_start_scripts(jscfg):
 	    name="%s_%d" % (shardname, j)
 	    addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
 	    addToCommandsList(waitlist, node['ip'], targetdir, waitcmdpat % name)
-	    addIpToMachineMap(machines, node['ip'])
+	    addIpToMachineMap(machines, node['ip'], args)
 	    j += 1
 	i += 1
     commandslist.extend(waitlist)
@@ -309,7 +333,7 @@ def generate_start_scripts(jscfg):
 
     # clustermgr
     name="clustermgr"
-    addIpToMachineMap(machines, cluster['clustermgr']['ip'])
+    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat % name)
 
     # Comp nodes
@@ -340,16 +364,14 @@ def generate_start_scripts(jscfg):
 
     comf.close()
 
-def generate_stop_scripts(jscfg):
-    global defuser
-    global defbase
+def generate_stop_scripts(jscfg, args):
     localip = '127.0.0.1'
 
     machines = {}
     for mach in jscfg['machines']:
 	ip=mach['ip']
-	user=mach.get('user', defuser)
-	base=mach.get('basedir', defbase)
+	user=mach.get('user', args.defuser)
+	base=mach.get('basedir', args.defbase)
 	addMachineToMap(machines, ip, user, base)
 
     commandslist = []
@@ -363,7 +385,7 @@ def generate_stop_scripts(jscfg):
     for node in meta['nodes']:
 	name="mgr%s" % i
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
-	addIpToMachineMap(machines, node['ip'])
+	addIpToMachineMap(machines, node['ip'], args)
 	i+=1
 
     # Data nodes
@@ -375,13 +397,13 @@ def generate_stop_scripts(jscfg):
         for node in shard['nodes']:
 	    name="%s_%d" % (shardname, j)
 	    addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
-	    addIpToMachineMap(machines, node['ip'])
+	    addIpToMachineMap(machines, node['ip'], args)
 	    j += 1
 	i += 1
 
     # clustermgr
     name="clustermgr"
-    addIpToMachineMap(machines, cluster['clustermgr']['ip'])
+    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat % name)
 
     # Comp nodes
@@ -409,16 +431,22 @@ def generate_stop_scripts(jscfg):
 
     comf.close()
 
-def generate_clean_scripts(jscfg):
-    global defuser
-    global defbase
+def generate_clean_scripts(jscfg, args):
     localip = '127.0.0.1'
+    storagedatadir="/storage/data"
+    storagedataattr="data_dir_path"
+    storagelogdir="/storage/log"
+    storagelogattr="log_dir_path"
+    storageinnodir="/storage/innolog"
+    stoargeinnoattr="innodb_log_dir_path"
+    compdatadir="/pgdatadir"
+    compdataattr="datadir"
 
     machines = {}
     for mach in jscfg['machines']:
 	ip=mach['ip']
-	user=mach.get('user', defuser)
-	base=mach.get('basedir', defbase)
+	user=mach.get('user', args.defuser)
+	base=mach.get('basedir', args.defbase)
 	addMachineToMap(machines, ip, user, base)
 
     commandslist = []
@@ -426,13 +454,20 @@ def generate_clean_scripts(jscfg):
     meta = cluster['meta']
 
     cmdpat= "sudo docker container rm -f %s"
+    rmcmdpat = "sudo rm -fr %s"
     targetdir = "/"
     # Meta nodes
     i=1
     for node in meta['nodes']:
 	name="mgr%s" % i
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
-	addIpToMachineMap(machines, node['ip'])
+	if node.has_key(storagedataattr):
+	    addToCommandsList(commandslist, node['ip'], targetdir, rmcmdpat % node[storagedataattr])
+	if node.has_key(storagelogattr):
+	    addToCommandsList(commandslist, node['ip'], targetdir, rmcmdpat % node[storagelogattr])
+	if node.has_key(stoargeinnoattr):
+	    addToCommandsList(commandslist, node['ip'], targetdir, rmcmdpat % node[stoargeinnoattr])
+	addIpToMachineMap(machines, node['ip'], args)
 	i+=1
 
     # Data nodes
@@ -444,13 +479,19 @@ def generate_clean_scripts(jscfg):
         for node in shard['nodes']:
 	    name="%s_%d" % (shardname, j)
 	    addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
-	    addIpToMachineMap(machines, node['ip'])
+	    if node.has_key(storagedataattr):
+	        addToCommandsList(commandslist, node['ip'], targetdir, rmcmdpat % node[storagedataattr])
+	    if node.has_key(storagelogattr):
+	        addToCommandsList(commandslist, node['ip'], targetdir, rmcmdpat % node[storagelogattr])
+	    if node.has_key(stoargeinnoattr):
+	        addToCommandsList(commandslist, node['ip'], targetdir, rmcmdpat % node[stoargeinnoattr])
+	    addIpToMachineMap(machines, node['ip'], args)
 	    j += 1
 	i += 1
 
     # clustermgr
     name="clustermgr"
-    addIpToMachineMap(machines, cluster['clustermgr']['ip'])
+    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat % name)
 
     # Comp nodes
@@ -460,6 +501,8 @@ def generate_clean_scripts(jscfg):
 	localip=node['ip']
 	name="comp%d" % i
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
+	if node.has_key(compdataattr):
+	    addToCommandsList(commandslist, node['ip'], targetdir, rmcmdpat % node[compdataattr])
 	i+=1
 
     for ip in machines:
@@ -489,46 +532,30 @@ def generate_clean_scripts(jscfg):
 
     comf.close()
 
-def usage():
-    print '''Usage: generate_docker_scripts.py config=/path/to/confile/file
-        defuser=default_user defbase=default_base action=install|start|stop|clean'''
-
 if  __name__ == '__main__':
-    global defuser
-    global defbase
-    defuser=getpass.getuser()
-    defbase='/kunlun'
-    args = dict([arg.split('=') for arg in sys.argv[1:]])
-    action='install'
-    if args.has_key('action'):
-	action=args['action']
-    else:
-	args['action']=action
+    actions=["install", "start", "stop", "clean"]
+    parser = argparse.ArgumentParser(description='Specify the arguments.')
+    parser.add_argument('--action', type=str, help="The action", required=True, choices=actions)
+    parser.add_argument('--config', type=str, help="The config path", required=True)
+    parser.add_argument('--defuser', type=str, help="the command", default=getpass.getuser())
+    parser.add_argument('--defbase', type=str, help="the command", default='/kunlun')
 
-    if args.has_key('defuser'):
-	defuser=args['defuser']
-    if args.has_key('defbase'):
-	defbase=args['defbase']
-
-    if not args.has_key('config'):
-	usage()
-	sys.exit(1)
-
-    print str(args)
-
-    jsconf = open(args['config'])
+    args = parser.parse_args()
+    print str(sys.argv)
+    jsconf = open(args.config)
     jstr = jsconf.read()
     jscfg = json.loads(jstr)
+    jsconf.close()
     # print str(jscfg)
 
-    if action == 'install':
-	generate_install_scripts(jscfg)
-    elif action == 'start':
-	generate_start_scripts(jscfg)
-    elif action == 'stop':
-	generate_stop_scripts(jscfg)
-    elif action == 'clean':
-	generate_clean_scripts(jscfg)
-    else:
+    if args.action == 'install':
+	generate_install_scripts(jscfg, args)
+    elif args.action == 'start':
+	generate_start_scripts(jscfg, args)
+    elif args.action == 'stop':
+	generate_stop_scripts(jscfg, args)
+    elif args.action == 'clean':
+	generate_clean_scripts(jscfg, args)
+    else :
 	usage()
 	sys.exit(1)

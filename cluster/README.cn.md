@@ -26,7 +26,7 @@ Linux机器，根据指定的配置，把数据库集群的各个节点(存储节点群，计算节点群，集群管
  - 其余为工具相关的文件，使用的基本流程是，先根据配置文件，产生实际运行的shell脚本，而后运行该脚本即可完成动作。
 
 基本用法:
-  python2 generate_scripts.py action=install|stop|start|clean config=config_file [defuser=user_to_be_used] [defbase=basedir_to_be_used]
+  python2 generate_scripts.py --action=install|stop|start|clean --config=config_file [--defuser=user_to_be_used] [--defbase=basedir_to_be_used]
   bash $action/commands.sh   # 其中$action=install|stop|start|clean
 
 说明:
@@ -50,22 +50,22 @@ Linux机器，根据指定的配置，把数据库集群的各个节点(存储节点群，计算节点群，集群管
 
 1 安装集群 install:
   # 使用install.json作为配置文件，使用klundb作为安装节点的默认用户, /kunlun作为默认工作目录
-  kunlun@kunlun-test2:~$python2 generate_scripts.py action=install config=install.json defuser=klundb
+  kunlun@kunlun-test2:~$python2 generate_scripts.py --action=install --config=install.json --defuser=klundb
   kunlun@kunlun-test2:~$bash install/commands.sh
 
 2 停止集群 stop:
   # 使用install.json作为配置文件，/home/kunlun/programs作为默认工作目录，kunlun(当前用户)作为操作节点的默认用户
-  kunlun@kunlun-test2:~$python2 generate_scripts.py action=stop config=install.json defbase=/home/kunlun/programs
+  kunlun@kunlun-test2:~$python2 generate_scripts.py --action=stop --config=install.json --defbase=/home/kunlun/programs
   kunlun@kunlun-test2:~$bash stop/commands.sh
 
 3 启动集群 start:
   # 使用install.json作为配置文件，/kunlun作为默认工作目录，kunlun(当前用户)作为操作节点的默认用户
-  kunlun@kunlun-test2:~$python2 generate_scripts.py action=start config=install.json
+  kunlun@kunlun-test2:~$python2 generate_scripts.py --action=start --config=install.json
   kunlun@kunlun-test2:~$bash start/commands.sh
 
 4 清理集群(停止集群，并删除所有安装的节点及数据) clean:
   # 使用install.json作为配置文件，/kunlun作为默认工作目录，wtz(当前用户)作为操作节点的默认用户
-  wtz@kunlun-test2:~$python2 generate_scripts.py action=clean config=install.json
+  wtz@kunlun-test2:~$python2 generate_scripts.py --action=clean --config=install.json
   wtz@kunlun-test2:~$bash clean/commands.sh
 
 配置文件说明:
