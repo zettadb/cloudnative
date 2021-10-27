@@ -1,10 +1,8 @@
 --create--
 drop DATABASE if exists 星际穿越;
 CREATE DATABASE 星际穿越;
-\l 
 \c 星际穿越
 CREATE USER 月亮 with PASSWORD '月亮';
-\du
 GRANT ALL on database  星际穿越 TO 月亮;
 ALTER USER 月亮 RENAME TO 太阳;
 select * from pg_user;
@@ -25,7 +23,6 @@ create table 个人表(编号 integer primary key, 姓名 varchar(10),年龄 ser
 
 --alter table--
 alter table 个人表  rename to 信息表;
-\d 信息表
 alter table 信息表  alter column 年龄 drop default;
 \d 信息表
 alter table 信息表 add constraint 年龄 unique(年龄);
@@ -91,12 +88,12 @@ insert into 个人表(编号,姓名,工资,工作) values(1,'张三',15000,'内�
 
 SELECT 姓名,SUM(工资) FROM 个人表 GROUP BY 姓名 ORDER BY 姓名;
 SELECT 工作,avg(工资) FROM 个人表 GROUP BY 工作 order by AVG(工资);
-select 工作,max(工资) from 个人表 group by 工作; 
-select 工作,min(工资) from 个人表 group by 工作;
-select 工作,count(工资) from 个人表 group by 工作;
-select 工资,count(工作) from 个人表 group by 工资;
+select 工作,max(工资) from 个人表 group by 工作 order by max(工资)desc; 
+select 工作,min(工资) from 个人表 group by 工作order by min(工资)desc;
+select 工作,count(工资) from 个人表 group by 工作order by 工作 desc;
+select 工资,count(工作) from 个人表 group by 工资 order by 工资 desc;
 select 工资 from 个人表 group by 工资 having count(工资) > 1 order by 工资;
-select 工作,count(工作) from 个人表 group by 工作 having count(工作) > 2;
+select 工作,count(工作) from 个人表 group by 工作 having count(工作) > 2  order by 工作desc;
 select 工作 from 个人表 where 工作 = '前台';
 select 工作,count(工作) from 个人表 where 工作='前台' group by 工作;
 select * from  个人表 where 编号 in (select 编号 from 个人表 where 工资 > 20000 );
@@ -123,23 +120,6 @@ from 个人表 as 一 left outer join 信息表 as 二
 on 一.编号=二.编号;
 
 
-
-select  一.编号,一.姓名,二.性别,一.工资,一.工作,二.地址,二.爱好  
-from 个人表 as 一 full outer join 信息表 as 二 
-on 一.编号=二.编号;
-
-(select  一.编号,一.姓名,二.性别,一.工资,一.工作,二.地址,二.爱好  
-from 个人表 as 一 right outer join 信息表 as 二 
-on 一.编号=二.编号)
-UNION
-(select  一.编号,一.姓名,二.性别,一.工资,一.工作,二.地址,二.爱好  
-from 个人表 as 一 left outer join 信息表 as 二 
-on 一.编号=二.编号);
-
-select  *  
-from 个人表 as 一 full outer join 信息表 as 二 
-on 一.编号=二.编号;
-
 --CREATE INDEX--
 create index 姓名索引 on 个人表 (姓名);
 \d 个人表
@@ -154,15 +134,6 @@ drop index 组合索引;
 --view--
 CREATE VIEW 个人表_视图 AS select 编号,姓名,工作 from 个人表;
 select * from 个人表_视图;
-update 个人表_视图 set 姓名 ='张三封'  where 编号 = 4;
-select * from 个人表_视图;
-select * from 个人表;
-insert into 个人表_视图(编号,姓名,工作) values(9,'刘酒',DEFAULT);
-select * from 个人表_视图;
-select * from 个人表;
-delete from 个人表_视图 where 编号=9;
-select * from 个人表;
-\d
 drop view 个人表_视图;
 \d 
 --create table as--暂时不支持
@@ -197,4 +168,3 @@ drop table 信息表;
 drop table 个人表;
 \c postgres
 drop database 星际穿越;
-\l
