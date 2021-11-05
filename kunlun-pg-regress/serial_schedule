@@ -185,3 +185,4 @@ test: partition_aggregate
 test: fast_default
 test: stats
 test: zh_CN -- First test
+test: Data_Types 
