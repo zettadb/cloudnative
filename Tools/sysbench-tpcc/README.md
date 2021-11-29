@@ -18,11 +18,15 @@ You can modify the run parameters in par.sh after preparation
 
 before do ./run.sh, you need to install the -socket environment:
 
-        cd lua-5.1.5/
+	wget http://www.lua.org/ftp/lua-5.1.5.tar.gz
 
-        make linux
+	tar-xf lua-5.1.5.tar.gz
 
-        make install
+	cd lua-5.1.5
+
+	make linux
+
+	make install
 
         cd luasocket-2.0.2/
 
@@ -71,11 +75,15 @@ run.sh会直接获取par.sh里面的参数，如果要改sysbench-tpcc的运行�
 
 (以下仅供参考，如果以下步骤报错去google自行解决)
 
-        cd lua-5.1.5/
+	wget http://www.lua.org/ftp/lua-5.1.5.tar.gz
 
-        make linux
+	tar-xf lua-5.1.5.tar.gz
 
-        make install
+	cd lua-5.1.5
+
+	make linux
+
+	make install
 
         cd luasocket-2.0.2/
 
