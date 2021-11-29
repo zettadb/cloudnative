@@ -46,7 +46,7 @@ and call the hosts where the cluster nodes are running on as the 'cluster hosts'
 
 * Installation process
 The command to install the cluster is like:
-	bash install_docker.sh [defuser=user_to_be_used] [defbase=basedir_to_be_used]
+	bash install_docker.sh [--defuser=user_to_be_used] [--defbase=basedir_to_be_used]
 the parameters of defuser=user_to_be_used and defbase=basedir_to_be_used are optional. 
 
 This installation script uses a python script named 'generate_docker_scripts.py' and a

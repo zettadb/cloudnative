@@ -14,5 +14,5 @@ pyver=""
 which $pycmd >& /dev/null && pyver=`python --version 2>&1 | cut -d " " -f 2 | cut -d . -f 1`
 test "$pyver" = "2" || pyvererr
 
-$pycmd generate_docker_scripts.py config=./install_docker.json $*
+$pycmd generate_docker_scripts.py --action=install --config=./install_docker.json $*
 bash ./install.sh

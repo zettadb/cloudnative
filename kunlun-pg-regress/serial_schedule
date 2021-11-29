@@ -184,3 +184,5 @@ test: partition_aggregate
 # test: event_trigger - not supported, so skip it.
 test: fast_default
 test: stats
+test: zh_CN -- First test
+test: Data_Types 
