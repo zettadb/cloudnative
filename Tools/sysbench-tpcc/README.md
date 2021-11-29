@@ -55,6 +55,9 @@ prepare:
         ./prepare.sh host port dbname user pwd table_num scale_num threads_num times
 	
 	如: ./prepare.sh 192.168.0.1 5432 postgres root root 10 100 300 30
+	
+	table_num和scale_num越大，灌的数据量越多
+
 可以直接在prepare.sh文件里面改对应的默认参数，改完后直接运行 ./prepare.sh
 
 运行完后会在当前目录生成一个 par.sh 文件，该文件是存放运行sysbench-tpcc要提供的参数
