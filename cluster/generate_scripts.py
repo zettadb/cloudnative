@@ -57,7 +57,75 @@ def addToDirMap(map, ip, newdir):
 def getuuid():
     return str(uuid.uuid1())
 
+def addPortToMachine(map, ip, port):
+    if not map.has_key(ip):
+	map[ip] = set([port])
+    else:
+        pset = map[ip]
+        if port in pset:
+            print "duplicate port:%s on host:%s" % (str(port), ip)
+            sys.exit(1)
+        else:
+            pset.add(port)
+
+def addDirToMachine(map, ip, directory):
+    if not map.has_key(ip):
+	map[ip] = set([directory])
+    else:
+        dset = map[ip]
+        if directory in dset:
+            print "duplicate directory:%s on host:%s" % (directory, ip)
+            sys.exit(1)
+        else:
+            dset.add(directory)
+
+def validate_config(jscfg):
+    cluster = jscfg['cluster']
+    meta = cluster['meta']
+    comps = cluster['comp']['nodes']
+    datas = cluster['data']
+    portmap = {}
+    dirmap = {}
+    metacnt = len(meta['nodes'])
+    if metacnt == 0:
+        print 'Error: There must be at least one node in meta shard'
+        sys.exit(1)
+    for node in meta['nodes']:
+        addPortToMachine(portmap, node['ip'], node['port'])
+        addPortToMachine(portmap, node['ip'], node['xport'])
+        addPortToMachine(portmap, node['ip'], node['mgr_port'])
+        addDirToMachine(dirmap, node['ip'], node['data_dir_path'])
+        addDirToMachine(dirmap, node['ip'], node['log_dir_path'])
+        if node.has_key('innodb_log_dir_path'):
+            addDirToMachine(dirmap, node['ip'], node['innodb_log_dir_path'])
+    for node in comps:
+        addPortToMachine(portmap, node['ip'], node['port'])
+        addDirToMachine(dirmap, node['ip'], node['datadir'])
+    i=1
+    for shard in datas:
+        nodecnt = len(shard['nodes'])
+        if nodecnt == 0:
+            print 'Error: There must be at least one node in data shard%d' % i
+            sys.exit(1)
+        if nodecnt > 1 and metacnt == 1:
+            print 'Error: Meta shard has only one node, but data shard%d has two or more' % i
+            sys.exit(1)
+        elif nodecnt == 1 and metacnt > 1:
+            print 'Error: Meta shard has two or more node, but data shard%d has only one' % i
+            sys.exit(1)
+        for node in shard['nodes']:
+            addPortToMachine(portmap, node['ip'], node['port'])
+            addPortToMachine(portmap, node['ip'], node['xport'])
+            addPortToMachine(portmap, node['ip'], node['mgr_port'])
+            addDirToMachine(dirmap, node['ip'], node['data_dir_path'])
+            addDirToMachine(dirmap, node['ip'], node['log_dir_path'])
+            if node.has_key('innodb_log_dir_path'):
+                addDirToMachine(dirmap, node['ip'], node['innodb_log_dir_path'])
+        i+=1
+
 def generate_install_scripts(jscfg, args):
+    validate_config(jscfg)
+
     installtype = args.installtype
     sudopfx=""
     if args.sudo:
@@ -79,6 +147,12 @@ def generate_install_scripts(jscfg, args):
     cluster = jscfg['cluster']
     cluster_name = cluster['name']
     meta = cluster['meta']
+
+    usemgr=False
+    metacnt = len(meta['nodes'])
+    if metacnt > 1:
+        usemgr = True
+
     if not meta.has_key('group_uuid'):
 	    meta['group_uuid'] = getuuid()
     my_metaname = 'mysql_meta.json'
@@ -90,26 +164,24 @@ def generate_install_scripts(jscfg, args):
     # python2 install-mysql.py --config=./mysql_meta.json --target_node_index=0
     targetdir='percona-8.0.18-bin-rel/dba_tools'
     i=0
-    secmdlist=[]
+    pries = []
+    secs = []
     for node in meta['nodes']:
 	addNodeToFilesMap(filesmap, node, my_metaname, targetdir)
 	addIpToMachineMap(machines, node['ip'], args)
 	cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d'
 	if node.get('is_primary', False):
-		addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (sudopfx, my_metaname, i))
+		pries.append([node['ip'], targetdir, cmdpat % (sudopfx, my_metaname, i)])
 	else:
-		addToCommandsList(secmdlist, node['ip'], targetdir, cmdpat % (sudopfx, my_metaname, i))
+		secs.append([node['ip'], targetdir, cmdpat % (sudopfx, my_metaname, i)])
 	addToDirMap(dirmap, node['ip'], node['data_dir_path'])
 	addToDirMap(dirmap, node['ip'], node['log_dir_path'])
+        if node.has_key('innodb_log_dir_path'):
+            addToDirMap(dirmap, node['ip'], node['innodb_log_dir_path'])
 	i+=1
 
-    commandslist.extend(secmdlist)
-    secmdlist = []
-    targetdir='percona-8.0.18-bin-rel/dba_tools'
     datas = cluster['data']
     i=1
-    pries = []
-    secs = []
     for shard in datas:
 	    if not shard.has_key('group_uuid'):
 		    shard['group_uuid'] = getuuid()
@@ -128,9 +200,9 @@ def generate_install_scripts(jscfg, args):
 			secs.append([node['ip'], targetdir, cmdpat % (sudopfx, my_shardname, j)])
 		addToDirMap(dirmap, node['ip'], node['data_dir_path'])
 		addToDirMap(dirmap, node['ip'], node['log_dir_path'])
+		if node.has_key('innodb_log_dir_path'):
+		    addToDirMap(dirmap, node['ip'], node['innodb_log_dir_path'])
 		j += 1
-	    if j == 1:
-		usemgr=False
 	    i+=1
     extraopt = " "
     if not usemgr:
@@ -138,8 +210,7 @@ def generate_install_scripts(jscfg, args):
     for item in pries:
         addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
     for item in secs:
-        addToCommandsList(secmdlist, item[0], item[1], item[2] + extraopt)
-    commandslist.extend(secmdlist)
+        addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
     # This only needs to transfered to machine creating the cluster.
     pg_metaname = 'postgres_meta.json'
     metaf = open(r'install/%s' % pg_metaname, 'w')
