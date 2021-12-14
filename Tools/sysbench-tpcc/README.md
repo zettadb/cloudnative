@@ -34,7 +34,7 @@ before do ./run.sh, you need to install the -socket environment:
 
         sudo make install
 
-=============================================================================================================
+=========================================================================================================
 
 在运行之前要先安装sysbench，apt-get install sysbench 或者 yum install sysbench就行了
 
