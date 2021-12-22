@@ -156,6 +156,8 @@ def generate_install_scripts(jscfg, args):
     if not meta.has_key('group_uuid'):
 	    meta['group_uuid'] = getuuid()
     my_metaname = 'mysql_meta.json'
+    if not meta.has_key('name'):
+        meta['name'] = 'metashard'
     metaname_str = meta['name']
     metaf = open(r'install/%s' % my_metaname,'w')
     json.dump(meta, metaf, indent=4)
@@ -186,7 +188,10 @@ def generate_install_scripts(jscfg, args):
     for shard in datas:
 	    if not shard.has_key('group_uuid'):
 		    shard['group_uuid'] = getuuid()
+            if not shard.has_key('name'):
+                shard['name'] = 'shardid'
             shardname_str = shard['name']
+
 	    my_shardname = "mysql_shard%d.json" % i
 	    shardf = open(r'install/%s' % my_shardname, 'w')
 	    json.dump(shard, shardf, indent=4)
