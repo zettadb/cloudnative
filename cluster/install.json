@@ -13,7 +13,6 @@
     "cluster":{
         "name":"clust1",
         "meta":{
-          "name":"metashard",
             "nodes":[
                 {
                     "is_primary":true,
@@ -86,7 +85,6 @@
         },
         "data":[
             {
-              "name":"shard1",
                 "nodes":[
                     {
                         "is_primary":true,
@@ -127,7 +125,6 @@
                 ]
             },
             {
-              "name":"shard2",
                 "nodes":[
                     {
                         "is_primary":true,
