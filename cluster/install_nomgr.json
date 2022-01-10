@@ -14,6 +14,7 @@
 	"name":"clust1",
         "meta":{
             "group_uuid":"e6578c3a-547e-11ea-9780-981fd1bd410d",
+            "name":"metashard",
             "nodes":[
                 {
                     "is_primary":true,
@@ -63,6 +64,7 @@
         "data":[
             {
                 "group_uuid":"e6578c3a-547e-11ea-9780-981fd1bd411e",
+                "name":"shard1",
                 "nodes":[
                     {
                         "is_primary":true,
@@ -80,6 +82,7 @@
             },
             {
                 "group_uuid":"e6578c3a-547e-11ea-9780-fdefd1bd411e",
+                "name":"shard2",
                 "nodes":[
                     {
                         "is_primary":true,
