@@ -12,20 +12,13 @@
         }
     ],
     "cluster":{
-	"namespace": "u2004cdemgr",
+	"namespace": "u2004cdenomgr",
         "meta":{
             "nodes":[
                 {
                     "is_primary":true,
-                    "ip":"192.168.0.110"
-                },
-                {
-                    "is_primary":false,
-                    "ip":"192.168.0.111"
-                },
-                {
-                    "is_primary":false,
-                    "ip":"192.168.0.100"
+                    "ip":"192.168.0.110",
+		    "dockeropts" : "--cpus=1 --memory=1GB --privileged"
                 }
             ]
         },
@@ -35,19 +28,22 @@
                     "ip":"192.168.0.110",
                     "port":5401,
 		    "user": "kunlun",
-		    "password": "Tx1Df2Mn#"
+		    "password": "Tx1Df2Mn#",
+		    "dockeropts" : "--cpus=2 --privileged"
                 },
                 {
                     "ip":"192.168.0.111",
                     "port":5401,
 		    "user": "kunlun",
-		    "password": "Tx1Df2Mn#"
+		    "password": "Tx1Df2Mn#",
+		    "dockeropts" : "--cpus=2 --privileged"
                 },
                 {
                     "ip":"192.168.0.100",
                     "port":5401,
 		    "user": "kunlun",
-		    "password": "Tx1Df2Mn#"
+		    "password": "Tx1Df2Mn#",
+		    "dockeropts" : "--cpus=2 --privileged"
                 }
             ]
         },
@@ -57,55 +53,36 @@
                     {
                         "is_primary":true,
                         "ip":"192.168.0.110",
-			"innodb_buffer_pool_size":"536870912"
-                    },
+			"innodb_buffer_pool_size":"536870912",
+			"dockeropts" : "--cpus=2 --memory=2GB --privileged"
+                    }
+                ]
+            },
+            {
+                "nodes":[
                     {
-                        "is_primary":false,
+                        "is_primary":true,
                         "ip":"192.168.0.111",
-			"innodb_buffer_pool_size":"536870912"
-                    },
-                    {
-                        "is_primary":false,
-                        "ip":"192.168.0.100"
+			"dockeropts" : "--cpus=2 --memory=2GB --privileged"
                     }
                 ]
             },
             {
                 "nodes":[
                     {
-                        "is_primary":false,
-                        "ip":"192.168.0.110",
-			"innodb_buffer_pool_size":"536870912"
-                    },
-                    {
                         "is_primary":true,
-                        "ip":"192.168.0.111"
-                    },
-                    {
-                        "is_primary":false,
-                        "ip":"192.168.0.100"
-                    }
-                ]
-            },
-            {
-                "nodes":[
-                    {
-                        "is_primary":false,
-                        "ip":"192.168.0.110"
-                    },
-                    {
-                        "is_primary":false,
-                        "ip":"192.168.0.111"
-                    },
-                    {
-                        "is_primary":true,
-                        "ip":"192.168.0.100"
+                        "ip":"192.168.0.100",
+			"dockeropts" : "--cpus=2 --memory=2GB --privileged"
                     }
                 ]
             }
         ],
         "clustermgr":{
             "ip":"192.168.0.110"
-        }
+        },
+	"haproxy": {
+            "ip":"192.168.0.100",
+	    "port": 15401
+	}
     }
 }

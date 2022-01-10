@@ -63,8 +63,7 @@ def addPortToMachine(map, ip, port):
     else:
         pset = map[ip]
         if port in pset:
-            print "duplicate port:%s on host:%s" % (str(port), ip)
-            sys.exit(1)
+            raise ValueError("duplicate port:%s on host:%s" % (str(port), ip))
         else:
             pset.add(port)
 
@@ -74,8 +73,7 @@ def addDirToMachine(map, ip, directory):
     else:
         dset = map[ip]
         if directory in dset:
-            print "duplicate directory:%s on host:%s" % (directory, ip)
-            sys.exit(1)
+            raise ValueError("duplicate directory:%s on host:%s" % (directory, ip))
         else:
             dset.add(directory)
 
@@ -88,8 +86,9 @@ def validate_config(jscfg):
     dirmap = {}
     metacnt = len(meta['nodes'])
     if metacnt == 0:
-        print 'Error: There must be at least one node in meta shard'
-        sys.exit(1)
+        raise ValueError('Error: There must be at least one node in meta shard')
+
+    hasPrimary=False
     for node in meta['nodes']:
         addPortToMachine(portmap, node['ip'], node['port'])
         addPortToMachine(portmap, node['ip'], node['xport'])
@@ -98,6 +97,17 @@ def validate_config(jscfg):
         addDirToMachine(dirmap, node['ip'], node['log_dir_path'])
         if node.has_key('innodb_log_dir_path'):
             addDirToMachine(dirmap, node['ip'], node['innodb_log_dir_path'])
+        if node.get('is_primary', False):
+            if hasPrimary:
+                raise ValueError('Error: Two primaries found in meta shard, there should be one and only one Primary specified !')
+            else:
+                hasPrimary = True
+    if metacnt > 1:
+        if not hasPrimary:
+            raise ValueError('Error: No primary found in meta shard, there should be one and only one primary specified !')
+    else:
+        node['is_primary'] = True
+
     for node in comps:
         addPortToMachine(portmap, node['ip'], node['port'])
         addDirToMachine(dirmap, node['ip'], node['datadir'])
@@ -105,14 +115,12 @@ def validate_config(jscfg):
     for shard in datas:
         nodecnt = len(shard['nodes'])
         if nodecnt == 0:
-            print 'Error: There must be at least one node in data shard%d' % i
-            sys.exit(1)
+            raise ValueError('Error: There must be at least one node in data shard%d' % i)
         if nodecnt > 1 and metacnt == 1:
-            print 'Error: Meta shard has only one node, but data shard%d has two or more' % i
-            sys.exit(1)
+            raise ValueError('Error: Meta shard has only one node, but data shard%d has two or more' % i)
         elif nodecnt == 1 and metacnt > 1:
-            print 'Error: Meta shard has two or more node, but data shard%d has only one' % i
-            sys.exit(1)
+            raise ValueError('Error: Meta shard has two or more node, but data shard%d has only one' % i)
+        hasPrimary=False
         for node in shard['nodes']:
             addPortToMachine(portmap, node['ip'], node['port'])
             addPortToMachine(portmap, node['ip'], node['xport'])
@@ -121,7 +129,48 @@ def validate_config(jscfg):
             addDirToMachine(dirmap, node['ip'], node['log_dir_path'])
             if node.has_key('innodb_log_dir_path'):
                 addDirToMachine(dirmap, node['ip'], node['innodb_log_dir_path'])
+            if node.get('is_primary', False):
+                if hasPrimary:
+                    raise ValueError('Error: Two primaries found in shard%d, there should be one and only one Primary specified !' % i)
+                else:
+                    hasPrimary = True
+        if metacnt > 1:
+            if not hasPrimary:
+                raise ValueError('Error: No primary found in shard%d, there should be one and only one primary specified !' % i)
+        else:
+            node['is_primary'] = True
         i+=1
+
+def generate_haproxy_config(jscfg, machines, confname):
+    cluster = jscfg['cluster']
+    comps = cluster['comp']['nodes']
+    haproxy = cluster['haproxy']
+    mach = machines[haproxy['ip']]
+    maxconn = haproxy.get('maxconn', 10000)
+    conf = open(confname, 'w')
+    conf.write('''# generated automatically
+    global
+        pidfile %s/haproxy.pid
+        maxconn %d
+        daemon
+ 
+    defaults
+        log global
+        retries 5
+        timeout connect 5s
+        timeout client 30000s
+        timeout server 30000s
+
+    listen kunlun-cluster
+        bind :%d
+        mode tcp
+        balance roundrobin
+''' % (mach['basedir'], maxconn, haproxy['port']))
+    i = 1
+    for node in comps:
+        conf.write("        server comp%d %s:%d weight 1 check inter 10s\n" % (i, node['ip'], node['port']))
+        i += 1
+    conf.close()
 
 def generate_install_scripts(jscfg, args):
     validate_config(jscfg)
@@ -291,6 +340,13 @@ def generate_install_scripts(jscfg, args):
     cmdpat = r'bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid %s >& run.log </dev/null &'
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat % mgr_name, "clustermgr")
 
+    haproxy = cluster.get("haproxy", None)
+    if haproxy is not None:
+        addIpToMachineMap(machines, haproxy['ip'], args)
+        generate_haproxy_config(jscfg, machines, 'install/haproxy.cfg')
+        cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f haproxy.cfg >& haproxy.log'
+        addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
+
     com_name = 'commands.sh'
     comf = open(r'install/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
@@ -311,13 +367,19 @@ def generate_install_scripts(jscfg, args):
 	    comf.write(comstr % (ip, mach['user'], 'percona-8.0.18-bin-rel.tgz', mach['basedir']))
 	    comf.write(comstr % (ip, mach['user'], 'postgresql-11.5-rel.tgz', mach['basedir']))
 	    comf.write(comstr % (ip, mach['user'], 'cluster_mgr_rel.tgz', mach['basedir']))
+            if cluster.has_key('haproxy'):
+                comf.write(comstr % (ip, mach['user'], 'haproxy-2.5.0-bin.tar.gz', mach['basedir']))
 	    extstr = "bash remote_run.sh --user=%s %s 'cd %s && tar -xzf %s'\n"
 	    comf.write(extstr % (mach['user'], ip, mach['basedir'], 'percona-8.0.18-bin-rel.tgz'))
 	    comf.write(extstr % (mach['user'], ip, mach['basedir'], 'postgresql-11.5-rel.tgz'))
 	    comf.write(extstr % (mach['user'], ip, mach['basedir'], 'cluster_mgr_rel.tgz'))
+            if cluster.has_key('haproxy'):
+                comf.write(extstr % (mach['user'], ip, mach['basedir'], 'haproxy-2.5.0-bin.tar.gz'))
 
 	# files
 	fmap = {'build_driver.sh': 'postgresql-11.5-rel/resources', 'process_deps.sh': '.'}
+        if cluster.has_key('haproxy'):
+            fmap['haproxy.cfg'] = '.'
 	for fname in fmap:
 	    comstr = "bash dist.sh --hosts=%s --user=%s install/%s %s/%s\n"
 	    tup=(ip, mach['user'], fname, mach['basedir'], fmap[fname])
@@ -429,6 +491,12 @@ def generate_start_scripts(jscfg, args):
 	cmdpat = r'python2 start_pg.py port=%d'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'], "computing")
 
+    haproxy = cluster.get("haproxy", None)
+    if haproxy is not None:
+        addIpToMachineMap(machines, haproxy['ip'], args)
+        cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f haproxy.cfg >& haproxy.log'
+        addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
+
     com_name = 'commands.sh'
     os.system('mkdir -p start')
     comf = open(r'start/%s' % com_name, 'w')
@@ -456,6 +524,12 @@ def generate_stop_scripts(jscfg, args):
 
     commandslist = []
     cluster = jscfg['cluster']
+
+    haproxy = cluster.get("haproxy", None)
+    if haproxy is not None:
+        addIpToMachineMap(machines, haproxy['ip'], args)
+        cmdpat="cat haproxy.pid | xargs kill -9"
+        addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
 
     # pg_ctl -D %s stop"
     comps = cluster['comp']['nodes']
@@ -520,6 +594,14 @@ def generate_clean_scripts(jscfg, args):
 
     commandslist = []
     cluster = jscfg['cluster']
+
+    haproxy = cluster.get("haproxy", None)
+    if haproxy is not None:
+        addIpToMachineMap(machines, haproxy['ip'], args)
+        cmdpat="cat haproxy.pid | xargs kill -9"
+        addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
+        cmdpat="rm -f haproxy.pid"
+        addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
 
     # pg_ctl -D %s stop"
     comps = cluster['comp']['nodes']

@@ -55,9 +55,130 @@ def addToDirMap(map, ip, newdir):
 def getuuid():
     return uuid.uuid1()
 
-def generate_install_scripts(jscfg, args):
-    localip = '127.0.0.1'
+def addPortToMachine(map, ip, port):
+    if not map.has_key(ip):
+	map[ip] = set([port])
+    else:
+        pset = map[ip]
+        if port in pset:
+            raise ValueError("duplicate port:%s on host:%s" % (str(port), ip))
+        else:
+            pset.add(port)
 
+def addDirToMachine(map, ip, directory):
+    if not map.has_key(ip):
+	map[ip] = set([directory])
+    else:
+        dset = map[ip]
+        if directory in dset:
+            raise ValueError("duplicate directory:%s on host:%s" % (directory, ip))
+        else:
+            dset.add(directory)
+
+def validate_config(jscfg):
+    storagedataattr="data_dir_path"
+    storagelogattr="log_dir_path"
+    stoargeinnoattr="innodb_log_dir_path"
+    compdataattr="datadir"
+
+    cluster = jscfg['cluster']
+    meta = cluster['meta']
+    comps = cluster['comp']['nodes']
+    datas = cluster['data']
+    portmap = {}
+    dirmap = {}
+    metacnt = len(meta['nodes'])
+    if metacnt == 0:
+        raise ValueError('Error: There must be at least one node in meta shard')
+
+    hasPrimary=False
+    for node in meta['nodes']:
+        if node.has_key(storagedataattr):
+            addDirToMachine(dirmap, node['ip'], node[storagedataattr])
+        if node.has_key(storagelogattr):
+            addDirToMachine(dirmap, node['ip'], node[storagelogattr])
+        if node.has_key(stoargeinnoattr):
+            addDirToMachine(dirmap, node['ip'], node[stoargeinnoattr])
+        if node.get('is_primary', False):
+            if hasPrimary:
+                raise ValueError('Error: Two primaries found in meta shard, there should be one and only one Primary specified !')
+            else:
+                hasPrimary = True
+    if metacnt > 1:
+        if not hasPrimary:
+            raise ValueError('Error: No primary found in meta shard, there should be one and only one primary specified !')
+    else:
+        node['is_primary'] = True
+
+    for node in comps:
+        if node.has_key(compdataattr):
+            addDirToMachine(dirmap, node['ip'], node[compdataattr])
+        addPortToMachine(portmap, node['ip'], node['port'])
+    i=1
+
+    for shard in datas:
+        nodecnt = len(shard['nodes'])
+        if nodecnt == 0:
+            raise ValueError('Error: There must be at least one node in data shard%d' % i)
+        if nodecnt > 1 and metacnt == 1:
+            raise ValueError('Error: Meta shard has only one node, but data shard%d has two or more' % i)
+        elif nodecnt == 1 and metacnt > 1:
+            raise ValueError('Error: Meta shard has two or more node, but data shard%d has only one' % i)
+        hasPrimary=False
+        for node in shard['nodes']:
+            if node.has_key(storagedataattr):
+                addDirToMachine(dirmap, node['ip'], node[storagedataattr])
+            if node.has_key(storagelogattr):
+                addDirToMachine(dirmap, node['ip'], node[storagelogattr])
+            if node.has_key(stoargeinnoattr):
+                addDirToMachine(dirmap, node['ip'], node[stoargeinnoattr])
+            if node.get('is_primary', False):
+                if hasPrimary:
+                    raise ValueError('Error: Two primaries found in shard%d, there should be one and only one Primary specified !' % i)
+                else:
+                    hasPrimary = True
+        if metacnt > 1:
+            if not hasPrimary:
+                raise ValueError('Error: No primary found in shard%d, there should be one and only one primary specified !' % i)
+        else:
+            node['is_primary'] = True
+        i+=1
+
+def generate_haproxy_config(jscfg, machines, confname):
+    cluster = jscfg['cluster']
+    comps = cluster['comp']['nodes']
+    haproxy = cluster['haproxy']
+    mach = machines[haproxy['ip']]
+    maxconn = haproxy.get('maxconn', 10000)
+    conf = open(confname, 'w')
+    conf.write('''# generated automatically
+    global
+        pidfile %s/haproxy.pid
+        maxconn %d
+        daemon
+ 
+    defaults
+        log global
+        retries 5
+        timeout connect 5s
+        timeout client 30000s
+        timeout server 30000s
+
+    listen kunlun-cluster
+        bind :%d
+        mode tcp
+        balance roundrobin
+''' % (mach['basedir'], maxconn, haproxy['port']))
+    i = 1
+    for node in comps:
+        conf.write("        server comp%d %s:%d weight 1 check inter 10s\n" % (i, node['ip'], node['port']))
+        i += 1
+    conf.close()
+
+def generate_install_scripts(jscfg, args):
+    validate_config(jscfg)
+
+    localip = "127.0.0.1"
     machines = {}
     for mach in jscfg['machines']:
 	ip=mach['ip']
@@ -77,19 +198,26 @@ def generate_install_scripts(jscfg, args):
     compdataattr="datadir"
 
     cluster = jscfg['cluster']
+    namespace = cluster.get('namespace', args.namespace)
     meta = cluster['meta']
     network = jscfg.get('network', 'klnet')
-    defbufstr='1024M'
+    defbufstr='1024MB'
+
+    usemgr = False
+    metacnt = len(meta['nodes'])
+    if metacnt > 1:
+        usemgr = True
 
     # Meta nodes
     metanodes = []
     mgrlist=[]
     i=1
     for node in meta['nodes']:
-	name="mgr%s" % i
+	name="%s.meta%s" % (namespace, i)
 	metaobj={"port":3306, "user":"pgx", "password":"pgx_pwd", "ip":name,
 		"hostip":node['ip'], "is_primary":node.get('is_primary', False),
-		"buf":node.get('innodb_buffer_pool_size', defbufstr), "orig":node}
+		"buf":node.get('innodb_buffer_pool_size', defbufstr), "orig":node,
+                "dockeropts": node.get('dockeropts', args.default_dockeropts)}
 	mgrlist.append(name+":33062")
 	metanodes.append(metaobj)
 	addIpToMachineMap(machines, node['ip'], args)
@@ -97,7 +225,9 @@ def generate_install_scripts(jscfg, args):
     seed=",".join(mgrlist)
     # docker run -itd --network klnet --name mgr1a -h mgr1a [-v path_host:path_container] kunlun_mysql /bin/bash start_mysql.sh \
     # 237d8a1c-39ec-11eb-92aa-7364f9a0e147 mgr1a:33062 mgr1a:33062,mgr1b:33062,mgr1c:33062 1 true 0 0
-    cmdpat= "sudo docker run -itd --network %s --name %s -h %s %s kunlun_mysql /bin/bash start_mysql.sh %s %s %s %d %s 0 0 %s"
+    cmdpat= "sudo docker run %s -itd --network %s --name %s -h %s %s kunlun_mysql /bin/bash start_mysql_nomgr.sh no_rep %s"
+    if usemgr:
+        cmdpat= "sudo docker run %s -itd --network %s --name %s -h %s %s kunlun_mysql /bin/bash start_mysql.sh %s %s %s %d %s %s 0 0"
     waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_mysqlup.sh"
     i=1
     uuid=getuuid()
@@ -116,21 +246,33 @@ def generate_install_scripts(jscfg, args):
 	if orig.has_key(stoargeinnoattr):
 		mountarg = mountarg + " -v %s:%s" % (orig[stoargeinnoattr], storageinnodir)
 	if node['is_primary']:
-	    addToCommandsList(commandslist, node['hostip'], targetdir,
-		cmdpat % (network, node['ip'], node['ip'], mountarg, uuid,
-		    node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+            if usemgr:
+	        addToCommandsList(commandslist, node['hostip'], targetdir,
+		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
+		        node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+            else:
+	        addToCommandsList(commandslist, node['hostip'], targetdir,
+		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
 	    addToCommandsList(priwaitlist, node['hostip'], targetdir,	waitcmdpat % (node['ip']))
 	else:
-	    addToCommandsList(secmdlist, node['hostip'], targetdir,
-		cmdpat % (network, node['ip'], node['ip'], mountarg, uuid,
-		    node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+            if usemgr:
+	        addToCommandsList(secmdlist, node['hostip'], targetdir,
+		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
+		        node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+            else:
+	        addToCommandsList(secmdlist, node['hostip'], targetdir,
+		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
 	    addToCommandsList(sewaitlist, node['hostip'], targetdir, waitcmdpat % (node['ip']))
 	del node['hostip']
 	del node['is_primary']
 	del node['buf']
 	del node['orig']
+        del node['dockeropts']
 	i+=1
-    pg_metaname = 'docker-meta.json'
+    if usemgr:
+        pg_metaname = 'docker-meta.json'
+    else:
+        pg_metaname = 'docker-meta-nomgr.json'
     metaf = open(pg_metaname, 'w')
     json.dump(metanodes, metaf, indent=4)
     metaf.close()
@@ -140,7 +282,7 @@ def generate_install_scripts(jscfg, args):
     datanodes = []
     i = 1
     for shard in datas:
-	shardname="shard%s" % i
+	shardname="%s.shard%s" % (namespace, i)
 	nodes=[]
 	nodelist=[]
 	j=1
@@ -149,7 +291,8 @@ def generate_install_scripts(jscfg, args):
 	    name="%s_%d" % (shardname, j)
 	    nodeobj={"port":3306, "user":"pgx", "password":"pgx_pwd", "ip":name,
 		"hostip":node['ip'], "is_primary":node.get('is_primary', False),
-		"buf":node.get('innodb_buffer_pool_size', defbufstr), "orig":node}
+		"buf":node.get('innodb_buffer_pool_size', defbufstr), "orig":node,
+                "dockeropts": node.get('dockeropts', args.default_dockeropts)}
 	    nodelist.append(name+":33062")
 	    nodes.append(nodeobj)
 	    addIpToMachineMap(machines, node['ip'], args)
@@ -170,37 +313,49 @@ def generate_install_scripts(jscfg, args):
 	    if orig.has_key(stoargeinnoattr):
 	        mountarg = mountarg + " -v %s:%s" % (orig[stoargeinnoattr], storageinnodir)
 	    if node['is_primary']:
-		addToCommandsList(commandslist, node['hostip'], targetdir,
-		    cmdpat % (network, node['ip'], node['ip'], mountarg, uuid,
-			node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+                if usemgr:
+		    addToCommandsList(commandslist, node['hostip'], targetdir,
+		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
+			    node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+                else:
+		    addToCommandsList(commandslist, node['hostip'], targetdir,
+		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
 		addToCommandsList(priwaitlist, node['hostip'], targetdir, waitcmdpat % (node['ip']))
 	    else:
-		addToCommandsList(secmdlist, node['hostip'], targetdir,
-		    cmdpat % (network, node['ip'], node['ip'], mountarg, uuid,
-			node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+                if usemgr:
+		    addToCommandsList(secmdlist, node['hostip'], targetdir,
+		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
+			    node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+                else:
+		    addToCommandsList(secmdlist, node['hostip'], targetdir,
+		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
 		addToCommandsList(sewaitlist, node['hostip'], targetdir, waitcmdpat % (node['ip']))
 	    del node['hostip']
 	    del node['is_primary']
 	    del node['buf']
 	    del node['orig']
+            del node['dockeropts']
 	    j+=1
 	shard_obj={"shard_name":shardname, "shard_nodes":nodes}
 	datanodes.append(shard_obj)
 	i+=1
-    pg_shardname = 'docker-shards.json'
-    shardf = open(pg_shardname, 'w')
-    json.dump(datanodes, shardf, indent=4)
-    shardf.close()
-
     commandslist.extend(priwaitlist)
     commandslist.extend(secmdlist)
     commandslist.extend(sewaitlist)
+
+    if usemgr:
+        pg_shardname = 'docker-shards.json'
+    else:
+        pg_shardname = 'docker-shards-nomgr.json'
+    shardf = open(pg_shardname, 'w')
+    json.dump(datanodes, shardf, indent=4)
+    shardf.close()
     
     # Comp nodes
     comps = cluster['comp']['nodes']
     compnodes=[]
     # sudo docker run -itd --network klnet --name comp1 -h comp1 -p 6401:5432 [-v path_host:path_container] kunlun_postgres /bin/bash start_postgres.sh 1
-    cmdpat=r'sudo docker run -itd --network %s --name %s -h %s -p %d:5432 %s kunlun_postgres /bin/bash start_postgres.sh %d %s "%s"'
+    cmdpat=r'sudo docker run %s -itd --network %s --name %s -h %s -p %d:5432 %s kunlun_postgres /bin/bash start_postgres.sh %s "%s" %d'
     waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_pgup.sh"
     waitlist=[]
     i=1
@@ -211,7 +366,8 @@ def generate_install_scripts(jscfg, args):
 	targetdir="."
 	localport=node['port']
 	localip=node['ip']
-	name="comp%d" % i
+        dockeropts = node.get('dockeropts', args.default_dockeropts)
+	name="%s.comp%d" % (namespace, i)
 	comp={"id":i, "user":node['user'], "password":node['password'],
 	    "name":name, "ip":name, "port":5432}
 	compnodes.append(comp)
@@ -219,7 +375,7 @@ def generate_install_scripts(jscfg, args):
 	if node.has_key(compdataattr):
 	    mountarg = "-v %s:%s" % (node[compdataattr], compdatadir)
 	addToCommandsList(commandslist, localip, targetdir,
-	    cmdpat % (network, name, name, node['port'], mountarg, i, node['user'], node['password']))
+	    cmdpat % (dockeropts, network, name, name, node['port'], mountarg, node['user'], node['password'], i))
 	addToCommandsList(waitlist, localip, targetdir,  waitcmdpat % (name))
 	addIpToMachineMap(machines, node['ip'], args)
 	if isfirst:
@@ -227,6 +383,8 @@ def generate_install_scripts(jscfg, args):
 	    comp1 = comp
 	    comp1ip = localip
 	i+=1
+    commandslist.extend(waitlist)
+
     pg_compname = 'docker-comp.json'
     compf = open(pg_compname, 'w')
     json.dump(compnodes, compf, indent=4)
@@ -240,16 +398,26 @@ def generate_install_scripts(jscfg, args):
     addToCommandsList(commandslist, comp1ip, targetdir, cmdpat % (pg_compname, comp1['name']))
 
     # Init the cluster
-    cmdpat = "sudo docker exec %s /bin/bash /kunlun/init_cluster.sh"
+    cmdpat = "sudo docker exec %s /bin/bash /kunlun/init_cluster.sh no_rep"
+    if usemgr:
+        cmdpat = "sudo docker exec %s /bin/bash /kunlun/init_cluster.sh"
     addToCommandsList(commandslist, comp1ip, targetdir, cmdpat % (comp1['name']))
 
     # clustermgr
     targetdir="."
-    name="clustermgr"
+    name="%s.clustermgr" % namespace
     addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
-    cmdpat="sudo docker run -itd --network %s --name %s -h %s kunlun_clustermgr /bin/bash /kunlun/start_clustermgr.sh %s"
+    dockeropts = cluster['clustermgr'].get('dockeropts', args.default_dockeropts)
+    cmdpat="sudo docker run %s -itd --network %s --name %s -h %s kunlun_clustermgr /bin/bash /kunlun/start_clustermgr.sh %s"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir,
-	    cmdpat % (network, name, name, metanodes[0]['ip']))
+	    cmdpat % (dockeropts, network, name, name, metanodes[0]['ip']))
+
+    haproxy = cluster.get("haproxy", None)
+    if haproxy is not None:
+        addIpToMachineMap(machines, haproxy['ip'], args)
+        generate_haproxy_config(jscfg, machines, 'haproxy.cfg')
+        cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f haproxy.cfg >& haproxy.log'
+        addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
 
     com_name = 'install.sh'
     comf = open(com_name, 'w')
@@ -263,17 +431,21 @@ def generate_install_scripts(jscfg, args):
 	tup= (mach['user'], ip, mach['basedir'], mach['user'], mach['user'], mach['basedir'])
 	comf.write(mkstr % tup)
 	files=['kunlun_clustermgr.tar.gz', 'kunlun_mysql.tar.gz', 'kunlun_postgres.tar.gz']
+        if cluster.has_key('haproxy'):
+            files.extend(['haproxy-2.5.0-bin.tar.gz', 'haproxy.cfg'])
 	if ip == comp1ip:
 	    files.extend([pg_metaname, pg_shardname, pg_compname])
 	for f in files:
 	    comstr = "bash dist.sh --hosts=%s --user=%s %s %s\n"
 	    tup= (ip, mach['user'], f, mach['basedir'])
 	    comf.write(comstr % tup)
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s || exit 1 ; sudo docker inspect %s >& /dev/null || \
-( gzip -cd %s.tar.gz | sudo docker load )' \n"
+	comstr = "bash remote_run.sh --user=%s %s 'cd %s || exit 1 ; sudo docker inspect %s >& /dev/null || ( gzip -cd %s.tar.gz | sudo docker load )'\n"
 	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun_clustermgr', 'kunlun_clustermgr'))
 	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun_mysql', 'kunlun_mysql'))
 	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun_postgres', 'kunlun_postgres'))
+        if cluster.has_key('haproxy'):
+	    comstr = "bash remote_run.sh --user=%s %s 'cd %s || exit 1 ; tar -xzf haproxy-2.5.0-bin.tar.gz'\n"
+	    comf.write(comstr % (mach['user'], ip, mach['basedir']))
 
     # The reason for not using commands map is that,
     # we need to keep the order for the commands.
@@ -300,6 +472,7 @@ def generate_start_scripts(jscfg, args):
     waitlist = []
 
     cluster = jscfg['cluster']
+    namespace = cluster.get('namespace', args.namespace)
     meta = cluster['meta']
 
     cmdpat= "sudo docker container start %s"
@@ -308,7 +481,7 @@ def generate_start_scripts(jscfg, args):
     # Meta nodes
     i=1
     for node in meta['nodes']:
-	name="mgr%s" % i
+	name="%s.meta%s" % (namespace, i)
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
 	addToCommandsList(waitlist, node['ip'], targetdir, waitcmdpat % name)
 	addIpToMachineMap(machines, node['ip'], args)
@@ -318,7 +491,7 @@ def generate_start_scripts(jscfg, args):
     datas = cluster['data']
     i = 1
     for shard in datas:
-	shardname="shard%s" % i
+	shardname="%s.shard%s" % (namespace, i)
 	j=1
         for node in shard['nodes']:
 	    name="%s_%d" % (shardname, j)
@@ -332,7 +505,7 @@ def generate_start_scripts(jscfg, args):
     waitlist = []
 
     # clustermgr
-    name="clustermgr"
+    name="%s.clustermgr" % namespace
     addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat % name)
 
@@ -342,11 +515,17 @@ def generate_start_scripts(jscfg, args):
     i=1
     for node in comps:
 	localip=node['ip']
-	name="comp%d" % i
+	name="%s.comp%d" % (namespace, i)
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
 	addToCommandsList(waitlist, node['ip'], targetdir, waitcmdpat % name)
 	i+=1
     commandslist.extend(waitlist)
+
+    haproxy = cluster.get("haproxy", None)
+    if haproxy is not None:
+        addIpToMachineMap(machines, haproxy['ip'], args)
+        cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f haproxy.cfg >& haproxy.log'
+        addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
 
     com_name = 'start.sh'
     comf = open(com_name, 'w')
@@ -376,14 +555,21 @@ def generate_stop_scripts(jscfg, args):
 
     commandslist = []
     cluster = jscfg['cluster']
+    namespace = cluster.get('namespace', args.namespace)
     meta = cluster['meta']
+
+    haproxy = cluster.get("haproxy", None)
+    if haproxy is not None:
+        addIpToMachineMap(machines, haproxy['ip'], args)
+        cmdpat="cat haproxy.pid | xargs kill -9"
+        addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
 
     cmdpat= "sudo docker container stop %s"
     targetdir = "/"
     # Meta nodes
     i=1
     for node in meta['nodes']:
-	name="mgr%s" % i
+	name="%s.meta%s" % (namespace, i)
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
 	addIpToMachineMap(machines, node['ip'], args)
 	i+=1
@@ -392,7 +578,7 @@ def generate_stop_scripts(jscfg, args):
     datas = cluster['data']
     i = 1
     for shard in datas:
-	shardname="shard%s" % i
+	shardname="%s.shard%s" % (namespace, i)
 	j=1
         for node in shard['nodes']:
 	    name="%s_%d" % (shardname, j)
@@ -402,7 +588,7 @@ def generate_stop_scripts(jscfg, args):
 	i += 1
 
     # clustermgr
-    name="clustermgr"
+    name="%s.clustermgr" % namespace
     addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat % name)
 
@@ -411,7 +597,7 @@ def generate_stop_scripts(jscfg, args):
     i=1
     for node in comps:
 	localip=node['ip']
-	name="comp%d" % i
+	name="%s.comp%d" % (namespace, i)
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
 	i+=1
 
@@ -451,15 +637,24 @@ def generate_clean_scripts(jscfg, args):
 
     commandslist = []
     cluster = jscfg['cluster']
+    namespace = cluster.get('namespace', args.namespace)
     meta = cluster['meta']
 
-    cmdpat= "sudo docker container rm -f %s"
+    haproxy = cluster.get("haproxy", None)
+    if haproxy is not None:
+        addIpToMachineMap(machines, haproxy['ip'], args)
+        cmdpat="cat haproxy.pid | xargs kill -9"
+        addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
+        cmdpat="rm -f haproxy.pid"
+        addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
+
+    cmdpat= "sudo docker container rm -fv %s"
     rmcmdpat = "sudo rm -fr %s"
     targetdir = "/"
     # Meta nodes
     i=1
     for node in meta['nodes']:
-	name="mgr%s" % i
+	name="%s.meta%s" % (namespace, i)
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
 	if node.has_key(storagedataattr):
 	    addToCommandsList(commandslist, node['ip'], targetdir, rmcmdpat % node[storagedataattr])
@@ -474,7 +669,7 @@ def generate_clean_scripts(jscfg, args):
     datas = cluster['data']
     i = 1
     for shard in datas:
-	shardname="shard%s" % i
+	shardname="%s.shard%s" % (namespace, i)
 	j=1
         for node in shard['nodes']:
 	    name="%s_%d" % (shardname, j)
@@ -490,7 +685,7 @@ def generate_clean_scripts(jscfg, args):
 	i += 1
 
     # clustermgr
-    name="clustermgr"
+    name="%s.clustermgr" % namespace
     addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat % name)
 
@@ -499,7 +694,7 @@ def generate_clean_scripts(jscfg, args):
     i=1
     for node in comps:
 	localip=node['ip']
-	name="comp%d" % i
+	name="%s.comp%d" % (namespace, i)
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % name)
 	if node.has_key(compdataattr):
 	    addToCommandsList(commandslist, node['ip'], targetdir, rmcmdpat % node[compdataattr])
@@ -539,6 +734,8 @@ if  __name__ == '__main__':
     parser.add_argument('--config', type=str, help="The config path", required=True)
     parser.add_argument('--defuser', type=str, help="the command", default=getpass.getuser())
     parser.add_argument('--defbase', type=str, help="the command", default='/kunlun')
+    parser.add_argument('--namespace', type=str, help="the default namespace", default='kunlun')
+    parser.add_argument('--default_dockeropts', type=str, help="the default docker options", default="")
 
     args = parser.parse_args()
     print str(sys.argv)
