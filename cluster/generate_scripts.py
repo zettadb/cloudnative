@@ -188,6 +188,10 @@ def generate_install_scripts(jscfg, args):
 	base=mach.get('basedir', args.defbase)
 	addMachineToMap(machines, ip, user, base)
 
+    storagedir = "kunlun-storage-%s" % args.product_version
+    serverdir = "kunlun-server-%s" % args.product_version
+    clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
+
     filesmap = {}
     commandslist = []
     dirmap = {}
@@ -214,7 +218,7 @@ def generate_install_scripts(jscfg, args):
 
     # commands like:
     # python2 install-mysql.py --config=./mysql_meta.json --target_node_index=0
-    targetdir='percona-8.0.18-bin-rel/dba_tools'
+    targetdir='%s/dba_tools' % storagedir
     i=0
     pries = []
     secs = []
@@ -307,7 +311,7 @@ def generate_install_scripts(jscfg, args):
     compf.close()
 
     # python2 install_pg.py --config=docker-comp.json --install_ids=1,2,3
-    targetdir="postgresql-11.5-rel/scripts"
+    targetdir="%s/scripts" % serverdir
     for node in comps:
 	addNodeToFilesMap(filesmap, node, pg_compname, targetdir)
 	addIpToMachineMap(machines, node['ip'], args)
@@ -317,7 +321,7 @@ def generate_install_scripts(jscfg, args):
     comp1 = comps[0]
     addNodeToFilesMap(filesmap, comp1, pg_metaname, targetdir)
     addNodeToFilesMap(filesmap, comp1, pg_shardname, targetdir)
-    resourcedir = "postgresql-11.5-rel/resources"
+    resourcedir = "%s/resources" % serverdir
     cmdpat=r'/bin/bash build_driver.sh'
     addToCommandsList(commandslist, comp1['ip'], resourcedir, cmdpat, "all")
     cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql'
@@ -341,7 +345,7 @@ def generate_install_scripts(jscfg, args):
 	mgrf.write(newline)
     mgrtempf.close()
     mgrf.close()
-    targetdir="cluster_mgr_rel"
+    targetdir=clustermgrdir
     addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     addIpToFilesMap(filesmap, cluster['clustermgr']['ip'], mgr_name, targetdir)
     cmdpat = r'bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid %s >& run.log </dev/null &'
@@ -371,20 +375,20 @@ def generate_install_scripts(jscfg, args):
 	# Set up the files
 	if installtype == 'full':
 	    comstr = "bash dist.sh --hosts=%s --user=%s %s %s\n"
-	    comf.write(comstr % (ip, mach['user'], 'percona-8.0.18-bin-rel.tgz', mach['basedir']))
-	    comf.write(comstr % (ip, mach['user'], 'postgresql-11.5-rel.tgz', mach['basedir']))
-	    comf.write(comstr % (ip, mach['user'], 'cluster_mgr_rel.tgz', mach['basedir']))
+	    comf.write(comstr % (ip, mach['user'], '%s.tgz' % storagedir, mach['basedir']))
+	    comf.write(comstr % (ip, mach['user'], '%s.tgz' % serverdir, mach['basedir']))
+	    comf.write(comstr % (ip, mach['user'], '%s.tgz' % clustermgrdir, mach['basedir']))
             if cluster.has_key('haproxy'):
                 comf.write(comstr % (ip, mach['user'], 'haproxy-2.5.0-bin.tar.gz', mach['basedir']))
 	    extstr = "bash remote_run.sh --user=%s %s 'cd %s && tar -xzf %s'\n"
-	    comf.write(extstr % (mach['user'], ip, mach['basedir'], 'percona-8.0.18-bin-rel.tgz'))
-	    comf.write(extstr % (mach['user'], ip, mach['basedir'], 'postgresql-11.5-rel.tgz'))
-	    comf.write(extstr % (mach['user'], ip, mach['basedir'], 'cluster_mgr_rel.tgz'))
+	    comf.write(extstr % (mach['user'], ip, mach['basedir'], '%s.tgz' % storagedir))
+	    comf.write(extstr % (mach['user'], ip, mach['basedir'], '%s.tgz' % serverdir))
+	    comf.write(extstr % (mach['user'], ip, mach['basedir'], '%s.tgz' % clustermgrdir))
             if cluster.has_key('haproxy'):
                 comf.write(extstr % (mach['user'], ip, mach['basedir'], 'haproxy-2.5.0-bin.tar.gz'))
 
 	# files
-	fmap = {'build_driver.sh': 'postgresql-11.5-rel/resources', 'process_deps.sh': '.'}
+	fmap = {'build_driver.sh': '%s/resources' % serverdir, 'process_deps.sh': '.'}
         if cluster.has_key('haproxy'):
             fmap['haproxy.cfg'] = '.'
 	for fname in fmap:
@@ -392,10 +396,10 @@ def generate_install_scripts(jscfg, args):
 	    tup=(ip, mach['user'], fname, mach['basedir'], fmap[fname])
 	    comf.write(comstr % tup)
 
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s/postgresql-11.5-rel || exit 1; test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0'\n"
-	comf.write(comstr % (mach['user'], ip, mach['basedir']))
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s/percona-8.0.18-bin-rel || exit 1; test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0'\n"
-	comf.write(comstr % (mach['user'], ip, mach['basedir']))
+	comstr = "bash remote_run.sh --user=%s %s 'cd %s/%s || exit 1; test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0'\n"
+	comf.write(comstr % (mach['user'], ip, mach['basedir'], serverdir))
+	comstr = "bash remote_run.sh --user=%s %s 'cd %s/%s || exit 1; test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0'\n"
+	comf.write(comstr % (mach['user'], ip, mach['basedir'], storagedir))
 
 	# Set up the env.sh
 	comstr = "bash dist.sh --hosts=%s --user=%s env.sh.template %s\n"
@@ -405,13 +409,17 @@ def generate_install_scripts(jscfg, args):
 	comf.write(comstr % tup)
 	comf.write(extstr % exttup)
 	comf.write("\n")
+        extstr = ''' bash remote_run.sh --user=%s %s "cd %s && sed -i 's#KUNLUN_VERSION#%s#g' env.sh" '''
+        exttup=(mach['user'], ip, mach['basedir'], args.product_version)
+	comf.write(extstr % exttup)
+	comf.write("\n")
 
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s && envtype=storage && source ./env.sh && cd percona-8.0.18-bin-rel/lib && bash ../../process_deps.sh'\n"
-	comf.write(comstr % (mach['user'], ip, mach['basedir']))
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s && envtype=computing && source ./env.sh && cd postgresql-11.5-rel/lib && bash ../../process_deps.sh'\n"
-	comf.write(comstr % (mach['user'], ip, mach['basedir']))
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s && envtype=clustermgr && source ./env.sh && cd cluster_mgr_rel/lib && bash ../../process_deps.sh'\n"
-	comf.write(comstr % (mach['user'], ip, mach['basedir']))
+	comstr = "bash remote_run.sh --user=%s %s 'cd %s && envtype=storage && source ./env.sh && cd %s/lib && bash ../../process_deps.sh'\n"
+	comf.write(comstr % (mach['user'], ip, mach['basedir'], storagedir))
+	comstr = "bash remote_run.sh --user=%s %s 'cd %s && envtype=computing && source ./env.sh && cd %s/lib && bash ../../process_deps.sh'\n"
+	comf.write(comstr % (mach['user'], ip, mach['basedir'], serverdir))
+	comstr = "bash remote_run.sh --user=%s %s 'cd %s && envtype=clustermgr && source ./env.sh && cd %s/lib && bash ../../process_deps.sh'\n"
+	comf.write(comstr % (mach['user'], ip, mach['basedir'], clustermgrdir))
 
     # dir making
     for ip in dirmap:
@@ -461,6 +469,10 @@ def generate_start_scripts(jscfg, args):
 	base=mach.get('basedir', args.defbase)
 	addMachineToMap(machines, ip, user, base)
 
+    storagedir = "kunlun-storage-%s" % args.product_version
+    serverdir = "kunlun-server-%s" % args.product_version
+    clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
+
     filesmap = {}
     commandslist = []
     
@@ -468,14 +480,14 @@ def generate_start_scripts(jscfg, args):
     meta = cluster['meta']
     # commands like:
     # bash startmysql.sh [port]
-    targetdir='percona-8.0.18-bin-rel/dba_tools'
+    targetdir='%s/dba_tools' % storagedir
     for node in meta['nodes']:
 	addIpToMachineMap(machines, node['ip'], args)
 	cmdpat = r'%sbash startmysql.sh %s'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (sudopfx, node['port']))
 
     # bash startmysql.sh [port]
-    targetdir='percona-8.0.18-bin-rel/dba_tools'
+    targetdir='%s/dba_tools' % storagedir
     datas = cluster['data']
     for shard in datas:
 	    for node in shard['nodes']:
@@ -486,13 +498,13 @@ def generate_start_scripts(jscfg, args):
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid clustermgr.cnf >& run.log </dev/null &
     addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     mgr_name = 'clustermgr.cnf'
-    targetdir="cluster_mgr_rel"
+    targetdir=clustermgrdir
     cmdpat = r'bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid %s >& run.log </dev/null &'
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat % mgr_name, "clustermgr")
 
     # su postgres -c "python2 start_pg.py port=5401"
     comps = cluster['comp']['nodes']
-    targetdir="postgresql-11.5-rel/scripts"
+    targetdir="%s/scripts" % serverdir
     for node in comps:
 	addIpToMachineMap(machines, node['ip'], args)
 	cmdpat = r'python2 start_pg.py port=%d'
@@ -529,6 +541,10 @@ def generate_stop_scripts(jscfg, args):
 	base=mach.get('basedir', args.defbase)
 	addMachineToMap(machines, ip, user, base)
 
+    storagedir = "kunlun-storage-%s" % args.product_version
+    serverdir = "kunlun-server-%s" % args.product_version
+    clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
+
     commandslist = []
     cluster = jscfg['cluster']
 
@@ -540,7 +556,7 @@ def generate_stop_scripts(jscfg, args):
 
     # pg_ctl -D %s stop"
     comps = cluster['comp']['nodes']
-    targetdir="postgresql-11.5-rel/scripts"
+    targetdir="%s/scripts" % serverdir
     for node in comps:
 	addIpToMachineMap(machines, node['ip'], args)
 	cmdpat = r'pg_ctl -D %s stop -m immediate'
@@ -548,12 +564,12 @@ def generate_stop_scripts(jscfg, args):
 
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop
     addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
-    targetdir="cluster_mgr_rel"
+    targetdir=clustermgrdir
     cmdpat = r"bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat, "clustermgr")
 
     # bash stopmysql.sh [port]
-    targetdir='percona-8.0.18-bin-rel/dba_tools'
+    targetdir='%s/dba_tools' % storagedir
     datas = cluster['data']
     for shard in datas:
 	    for node in shard['nodes']:
@@ -563,8 +579,8 @@ def generate_stop_scripts(jscfg, args):
 
     meta = cluster['meta']
     # commands like:
-    # mysqladmin --defaults-file=/kunlun/percona-8.0.18-bin-rel/etc/my_6001.cnf -uroot -proot shutdown
-    targetdir='percona-8.0.18-bin-rel/dba_tools'
+    # mysqladmin --defaults-file=/kunlun/kunlun-storage-$version/etc/my_6001.cnf -uroot -proot shutdown
+    targetdir='%s/dba_tools' % storagedir
     for node in meta['nodes']:
 	addIpToMachineMap(machines, node['ip'], args)
 	cmdpat = r'bash stopmysql.sh %d'
@@ -599,6 +615,10 @@ def generate_clean_scripts(jscfg, args):
 	base=mach.get('basedir', args.defbase)
 	addMachineToMap(machines, ip, user, base)
 
+    storagedir = "kunlun-storage-%s" % args.product_version
+    serverdir = "kunlun-server-%s" % args.product_version
+    clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
+
     commandslist = []
     cluster = jscfg['cluster']
 
@@ -612,7 +632,7 @@ def generate_clean_scripts(jscfg, args):
 
     # pg_ctl -D %s stop"
     comps = cluster['comp']['nodes']
-    targetdir="postgresql-11.5-rel/scripts"
+    targetdir="%s/scripts" % serverdir
     for node in comps:
 	addIpToMachineMap(machines, node['ip'], args)
 	cmdpat = r'pg_ctl -D %s stop -m immediate'
@@ -622,12 +642,12 @@ def generate_clean_scripts(jscfg, args):
 
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop
     addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
-    targetdir="cluster_mgr_rel"
+    targetdir=clustermgrdir
     cmdpat = r"bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat, "clustermgr")
 
     # bash stopmysql.sh [port]
-    targetdir='percona-8.0.18-bin-rel/dba_tools'
+    targetdir='%s/dba_tools' % storagedir
     datas = cluster['data']
     for shard in datas:
 	    for node in shard['nodes']:
@@ -642,8 +662,8 @@ def generate_clean_scripts(jscfg, args):
 
     meta = cluster['meta']
     # commands like:
-    # mysqladmin --defaults-file=/kunlun/percona-8.0.18-bin-rel/etc/my_6001.cnf -uroot -proot shutdown
-    targetdir='percona-8.0.18-bin-rel/dba_tools'
+    # mysqladmin --defaults-file=/kunlun/kunlun-storage-$version/etc/my_6001.cnf -uroot -proot shutdown
+    targetdir='%s/dba_tools' % storagedir
     for node in meta['nodes']:
 	addIpToMachineMap(machines, node['ip'], args)
 	cmdpat = r'bash stopmysql.sh %d'
@@ -689,6 +709,7 @@ if  __name__ == '__main__':
     parser.add_argument('--installtype', type=str, help="the install type", default='full', choices=['full', 'cluster'])
     parser.add_argument('--cleantype', type=str, help="the clean type", default='full', choices=['full', 'cluster'])
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
+    parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.1')
 
     args = parser.parse_args()
     checkdirs(actions)

@@ -210,7 +210,7 @@ def generate_install_scripts(jscfg, args):
 
     # Meta nodes
     metanodes = []
-    mgrlist=[]
+    metalist=[]
     i=1
     for node in meta['nodes']:
 	name="%s.meta%s" % (namespace, i)
@@ -218,17 +218,17 @@ def generate_install_scripts(jscfg, args):
 		"hostip":node['ip'], "is_primary":node.get('is_primary', False),
 		"buf":node.get('innodb_buffer_pool_size', defbufstr), "orig":node,
                 "dockeropts": node.get('dockeropts', args.default_dockeropts)}
-	mgrlist.append(name+":33062")
+	metalist.append(name)
 	metanodes.append(metaobj)
 	addIpToMachineMap(machines, node['ip'], args)
 	i+=1
-    seed=",".join(mgrlist)
-    # docker run -itd --network klnet --name mgr1a -h mgr1a [-v path_host:path_container] kunlun_mysql /bin/bash start_mysql.sh \
-    # 237d8a1c-39ec-11eb-92aa-7364f9a0e147 mgr1a:33062 mgr1a:33062,mgr1b:33062,mgr1c:33062 1 true 0 0
-    cmdpat= "sudo docker run %s -itd --network %s --name %s -h %s %s kunlun_mysql /bin/bash start_mysql_nomgr.sh no_rep %s"
+    iplist=",".join(metalist)
+    # docker run -itd --network klnet --name mgr1a -h mgr1a [-v path_host:path_container] kunlun-storage /bin/bash start_storage.sh \
+    # 237d8a1c-39ec-11eb-92aa-7364f9a0e147 mgr1a mgr1a,mgr1b,mgr1c 1 true 0 0
+    cmdpat= "sudo docker run %s -itd --network %s --name %s -h %s %s kunlun-storage /bin/bash start_storage_nomgr.sh no_rep %s"
     if usemgr:
-        cmdpat= "sudo docker run %s -itd --network %s --name %s -h %s %s kunlun_mysql /bin/bash start_mysql.sh %s %s %s %d %s %s 0 0"
-    waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_mysqlup.sh"
+        cmdpat= "sudo docker run %s -itd --network %s --name %s -h %s %s kunlun-storage /bin/bash start_storage.sh %s %s %s %d %s %s 0 0"
+    waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_storage_up.sh"
     i=1
     uuid=getuuid()
     secmdlist=[]
@@ -249,7 +249,7 @@ def generate_install_scripts(jscfg, args):
             if usemgr:
 	        addToCommandsList(commandslist, node['hostip'], targetdir,
 		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
-		        node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+		        node['ip'], iplist, i, str(node['is_primary']).lower(), buf))
             else:
 	        addToCommandsList(commandslist, node['hostip'], targetdir,
 		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
@@ -258,7 +258,7 @@ def generate_install_scripts(jscfg, args):
             if usemgr:
 	        addToCommandsList(secmdlist, node['hostip'], targetdir,
 		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
-		        node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+		        node['ip'], iplist, i, str(node['is_primary']).lower(), buf))
             else:
 	        addToCommandsList(secmdlist, node['hostip'], targetdir,
 		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
@@ -293,12 +293,12 @@ def generate_install_scripts(jscfg, args):
 		"hostip":node['ip'], "is_primary":node.get('is_primary', False),
 		"buf":node.get('innodb_buffer_pool_size', defbufstr), "orig":node,
                 "dockeropts": node.get('dockeropts', args.default_dockeropts)}
-	    nodelist.append(name+":33062")
+	    nodelist.append(name)
 	    nodes.append(nodeobj)
 	    addIpToMachineMap(machines, node['ip'], args)
 	    j += 1
 	j=1
-	seed=",".join(nodelist)
+	iplist=",".join(nodelist)
 	uuid=getuuid()
 	tmpcmdlist = []
 	for node in nodes:
@@ -316,7 +316,7 @@ def generate_install_scripts(jscfg, args):
                 if usemgr:
 		    addToCommandsList(commandslist, node['hostip'], targetdir,
 		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
-			    node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+			    node['ip'], iplist, i, str(node['is_primary']).lower(), buf))
                 else:
 		    addToCommandsList(commandslist, node['hostip'], targetdir,
 		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
@@ -325,7 +325,7 @@ def generate_install_scripts(jscfg, args):
                 if usemgr:
 		    addToCommandsList(secmdlist, node['hostip'], targetdir,
 		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
-			    node['ip']+":33062", seed, i, str(node['is_primary']).lower(), buf))
+			    node['ip'], iplist, i, str(node['is_primary']).lower(), buf))
                 else:
 		    addToCommandsList(secmdlist, node['hostip'], targetdir,
 		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
@@ -354,9 +354,9 @@ def generate_install_scripts(jscfg, args):
     # Comp nodes
     comps = cluster['comp']['nodes']
     compnodes=[]
-    # sudo docker run -itd --network klnet --name comp1 -h comp1 -p 6401:5432 [-v path_host:path_container] kunlun_postgres /bin/bash start_postgres.sh 1
-    cmdpat=r'sudo docker run %s -itd --network %s --name %s -h %s -p %d:5432 %s kunlun_postgres /bin/bash start_postgres.sh %s "%s" %d'
-    waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_pgup.sh"
+    # sudo docker run -itd --network klnet --name comp1 -h comp1 -p 6401:5432 [-v path_host:path_container] kunlun-server /bin/bash start_server.sh 1
+    cmdpat=r'sudo docker run %s -itd --network %s --name %s -h %s -p %d:5432 %s kunlun-server /bin/bash start_server.sh %s "%s" %d'
+    waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_server_up.sh"
     waitlist=[]
     i=1
     comp1=None
@@ -408,7 +408,7 @@ def generate_install_scripts(jscfg, args):
     name="%s.clustermgr" % namespace
     addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     dockeropts = cluster['clustermgr'].get('dockeropts', args.default_dockeropts)
-    cmdpat="sudo docker run %s -itd --network %s --name %s -h %s kunlun_clustermgr /bin/bash /kunlun/start_clustermgr.sh %s"
+    cmdpat="sudo docker run %s -itd --network %s --name %s -h %s kunlun-cluster-manager /bin/bash /kunlun/start_cluster_manager.sh %s"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir,
 	    cmdpat % (dockeropts, network, name, name, metanodes[0]['ip']))
 
@@ -430,7 +430,7 @@ def generate_install_scripts(jscfg, args):
 	mkstr = "bash remote_run.sh --user=%s %s 'sudo mkdir -p %s && sudo chown -R %s:`id -gn %s` %s'\n"
 	tup= (mach['user'], ip, mach['basedir'], mach['user'], mach['user'], mach['basedir'])
 	comf.write(mkstr % tup)
-	files=['kunlun_clustermgr.tar.gz', 'kunlun_mysql.tar.gz', 'kunlun_postgres.tar.gz']
+	files=['kunlun-storage.tar.gz', 'kunlun-server.tar.gz', 'kunlun-cluster-manager.tar.gz']
         if cluster.has_key('haproxy'):
             files.extend(['haproxy-2.5.0-bin.tar.gz', 'haproxy.cfg'])
 	if ip == comp1ip:
@@ -440,9 +440,9 @@ def generate_install_scripts(jscfg, args):
 	    tup= (ip, mach['user'], f, mach['basedir'])
 	    comf.write(comstr % tup)
 	comstr = "bash remote_run.sh --user=%s %s 'cd %s || exit 1 ; sudo docker inspect %s >& /dev/null || ( gzip -cd %s.tar.gz | sudo docker load )'\n"
-	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun_clustermgr', 'kunlun_clustermgr'))
-	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun_mysql', 'kunlun_mysql'))
-	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun_postgres', 'kunlun_postgres'))
+	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun-cluster-manager', 'kunlun-cluster-manager'))
+	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun-server', 'kunlun-server'))
+	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun-storage', 'kunlun-storage'))
         if cluster.has_key('haproxy'):
 	    comstr = "bash remote_run.sh --user=%s %s 'cd %s || exit 1 ; tar -xzf haproxy-2.5.0-bin.tar.gz'\n"
 	    comf.write(comstr % (mach['user'], ip, mach['basedir']))
@@ -476,7 +476,7 @@ def generate_start_scripts(jscfg, args):
     meta = cluster['meta']
 
     cmdpat= "sudo docker container start %s"
-    waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_mysqlup.sh"
+    waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_storage_up.sh"
     targetdir = "/"
     # Meta nodes
     i=1
@@ -511,7 +511,7 @@ def generate_start_scripts(jscfg, args):
 
     # Comp nodes
     comps = cluster['comp']['nodes']
-    waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_pgup.sh"
+    waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_server_up.sh"
     i=1
     for node in comps:
 	localip=node['ip']
@@ -703,13 +703,13 @@ def generate_clean_scripts(jscfg, args):
     for ip in machines:
 	    mach =machines[ip]
 	    cmdpat = 'sudo docker image rm -f %s'
-	    addToCommandsList(commandslist, ip, "/", cmdpat % 'kunlun_mysql')
-	    addToCommandsList(commandslist, ip, "/", cmdpat % 'kunlun_postgres')
-	    addToCommandsList(commandslist, ip, "/", cmdpat % 'kunlun_clustermgr')
+	    addToCommandsList(commandslist, ip, "/", cmdpat % 'kunlun-storage')
+	    addToCommandsList(commandslist, ip, "/", cmdpat % 'kunlun-server')
+	    addToCommandsList(commandslist, ip, "/", cmdpat % 'kunlun-cluster-manager')
 	    cmdpat = 'rm -f %s'
-	    addToCommandsList(commandslist, ip, ".", cmdpat % 'kunlun_clustermgr.tar.gz')
-	    addToCommandsList(commandslist, ip, ".", cmdpat % 'kunlun_mysql.tar.gz')
-	    addToCommandsList(commandslist, ip, ".", cmdpat % 'kunlun_postgres.tar.gz')
+	    addToCommandsList(commandslist, ip, ".", cmdpat % 'kunlun-storage.tar.gz')
+	    addToCommandsList(commandslist, ip, ".", cmdpat % 'kunlun-server.tar.gz')
+	    addToCommandsList(commandslist, ip, ".", cmdpat % 'kunlun-cluster-manager.tar.gz')
 
     com_name = 'clean.sh'
     comf = open(com_name, 'w')
