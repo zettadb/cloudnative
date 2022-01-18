@@ -14,19 +14,19 @@ Linux机器，根据指定的配置，把数据库集群的各个节点(存储节点群，计算节点群，集群管
 3 工具机器使用ssh通过默认端口登录节点所在机器，而不需要输入密码。具体做法可以搜索'ssh login without password'
 4 对于安装存储节点的机器，需要预先安装以下库(此处为ubuntu 20.04): libncurses5 libaio-dev
 5 对于安装计算节点的机器，需要预先安装以下库(此处为ubuntu 20.04): libncurses5 libicu66 python-setuptools gcc
-6 对于安装动作，需要预先将二进制发布包 ( percona-8.0.18-bin-rel.tgz, postgresql-11.5-rel.tgz,
-   cluster_mgr_rel.tgz ) 放入当前目录. 此外，工具运行机器和节点所在机器间网络不能太慢，因为需要将发布包传递到这些机器上。
+6 对于安装动作，需要预先将二进制发布包 ( kunlun-storage-0.8.1.tgz, kunlun-server-0.9.1.tgz,
+   kunlun-cluster-manager-0.9.1.tgz ) 放入当前目录. 此外，工具运行机器和节点所在机器间网络不能太慢，因为需要将发布包传递到这些机器上。
 
 文件布局:
 当前目录下主要有以下文件:
- - 对于安装动作，需要有发布包 percona-8.0.18-bin-rel.tgz，postgresql-11.5-rel.tgz，cluster_mgr_rel.tgz,
-   用户可以从downloads.zettadb.com下载这些发布包，这些包位于对应版本的release-binaries目录下。
+ - 对于安装动作，需要有发布包 kunlun-storage-0.8.1.tgz，kunlun-server-0.9.1.tgz，kunlun-cluster-manager-0.9.1.tgz,
+   用户可以从downloads.zettadb.com下载这些发布包，这些包位于对应版本的releases目录下。
  - 配置文件(比如install.json),
    主要用于配置节点的详细信息，包含节点所在机器，安装节点所用的用户名，以及节点特有的信息等。具体格式后面详细说明。
  - 其余为工具相关的文件，使用的基本流程是，先根据配置文件，产生实际运行的shell脚本，而后运行该脚本即可完成动作。
 
 基本用法:
-  python2 generate_scripts.py --action=install|stop|start|clean --config=config_file [--defuser=user_to_be_used] [--defbase=basedir_to_be_used]
+  python2 generate_scripts.py action=install|stop|start|clean config=config_file [defuser=user_to_be_used] [defbase=basedir_to_be_used]
   bash $action/commands.sh   # 其中$action=install|stop|start|clean
 
 说明:
@@ -50,22 +50,22 @@ Linux机器，根据指定的配置，把数据库集群的各个节点(存储节点群，计算节点群，集群管
 
 1 安装集群 install:
   # 使用install.json作为配置文件，使用klundb作为安装节点的默认用户, /kunlun作为默认工作目录
-  kunlun@kunlun-test2:~$python2 generate_scripts.py --action=install --config=install.json --defuser=klundb
+  kunlun@kunlun-test2:~$python2 generate_scripts.py action=install config=install.json defuser=klundb
   kunlun@kunlun-test2:~$bash install/commands.sh
 
 2 停止集群 stop:
   # 使用install.json作为配置文件，/home/kunlun/programs作为默认工作目录，kunlun(当前用户)作为操作节点的默认用户
-  kunlun@kunlun-test2:~$python2 generate_scripts.py --action=stop --config=install.json --defbase=/home/kunlun/programs
+  kunlun@kunlun-test2:~$python2 generate_scripts.py action=stop config=install.json defbase=/home/kunlun/programs
   kunlun@kunlun-test2:~$bash stop/commands.sh
 
 3 启动集群 start:
   # 使用install.json作为配置文件，/kunlun作为默认工作目录，kunlun(当前用户)作为操作节点的默认用户
-  kunlun@kunlun-test2:~$python2 generate_scripts.py --action=start --config=install.json
+  kunlun@kunlun-test2:~$python2 generate_scripts.py action=start config=install.json
   kunlun@kunlun-test2:~$bash start/commands.sh
 
 4 清理集群(停止集群，并删除所有安装的节点及数据) clean:
   # 使用install.json作为配置文件，/kunlun作为默认工作目录，wtz(当前用户)作为操作节点的默认用户
-  wtz@kunlun-test2:~$python2 generate_scripts.py --action=clean --config=install.json
+  wtz@kunlun-test2:~$python2 generate_scripts.py action=clean config=install.json
   wtz@kunlun-test2:~$bash clean/commands.sh
 
 配置文件说明:
@@ -90,7 +90,7 @@ Linux机器，根据指定的配置，把数据库集群的各个节点(存储节点群，计算节点群，集群管
 * 数据节点集为多个存储节点复制组，一个复制组即为一个数据分片。每个复制组内部含有3个或3个以上存储节点。
 * 计算节点集为一到多个计算节点，是客户端的接入点。具体数取决于需要的接入点数目。
 
-对于每个存储节点，基于mysql-8.0.18开发， 一般需要以下信息:
+对于每个存储节点，基于mysql-8.0.26开发， 一般需要以下信息:
    {
      "is_primary":true,  # 是否为复制组中的初始主节点，一个复制组有且仅有一个主节点，仅install需要
      "ip":"192.168.0.110", # 节点所在机器的ip

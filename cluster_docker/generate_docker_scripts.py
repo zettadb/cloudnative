@@ -200,6 +200,7 @@ def generate_install_scripts(jscfg, args):
     cluster = jscfg['cluster']
     namespace = cluster.get('namespace', args.namespace)
     meta = cluster['meta']
+    cluster_name = cluster.get('name', 'clust1')
     network = jscfg.get('network', 'klnet')
     defbufstr='1024MB'
 
@@ -224,11 +225,12 @@ def generate_install_scripts(jscfg, args):
 	i+=1
     iplist=",".join(metalist)
     # docker run -itd --network klnet --name mgr1a -h mgr1a [-v path_host:path_container] kunlun-storage /bin/bash start_storage.sh \
-    # 237d8a1c-39ec-11eb-92aa-7364f9a0e147 mgr1a mgr1a,mgr1b,mgr1c 1 true 0 0
-    cmdpat= "sudo docker run %s -itd --network %s --name %s -h %s %s kunlun-storage /bin/bash start_storage_nomgr.sh no_rep %s"
+    # 237d8a1c-39ec-11eb-92aa-7364f9a0e147 mgr1a mgr1a,mgr1b,mgr1c 1 true cluster_id shard_id
+    cmdpat= "sudo docker run %s -itd --network %s --name %s -h %s %s kunlun-storage /bin/bash start_storage_nomgr.sh no_rep %s %d %s %s"
     if usemgr:
-        cmdpat= "sudo docker run %s -itd --network %s --name %s -h %s %s kunlun-storage /bin/bash start_storage.sh %s %s %s %d %s %s 0 0"
+        cmdpat= "sudo docker run %s -itd --network %s --name %s -h %s %s kunlun-storage /bin/bash start_storage.sh %s %s %s %d %s %s %s %s"
     waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_storage_up.sh"
+    shard_id = "meta"
     i=1
     uuid=getuuid()
     secmdlist=[]
@@ -249,19 +251,19 @@ def generate_install_scripts(jscfg, args):
             if usemgr:
 	        addToCommandsList(commandslist, node['hostip'], targetdir,
 		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
-		        node['ip'], iplist, i, str(node['is_primary']).lower(), buf))
+		        node['ip'], iplist, i, str(node['is_primary']).lower(), buf, cluster_name, shard_id))
             else:
 	        addToCommandsList(commandslist, node['hostip'], targetdir,
-		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
+		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf, i, cluster_name, shard_id))
 	    addToCommandsList(priwaitlist, node['hostip'], targetdir,	waitcmdpat % (node['ip']))
 	else:
             if usemgr:
 	        addToCommandsList(secmdlist, node['hostip'], targetdir,
 		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
-		        node['ip'], iplist, i, str(node['is_primary']).lower(), buf))
+		        node['ip'], iplist, i, str(node['is_primary']).lower(), buf, cluster_name, shard_id))
             else:
 	        addToCommandsList(secmdlist, node['hostip'], targetdir,
-		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
+		    cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf, cluster_name, shard_id))
 	    addToCommandsList(sewaitlist, node['hostip'], targetdir, waitcmdpat % (node['ip']))
 	del node['hostip']
 	del node['is_primary']
@@ -282,6 +284,7 @@ def generate_install_scripts(jscfg, args):
     datanodes = []
     i = 1
     for shard in datas:
+        shard_id = "shard%d" % i
 	shardname="%s.shard%s" % (namespace, i)
 	nodes=[]
 	nodelist=[]
@@ -316,19 +319,19 @@ def generate_install_scripts(jscfg, args):
                 if usemgr:
 		    addToCommandsList(commandslist, node['hostip'], targetdir,
 		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
-			    node['ip'], iplist, i, str(node['is_primary']).lower(), buf))
+			    node['ip'], iplist, i, str(node['is_primary']).lower(), buf, cluster_name, shard_id))
                 else:
 		    addToCommandsList(commandslist, node['hostip'], targetdir,
-		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
+		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf, i, cluster_name, shard_id))
 		addToCommandsList(priwaitlist, node['hostip'], targetdir, waitcmdpat % (node['ip']))
 	    else:
                 if usemgr:
 		    addToCommandsList(secmdlist, node['hostip'], targetdir,
 		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, uuid,
-			    node['ip'], iplist, i, str(node['is_primary']).lower(), buf))
+			    node['ip'], iplist, i, str(node['is_primary']).lower(), buf, cluster_name, shard_id))
                 else:
 		    addToCommandsList(secmdlist, node['hostip'], targetdir,
-		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf))
+		        cmdpat % (node['dockeropts'], network, node['ip'], node['ip'], mountarg, buf, i, cluster_name, shard_id))
 		addToCommandsList(sewaitlist, node['hostip'], targetdir, waitcmdpat % (node['ip']))
 	    del node['hostip']
 	    del node['is_primary']
@@ -398,10 +401,10 @@ def generate_install_scripts(jscfg, args):
     addToCommandsList(commandslist, comp1ip, targetdir, cmdpat % (pg_compname, comp1['name']))
 
     # Init the cluster
-    cmdpat = "sudo docker exec %s /bin/bash /kunlun/init_cluster.sh no_rep"
+    cmdpat = "sudo docker exec %s /bin/bash /kunlun/init_cluster.sh no_rep %s" 
     if usemgr:
-        cmdpat = "sudo docker exec %s /bin/bash /kunlun/init_cluster.sh"
-    addToCommandsList(commandslist, comp1ip, targetdir, cmdpat % (comp1['name']))
+        cmdpat = "sudo docker exec %s /bin/bash /kunlun/init_cluster.sh mgr %s"
+    addToCommandsList(commandslist, comp1ip, targetdir, cmdpat % (comp1['name'], cluster_name))
 
     # clustermgr
     targetdir="."

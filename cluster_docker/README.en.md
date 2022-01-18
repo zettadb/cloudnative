@@ -7,7 +7,7 @@ With the images, each node of the cluster will be run inside a separate docker c
 
 * Files layout.
  There are the following files in this installation package:
- - kunlun_clustermgr.tar.gz, kunlun_mysql.tar.gz, kunlun_postgres.tar.gz : these are
+ - kunlun-cluster-manager.tar.gz, kunlun-storage.tar.gz, kunlun-server.tar.gz : these are
      the files for docker images, they are used to create the containers. User
      should download these docker image files from downloads.zettadb.com, and put
      them into this directory. In downloads.zettadb.com, these files are located in the
@@ -46,7 +46,7 @@ and call the hosts where the cluster nodes are running on as the 'cluster hosts'
 
 * Installation process
 The command to install the cluster is like:
-	bash install_docker.sh [--defuser=user_to_be_used] [--defbase=basedir_to_be_used]
+	bash install_docker.sh [defuser=user_to_be_used] [defbase=basedir_to_be_used]
 the parameters of defuser=user_to_be_used and defbase=basedir_to_be_used are optional. 
 
 This installation script uses a python script named 'generate_docker_scripts.py' and a

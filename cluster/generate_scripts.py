@@ -209,27 +209,26 @@ def generate_install_scripts(jscfg, args):
     if not meta.has_key('group_uuid'):
 	    meta['group_uuid'] = getuuid()
     my_metaname = 'mysql_meta.json'
-    if not meta.has_key('name'):
-        meta['name'] = 'metashard'
-    metaname_str = meta['name']
     metaf = open(r'install/%s' % my_metaname,'w')
     json.dump(meta, metaf, indent=4)
     metaf.close()
 
+    cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s'
     # commands like:
     # python2 install-mysql.py --config=./mysql_meta.json --target_node_index=0
     targetdir='%s/dba_tools' % storagedir
     i=0
     pries = []
     secs = []
+    shard_id = "meta"
     for node in meta['nodes']:
 	addNodeToFilesMap(filesmap, node, my_metaname, targetdir)
 	addIpToMachineMap(machines, node['ip'], args)
-	cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s'
+	cmd = cmdpat % (sudopfx, my_metaname, i, cluster_name, shard_id)
 	if node.get('is_primary', False):
-		pries.append([node['ip'], targetdir, cmdpat % (sudopfx, my_metaname, i,cluster_name,metaname_str)])
+		pries.append([node['ip'], targetdir, cmd])
 	else:
-		secs.append([node['ip'], targetdir, cmdpat % (sudopfx, my_metaname, i,cluster_name,metaname_str)])
+		secs.append([node['ip'], targetdir, cmd])
 	addToDirMap(dirmap, node['ip'], node['data_dir_path'])
 	addToDirMap(dirmap, node['ip'], node['log_dir_path'])
         if node.has_key('innodb_log_dir_path'):
@@ -241,10 +240,7 @@ def generate_install_scripts(jscfg, args):
     for shard in datas:
 	    if not shard.has_key('group_uuid'):
 		    shard['group_uuid'] = getuuid()
-            if not shard.has_key('name'):
-                shard['name'] = 'shardid'
-            shardname_str = shard['name']
-
+            shard_id = "shard%d" % i
 	    my_shardname = "mysql_shard%d.json" % i
 	    shardf = open(r'install/%s' % my_shardname, 'w')
 	    json.dump(shard, shardf, indent=4)
@@ -253,11 +249,11 @@ def generate_install_scripts(jscfg, args):
 	    for node in shard['nodes']:
 		addNodeToFilesMap(filesmap, node, my_shardname, targetdir)
 		addIpToMachineMap(machines, node['ip'], args)
-		cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s'
+		cmd = cmdpat % (sudopfx, my_shardname, j, cluster_name, shard_id)
 		if node.get('is_primary', False):
-			pries.append([node['ip'], targetdir, cmdpat % (sudopfx, my_shardname, j,cluster_name,shardname_str)])
+			pries.append([node['ip'], targetdir, cmd])
 		else:
-			secs.append([node['ip'], targetdir, cmdpat % (sudopfx, my_shardname, j,cluster_name,shardname_str)])
+			secs.append([node['ip'], targetdir, cmd])
 		addToDirMap(dirmap, node['ip'], node['data_dir_path'])
 		addToDirMap(dirmap, node['ip'], node['log_dir_path'])
 		if node.has_key('innodb_log_dir_path'):
