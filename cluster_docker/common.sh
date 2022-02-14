@@ -22,6 +22,7 @@ parse_block="${parse_block:-1}"
 clear=true
 sleep=0
 iteration=1000
+tty=false
 
 while test "$isarg" = "1"; do
 	isarg=1
@@ -36,7 +37,8 @@ while test "$isarg" = "1"; do
 		--sshpass*) SSHPASS="sshpass" ;;
 		--noclear*) clear=false;;
 		--sleep=*) sleep=`get_option_value "$1" "--sleep="` ;;
-                --iteration=*) iteration=`get_option_value "$1" "--iteration="` ;;
+		--iteration=*) iteration=`get_option_value "$1" "--iteration="` ;;
+		--tty*) tty=true;;
 		* ) isarg=0;;
 	esac
 	

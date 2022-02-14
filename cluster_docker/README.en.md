@@ -11,7 +11,7 @@ With the images, each node of the cluster will be run inside a separate docker c
      the files for docker images, they are used to create the containers. User
      should download these docker image files from downloads.zettadb.com, and put
      them into this directory. In downloads.zettadb.com, these files are located in the
-     directory of $version/docker-multi , while $version means the product version.
+     directory of releases/$version/docker-multi , while $version means the product version.
  - install_docker.json: This is the sample configuration file for cluster. This file must
      be changed correctly before starting installation.
  - Other files are assistant installation scripts.
@@ -25,8 +25,7 @@ and call the hosts where the cluster nodes are running on as the 'cluster hosts'
 2 All cluster hosts should have docker installed. We test the installation on docker-ce 19, 
   so version 19 or upper is perferred. For installation, please refer to
     https://docs.docker.com/engine/install
-3 All cluster hosts should have a user account with 'sudo without password' setting, 
-  the user should also have a group name same with its user name. 
+3 All cluster hosts should have a user account with 'sudo without password' setting.
 4 A network covering all the cluster hosts should be created with 'docker network create' command. 
   If there are multiple cluster hosts, all the cluster hosts should be set up properly with 
   'docker swarm init' or 'docker swarm join', and then the created network should be attachable, 
@@ -46,32 +45,32 @@ and call the hosts where the cluster nodes are running on as the 'cluster hosts'
 
 * Installation process
 The command to install the cluster is like:
-	bash install_docker.sh [defuser=user_to_be_used] [defbase=basedir_to_be_used]
-the parameters of defuser=user_to_be_used and defbase=basedir_to_be_used are optional. 
+	bash install_docker.sh [--defuser=user_to_be_used] [--defbase=basedir_to_be_used]
+the parameters of --defuser=user_to_be_used and --defbase=basedir_to_be_used are optional.
 
 This installation script uses a python script named 'generate_docker_scripts.py' and a
 json file named 'install_docker.json' to generate the real commands and executes these
 commands on cluster hosts.
 
-The parameter of 'defuser=user_to_be_used' sets the default user name for the cluster hosts.
+* The parameter of '--defuser=user_to_be_used' sets the default user name for the cluster hosts.
 If a user is not specified for a cluster host, this name is used. If this option is not specified, 
 the value is the current user name on the driver host.
 
-The parameter of 'defbase=basedir_to_be_used' sets the directory to store the files, including the
+* The parameter of '--defbase=basedir_to_be_used' sets the directory to store the files, including the
 docker image files and some generated configuration files. If the 'basedir' is not specified
 for a cluster host, this directory will be used. If this option is not specified to installation script,
 the value of '/kunlun' is used. The installation script will create the directory on the cluster hosts.
 
 Examples:
 1
-	winter@wtz ~/kunlun-docker-0.8$ bash install_docker.sh defbase=.
-The full real command is: bash install_docker.sh defbase=. defuser=winter
+	winter@wtz ~/kunlun-docker-0.8$ bash install_docker.sh --defbase=.
+The full real command is: bash install_docker.sh --defbase=. --defuser=winter
 It uses winter(current user) as the user name to connect and operate the cluster hosts, unless we 
 specify the a different user in 'install_docker.json'. It also stores all the files in the user's
 home directory.
 
 2
-	winter@wtz ~/kunlun-docker-0.8$ bash install_docker.sh defbase=/scratch/kunlun defuser=kunlun
+	winter@wtz ~/kunlun-docker-0.8$ bash install_docker.sh --defbase=/scratch/kunlun --defuser=kunlun
 It uses kunlun as the default user name to connect and operate the cluster hosts, and uses /scratch/kunlun
 as the default directory to store the all the related files. This style applies to the hosts where
 the user's home directory is mounted from network and has a limit size for storage.
@@ -91,7 +90,11 @@ The top object in 'install_docker.json' contains 3 attributes:
 2 machines: If a cluster host has different user name or base directory from the default values, 
   it is set here, just setting the non-default items here. If a host uses the default user and base
   directory, there is no need to specify here.
-3 cluster: specify the nodes for the cluster, as mentioned above, there are 4 kinds of nodes.
+3 cluster: specify the nodes for the cluster, as mentioned above, there are the following simple attributes:
+  "namespace": specify the name prefix for the containers in a cluster, by default, it is 'kunlun'. 
+               When installing multiple clusters inside the same docker swarm network, they should have
+               different namespaces.
+Also, Inside cluster, there are 4 kinds of nodes.
   - for a node belonging to meta shard or data shards, two attribute needs to be set:
       * ip: specify the host ip where the docker container should be run on
 	  * is_primary: specify whether this node is master in the shard. There should be one and only
@@ -117,7 +120,9 @@ to the cluster using postgresql protocol, using the 'ip', 'port', 'user', 'passw
 in install_docker.json and the database name of 'postgres' as the connection parameters.
 
 One example of using psql to access the cluster is like:
-kunlun@kunlun-test:/kunlun$ psql -f /kunlun/test.sql postgres://kunlun:Tx1Df2Mn#@192.168.0.111:5401/postgres
+kunlun@kunlun-test:/kunlun$ psql -f smokeTest.sql postgres://kunlun:Tx1Df2Mn#@192.168.0.111:5401/postgres
+
+The smokeTest.sql can be downloaded from https://github.com/zettadb/cloudnative/blob/main/smoke/smokeTest.sql
 
 Client can perform table and record-level operations, such as create/alter/drop tables, and DML operations.
 The database operations, and cluster-level accounts management is still under development.

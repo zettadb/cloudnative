@@ -430,7 +430,7 @@ def generate_install_scripts(jscfg, args):
     # dir making
     for ip in machines:
 	mach = machines.get(ip)
-	mkstr = "bash remote_run.sh --user=%s %s 'sudo mkdir -p %s && sudo chown -R %s:`id -gn %s` %s'\n"
+	mkstr = "bash remote_run.sh --tty --user=%s %s 'sudo mkdir -p %s && sudo chown -R %s:`id -gn %s` %s'\n"
 	tup= (mach['user'], ip, mach['basedir'], mach['user'], mach['user'], mach['basedir'])
 	comf.write(mkstr % tup)
 	files=['kunlun-storage.tar.gz', 'kunlun-server.tar.gz', 'kunlun-cluster-manager.tar.gz']
@@ -442,7 +442,7 @@ def generate_install_scripts(jscfg, args):
 	    comstr = "bash dist.sh --hosts=%s --user=%s %s %s\n"
 	    tup= (ip, mach['user'], f, mach['basedir'])
 	    comf.write(comstr % tup)
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s || exit 1 ; sudo docker inspect %s >& /dev/null || ( gzip -cd %s.tar.gz | sudo docker load )'\n"
+	comstr = "bash remote_run.sh --tty --user=%s %s 'cd %s || exit 1 ; sudo docker inspect %s >& /dev/null || ( gzip -cd %s.tar.gz | sudo docker load )'\n"
 	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun-cluster-manager', 'kunlun-cluster-manager'))
 	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun-server', 'kunlun-server'))
 	comf.write(comstr % (mach['user'], ip, mach['basedir'], 'kunlun-storage', 'kunlun-storage'))
@@ -455,8 +455,11 @@ def generate_install_scripts(jscfg, args):
     for cmd in commandslist:
 	ip=cmd[0]
 	mach = machines[ip]
-	mkstr = "bash remote_run.sh --user=%s %s 'cd %s && cd %s || exit 1; %s'\n"
-	tup= (mach['user'], ip, mach['basedir'], cmd[1], cmd[2])
+	ttyopt=""
+	if cmd[2].find("sudo ") >= 0:
+            ttyopt="--tty"
+	mkstr = "bash remote_run.sh %s --user=%s %s 'cd %s && cd %s || exit 1; %s'\n"
+	tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[1], cmd[2])
 	comf.write(mkstr % tup)
 
     comf.close()
@@ -540,8 +543,11 @@ def generate_start_scripts(jscfg, args):
     for cmd in commandslist:
 	ip=cmd[0]
 	mach = machines[ip]
-	mkstr = "bash remote_run.sh --user=%s %s 'cd %s && cd %s || exit 1; %s'\n"
-	tup= (mach['user'], ip, mach['basedir'], cmd[1], cmd[2])
+	ttyopt=""
+	if cmd[2].find("sudo ") >= 0:
+            ttyopt="--tty"
+	mkstr = "bash remote_run.sh %s --user=%s %s 'cd %s && cd %s || exit 1; %s'\n"
+	tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[1], cmd[2])
 	comf.write(mkstr % tup)
 
     comf.close()
@@ -614,8 +620,11 @@ def generate_stop_scripts(jscfg, args):
     for cmd in commandslist:
 	ip=cmd[0]
 	mach = machines[ip]
-	mkstr = "bash remote_run.sh --user=%s %s 'cd %s && cd %s || exit 1 ; %s'\n"
-	tup= (mach['user'], ip, mach['basedir'], cmd[1], cmd[2])
+	ttyopt=""
+	if cmd[2].find("sudo ") >= 0:
+            ttyopt="--tty"
+	mkstr = "bash remote_run.sh %s --user=%s %s 'cd %s && cd %s || exit 1 ; %s'\n"
+	tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[1], cmd[2])
 	comf.write(mkstr % tup)
 
     comf.close()
@@ -724,8 +733,11 @@ def generate_clean_scripts(jscfg, args):
     for cmd in commandslist:
 	ip=cmd[0]
 	mach = machines[ip]
-	mkstr = "bash remote_run.sh --user=%s %s 'cd %s && cd %s || exit 1; %s'\n"
-	tup= (mach['user'], ip, mach['basedir'], cmd[1], cmd[2])
+	ttyopt=""
+	if cmd[2].find("sudo ") >= 0:
+            ttyopt="--tty"
+	mkstr = "bash remote_run.sh %s --user=%s %s 'cd %s && cd %s || exit 1; %s'\n"
+	tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[1], cmd[2])
 	comf.write(mkstr % tup)
 
     comf.close()
