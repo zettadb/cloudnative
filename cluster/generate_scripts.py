@@ -362,7 +362,7 @@ def generate_install_scripts(jscfg, args):
     for ip in machines:
 	mach = machines.get(ip)
 	if args.sudo:
-	    mkstr = "bash remote_run.sh --user=%s %s 'sudo mkdir -p %s && sudo chown -R %s:`id -gn %s` %s'\n"
+	    mkstr = "bash remote_run.sh --tty --user=%s %s 'sudo mkdir -p %s && sudo chown -R %s:`id -gn %s` %s'\n"
 	    tup= (mach['user'], ip, mach['basedir'], mach['user'], mach['user'], mach['basedir'])
 	else:
 	    mkstr = "bash remote_run.sh --user=%s %s 'mkdir -p %s'\n"
@@ -423,7 +423,7 @@ def generate_install_scripts(jscfg, args):
 	dirs=dirmap[ip]
 	for d in dirs:
             if args.sudo:
-	        mkstr = "bash remote_run.sh --user=%s %s 'sudo mkdir -p %s && sudo chown -R %s:`id -gn %s` %s'\n"
+	        mkstr = "bash remote_run.sh --tty --user=%s %s 'sudo mkdir -p %s && sudo chown -R %s:`id -gn %s` %s'\n"
 	        tup= (mach['user'], ip, d, mach['user'], mach['user'], d)
             else:
 	        mkstr = "bash remote_run.sh --user=%s %s 'mkdir -p %s'\n"
@@ -445,8 +445,11 @@ def generate_install_scripts(jscfg, args):
     for cmd in commandslist:
 	ip=cmd[0]
 	mach = machines[ip]
-	mkstr = "bash remote_run.sh --user=%s %s $'cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s'\n"
-	tup= (mach['user'], ip, mach['basedir'], cmd[3], cmd[1], cmd[2])
+	ttyopt=""
+	if cmd[2].find("sudo ") >= 0:
+            ttyopt="--tty"
+	mkstr = "bash remote_run.sh %s --user=%s %s $'cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s'\n"
+	tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[3], cmd[1], cmd[2])
 	comf.write(mkstr % tup)
 
     comf.close()
@@ -520,8 +523,11 @@ def generate_start_scripts(jscfg, args):
     for cmd in commandslist:
 	ip=cmd[0]
 	mach = machines[ip]
-	mkstr = "bash remote_run.sh --user=%s %s $'cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s'\n"
-	tup= (mach['user'], ip, mach['basedir'], cmd[3], cmd[1], cmd[2])
+	ttyopt=""
+	if cmd[2].find("sudo ") >= 0:
+            ttyopt="--tty"
+	mkstr = "bash remote_run.sh %s --user=%s %s $'cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s'\n"
+	tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[3], cmd[1], cmd[2])
 	comf.write(mkstr % tup)
 
     comf.close()
@@ -590,8 +596,11 @@ def generate_stop_scripts(jscfg, args):
     for cmd in commandslist:
 	ip=cmd[0]
 	mach = machines[ip]
-	mkstr = "bash remote_run.sh --user=%s %s $'cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s'\n"
-	tup= (mach['user'], ip, mach['basedir'], cmd[3], cmd[1], cmd[2])
+	ttyopt=""
+	if cmd[2].find("sudo ") >= 0:
+            ttyopt="--tty"
+	mkstr = "bash remote_run.sh %s --user=%s %s $'cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s'\n"
+	tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[3], cmd[1], cmd[2])
 	comf.write(mkstr % tup)
 
     comf.close()
@@ -684,8 +693,11 @@ def generate_clean_scripts(jscfg, args):
     for cmd in commandslist:
 	ip=cmd[0]
 	mach = machines[ip]
-	mkstr = "bash remote_run.sh --user=%s %s $'cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s'\n"
-	tup= (mach['user'], ip, mach['basedir'], cmd[3], cmd[1], cmd[2])
+	ttyopt=""
+	if cmd[2].find("sudo ") >= 0:
+            ttyopt="--tty"
+	mkstr = "bash remote_run.sh %s --user=%s %s $'cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s'\n"
+	tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[3], cmd[1], cmd[2])
 	comf.write(mkstr % tup)
 
     comf.close()

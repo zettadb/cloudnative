@@ -26,11 +26,19 @@ sed -i "s#HOST_NAME#$hname#g" "$tmpscript"
 
 if test "$SSHPASS" = ""; then
 	scp $tmpscript $REMOTE_USER@$host:/tmp
-	ssh $REMOTE_USER@$host "bash $tmpscript" < /dev/null || ufail=1
+	if $tty; then
+		ssh -t $REMOTE_USER@$host "bash $tmpscript" || ufail=1
+	else
+		ssh $REMOTE_USER@$host "bash $tmpscript" < /dev/null || ufail=1
+	fi
 	test "$clear" = "true" && ssh $REMOTE_USER@$host "rm -f $tmpscript"
 else
 	sshpass -p "$REMOTE_PASSWORD" scp $tmpscript $REMOTE_USER@$host:/tmp
-	sshpass -p "$REMOTE_PASSWORD" ssh $REMOTE_USER@$host "bash $tmpscript" < /dev/null || ufail=1
+	if $tty; then
+		sshpass -p "$REMOTE_PASSWORD" ssh -t $REMOTE_USER@$host "bash $tmpscript" || ufail=1
+	else
+		sshpass -p "$REMOTE_PASSWORD" ssh $REMOTE_USER@$host "bash $tmpscript" < /dev/null || ufail=1
+	fi
 	test "$clear" = "true" && sshpass -p "$REMOTE_PASSWORD" ssh $REMOTE_USER@$host "rm -f $tmpscript"
 fi
 
