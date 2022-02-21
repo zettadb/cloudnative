@@ -181,7 +181,7 @@ def generate_haproxy_config(jscfg, machines, confname):
         i += 1
     conf.close()
 
-def get_ha_mode(jscfg, arg):
+def get_ha_mode(jscfg, args):
     if jscfg['cluster'].has_key("ha_mode"):
         return jscfg['cluster']['ha_mode']
     else:
