@@ -15,8 +15,8 @@ cmd="$@"
 ufail=0
 ffail=0
 
-host="${hostitem%:*}"
-hname="${hostitem#*:}"
+host="$hostitem"
+hname="$hostitem"
 
 echo "=========== [`date`] execute ($cmd) on $host($hname) ==========="
 
@@ -25,7 +25,7 @@ sed -i "s#HOST_IP_ADDR#$host#g" $tmpscript
 sed -i "s#HOST_NAME#$hname#g" "$tmpscript"
 
 if test "$SSHPASS" = ""; then
-	scp $tmpscript $REMOTE_USER@$host:/tmp
+	scp $tmpscript $REMOTE_USER@[$host]:/tmp
 	if $tty; then
 		ssh -t $REMOTE_USER@$host "bash $tmpscript" || ufail=1
 	else
@@ -33,7 +33,7 @@ if test "$SSHPASS" = ""; then
 	fi
 	test "$clear" = "true" && ssh $REMOTE_USER@$host "rm -f $tmpscript"
 else
-	sshpass -p "$REMOTE_PASSWORD" scp $tmpscript $REMOTE_USER@$host:/tmp
+	sshpass -p "$REMOTE_PASSWORD" scp $tmpscript $REMOTE_USER@[$host]:/tmp
 	if $tty; then
 		sshpass -p "$REMOTE_PASSWORD" ssh -t $REMOTE_USER@$host "bash $tmpscript" || ufail=1
 	else
