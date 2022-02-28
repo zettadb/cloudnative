@@ -524,7 +524,7 @@ def generate_start_scripts(jscfg, args):
     targetdir="%s/scripts" % serverdir
     for node in comps:
 	addIpToMachineMap(machines, node['ip'], args)
-	cmdpat = r'python2 start_pg.py port=%d'
+	cmdpat = r'python2 start_pg.py --port=%d'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'], "computing")
 
     haproxy = cluster.get("haproxy", None)
