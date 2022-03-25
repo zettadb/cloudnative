@@ -222,8 +222,10 @@ def generate_install_scripts(jscfg, args):
     metanodes = []
     metalist=[]
     i=1
+    meta_addrs = []
     for node in meta['nodes']:
 	name="%s.meta%s" % (namespace, i)
+	meta_addrs.append("%s:3306" % name)
 	metaobj={"port":3306, "user":"pgx", "password":"pgx_pwd", "ip":name,
 		"hostip":node['ip'], "is_primary":node.get('is_primary', False),
 		"buf":node.get('innodb_buffer_pool_size', defbufstr), "orig":node,
@@ -451,7 +453,7 @@ def generate_install_scripts(jscfg, args):
     dockeropts = cluster['clustermgr'].get('dockeropts', args.default_dockeropts)
     cmdpat="sudo docker run --pull always %s -itd --network %s --name %s -h %s %s /bin/bash /kunlun/start_cluster_manager.sh %s"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir,
-	    cmdpat % (dockeropts, network, name, name, clustermgrurl, metanodes[0]['ip']))
+	    cmdpat % (dockeropts, network, name, name, clustermgrurl, ",".join(meta_addrs)))
 
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:

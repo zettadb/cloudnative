@@ -243,7 +243,9 @@ def generate_install_scripts(jscfg, args):
     pries = []
     secs = []
     shard_id = "meta"
+    meta_addrs = []
     for node in meta['nodes']:
+	meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
 	addNodeToFilesMap(filesmap, node, my_metaname, targetdir)
 	addIpToMachineMap(machines, node['ip'], args)
 	cmd = cmdpat % (sudopfx, my_metaname, i, cluster_name, shard_id)
@@ -352,10 +354,9 @@ def generate_install_scripts(jscfg, args):
     os.system('mkdir -p install')
     mgrf = open(r'install/%s' % mgr_name, 'w')
     mgrtempf = open(r'clustermgr.cnf.template','r')
-    firstmeta = meta['nodes'][0]
+    metaseeds=",".join(meta_addrs)
     for line in mgrtempf:
-	newline = re.sub('META_HOST', firstmeta['ip'], line)
-	newline = re.sub('META_PORT', str(firstmeta['port']), newline)
+	newline = re.sub('META_SEEDS', metaseeds, line)
 	mgrf.write(newline)
     mgrtempf.close()
     mgrf.close()
