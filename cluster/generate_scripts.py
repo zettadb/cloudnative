@@ -236,6 +236,8 @@ def generate_install_scripts(jscfg, args):
     metaf.close()
 
     cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s'
+    if args.small:
+        cmdpat += ' --dbcfg=./template-small.cnf'
     # commands like:
     # python2 install-mysql.py --config=./mysql_meta.json --target_node_index=0
     targetdir='%s/dba_tools' % storagedir
@@ -735,6 +737,7 @@ if  __name__ == '__main__':
     parser.add_argument('--defbase', type=str, help="the command", default='/kunlun')
     parser.add_argument('--installtype', type=str, help="the install type", default='full', choices=['full', 'cluster'])
     parser.add_argument('--cleantype', type=str, help="the clean type", default='full', choices=['full', 'cluster'])
+    parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
     parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.1')
 
