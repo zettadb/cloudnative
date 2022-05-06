@@ -780,7 +780,7 @@ if  __name__ == '__main__':
     parser.add_argument('--cleantype', type=str, help="the clean type", default='full', choices=['full', 'cluster'])
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
-    parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.1')
+    parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.2')
     parser.add_argument('--defbrpc_raft_port', type=int, help="default brpc_raft_port for cluster_manager", default=24001)
     parser.add_argument('--defbrpc_http_port', type=int, help="default brpc_raft_port for cluster_manager", default=24002)
 

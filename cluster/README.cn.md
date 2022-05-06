@@ -14,12 +14,12 @@ Linux机器，根据指定的配置，把数据库集群的各个节点(存储节点群，计算节点群，集群管
 3 工具机器使用ssh通过默认端口登录节点所在机器，而不需要输入密码。具体做法可以搜索'ssh login without password'
 4 对于安装存储节点的机器，需要预先安装以下库(此处为ubuntu 20.04): libncurses5 libaio-dev python-setuptools
 5 对于安装计算节点的机器，需要预先安装以下库(此处为ubuntu 20.04): libncurses5 libicu66 python-setuptools gcc
-6 对于安装动作，需要预先将二进制发布包 (以0.9.1为例，发布包为: kunlun-storage-0.9.1.tgz, kunlun-server-0.9.1.tgz,
-   kunlun-cluster-manager-0.9.1.tgz ) 放入当前目录. 此外，工具运行机器和节点所在机器间网络不能太慢，因为需要将发布包传递到这些机器上。
+6 对于安装动作，需要预先将二进制发布包 (以0.9.2为例，发布包为: kunlun-storage-0.9.2.tgz, kunlun-server-0.9.2.tgz,
+   kunlun-cluster-manager-0.9.2.tgz ) 放入当前目录. 此外，工具运行机器和节点所在机器间网络不能太慢，因为需要将发布包传递到这些机器上。
 
 文件布局:
 当前目录下主要有以下文件:
- - 对于安装动作，需要有发布包(以0.9.1为例, 发布包为: kunlun-storage-0.9.1.tgz，kunlun-server-0.9.1.tgz，kunlun-cluster-manager-0.9.1.tgz),
+ - 对于安装动作，需要有发布包(以0.9.2为例, 发布包为: kunlun-storage-0.9.2.tgz，kunlun-server-0.9.2.tgz，kunlun-cluster-manager-0.9.2.tgz),
    用户可以从downloads.zettadb.com下载这些发布包。对于已经发布的版本，这些包位于releases的对应版本下(0.8.4以后)或对应版本的release-binaries子目录下(0.8.3及以前); 
    而对于当前正在开发而未发布的版本，这些包位于: http://downloads.zettadb.com/dailybuilds/enterprise
  - 配置文件(比如install.json),
