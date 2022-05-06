@@ -77,11 +77,12 @@ def addDirToMachine(map, ip, directory):
         else:
             dset.add(directory)
 
-def validate_config(jscfg):
+def validate_config(jscfg, args):
     cluster = jscfg['cluster']
     meta = cluster['meta']
     comps = cluster['comp']['nodes']
     datas = cluster['data']
+    clustermgr = cluster['clustermgr']
     portmap = {}
     dirmap = {}
     metacnt = len(meta['nodes'])
@@ -149,6 +150,51 @@ def validate_config(jscfg):
         else:
             node['is_primary'] = True
         i+=1
+    
+    if clustermgr.has_key('ip') and clustermgr.has_key('nodes'):
+        raise ValueError('Error: ip or nodes can not be both set for clustermgr !')
+    elif clustermgr.has_key('ip'):
+        node = clustermgr
+        if node.has_key('brpc_raft_port'):
+            addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
+        else:
+            addPortToMachine(portmap, node['ip'], args.defbrpc_raft_port)
+        if clustermgr.has_key('brpc_http_port'):
+            addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
+        else:
+            addPortToMachine(portmap, node['ip'], args.defbrpc_http_port)
+    elif clustermgr.has_key('nodes'):
+        for node in clustermgr['nodes']:
+            if node.has_key('brpc_raft_port'):
+                addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
+            else:
+                addPortToMachine(portmap, node['ip'], args.defbrpc_raft_port)
+            if node.has_key('brpc_http_port'):
+                addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
+            else:
+                addPortToMachine(portmap, node['ip'], args.defbrpc_http_port)
+    else:
+        raise ValueError('Error:ip or(x-or) nodes must be set for clustermgr !')
+
+def get_clustermgr_nodes(jscfg, args):
+    cluster = jscfg['cluster']
+    clustermgr = cluster['clustermgr']
+    nodes = []
+    if clustermgr.has_key('ip'):
+        node = clustermgr
+        nodes.append({
+            "ip": node['ip'],
+            'brpc_raft_port': node.get('brpc_raft_port', args.defbrpc_raft_port),
+            'brpc_http_port': node.get('brpc_http_port', args.defbrpc_http_port)}
+            )
+    else:
+        for node in clustermgr['nodes']:
+            nodes.append({
+                "ip": node['ip'],
+                'brpc_raft_port': node.get('brpc_raft_port', args.defbrpc_raft_port),
+                'brpc_http_port': node.get('brpc_http_port', args.defbrpc_http_port)}
+                )
+    return nodes
 
 def generate_haproxy_config(jscfg, machines, confname):
     cluster = jscfg['cluster']
@@ -188,7 +234,7 @@ def get_ha_mode(jscfg, args):
         return ""
 
 def generate_install_scripts(jscfg, args):
-    validate_config(jscfg)
+    validate_config(jscfg, args)
 
     installtype = args.installtype
     sudopfx=""
@@ -351,22 +397,20 @@ def generate_install_scripts(jscfg, args):
     addToCommandsList(commandslist, comp1['ip'], targetdir,
         cmdpat % (pg_shardname, pg_compname, pg_metaname, cluster_name), "all")
 
-    # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid clustermgr.cnf >& run.log </dev/null &
-    mgr_name = 'clustermgr.cnf'
-    os.system('mkdir -p install')
-    mgrf = open(r'install/%s' % mgr_name, 'w')
-    mgrtempf = open(r'clustermgr.cnf.template','r')
+    clmgrnodes = get_clustermgr_nodes(jscfg, args)
     metaseeds=",".join(meta_addrs)
-    for line in mgrtempf:
-	newline = re.sub('META_SEEDS', metaseeds, line)
-	mgrf.write(newline)
-    mgrtempf.close()
-    mgrf.close()
-    targetdir=clustermgrdir
-    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
-    addIpToFilesMap(filesmap, cluster['clustermgr']['ip'], mgr_name, targetdir)
-    cmdpat = r'bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid %s >& run.log </dev/null &'
-    addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat % mgr_name, "clustermgr")
+    clmgrcnf = "%s/conf/cluster_mgr.cnf" % clustermgrdir
+    cmdpat = "bash change_config.sh %s '%s' '%s'"
+    startpat = 'bash start_cluster_mgr.sh </dev/null >& start.log &'
+    initmember = "%s:%d:0," % (clmgrnodes[0]['ip'], clmgrnodes[0]['brpc_raft_port'])
+    for node in clmgrnodes:
+        addIpToMachineMap(machines, node['ip'], args)
+        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (clmgrcnf, 'meta_group_seeds', metaseeds))
+        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (clmgrcnf, 'brpc_raft_port', node['brpc_raft_port']))
+        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (clmgrcnf, 'brpc_http_port', node['brpc_http_port']))
+        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (clmgrcnf, 'local_ip', node['ip']))
+        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (clmgrcnf, 'raft_group_member_init_config', initmember))
+        addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, startpat)
 
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:
@@ -405,7 +449,7 @@ def generate_install_scripts(jscfg, args):
                 comf.write(extstr % (mach['user'], ip, mach['basedir'], 'haproxy-2.5.0-bin.tar.gz'))
 
 	# files
-	fmap = {'build_driver.sh': '%s/resources' % serverdir, 'process_deps.sh': '.'}
+        fmap = {'build_driver.sh': '%s/resources' % serverdir, 'process_deps.sh': '.', 'change_config.sh':'.'}
         if cluster.has_key('haproxy'):
             fmap['haproxy.cfg'] = '.'
 	for fname in fmap:
@@ -435,8 +479,6 @@ def generate_install_scripts(jscfg, args):
 	comf.write(comstr % (mach['user'], ip, mach['basedir'], storagedir))
 	comstr = "bash remote_run.sh --user=%s %s 'cd %s && envtype=computing && source ./env.sh && cd %s/lib && bash ../../process_deps.sh'\n"
 	comf.write(comstr % (mach['user'], ip, mach['basedir'], serverdir))
-	comstr = "bash remote_run.sh --user=%s %s 'cd %s && envtype=clustermgr && source ./env.sh && cd %s/lib && bash ../../process_deps.sh'\n"
-	comf.write(comstr % (mach['user'], ip, mach['basedir'], clustermgrdir))
 
     # dir making
     for ip in dirmap:
@@ -515,12 +557,11 @@ def generate_start_scripts(jscfg, args):
 		cmdpat = r'%sbash startmysql.sh %s'
 		addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (sudopfx, node['port']))
     
-    # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid clustermgr.cnf >& run.log </dev/null &
-    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
-    mgr_name = 'clustermgr.cnf'
-    targetdir=clustermgrdir
-    cmdpat = r'bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid %s >& run.log </dev/null &'
-    addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat % mgr_name, "clustermgr")
+    clmgrnodes = get_clustermgr_nodes(jscfg, args)
+    cmdpat = r'bash start_cluster_mgr.sh </dev/null >& run.log &'
+    for node in clmgrnodes:
+        addIpToMachineMap(machines, node['ip'], args)
+        addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, cmdpat)
 
     # su postgres -c "python2 start_pg.py port=5401"
     comps = cluster['comp']['nodes']
@@ -585,11 +626,11 @@ def generate_stop_scripts(jscfg, args):
 	cmdpat = r'pg_ctl -D %s stop -m immediate'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['datadir'], "computing")
 
-    # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop
-    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
-    targetdir=clustermgrdir
-    cmdpat = r"bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop"
-    addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat, "clustermgr")
+    clmgrnodes = get_clustermgr_nodes(jscfg, args)
+    cmdpat = r'bash stop_cluster_mgr.sh'
+    for node in clmgrnodes:
+        addIpToMachineMap(machines, node['ip'], args)
+        addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, cmdpat)
 
     # bash stopmysql.sh [port]
     targetdir='%s/dba_tools' % storagedir
@@ -666,11 +707,11 @@ def generate_clean_scripts(jscfg, args):
 	cmdpat = r'%srm -fr %s'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (sudopfx, node['datadir']))
 
-    # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop
-    addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
-    targetdir=clustermgrdir
-    cmdpat = r"bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid --stop"
-    addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir, cmdpat, "clustermgr")
+    clmgrnodes = get_clustermgr_nodes(jscfg, args)
+    cmdpat = r'bash stop_cluster_mgr.sh'
+    for node in clmgrnodes:
+        addIpToMachineMap(machines, node['ip'], args)
+        addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, cmdpat)
 
     # bash stopmysql.sh [port]
     targetdir='%s/dba_tools' % storagedir
@@ -740,6 +781,8 @@ if  __name__ == '__main__':
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
     parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.1')
+    parser.add_argument('--defbrpc_raft_port', type=int, help="default brpc_raft_port for cluster_manager", default=24001)
+    parser.add_argument('--defbrpc_http_port', type=int, help="default brpc_raft_port for cluster_manager", default=24002)
 
     args = parser.parse_args()
     checkdirs(actions)
