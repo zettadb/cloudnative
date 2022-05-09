@@ -153,7 +153,7 @@ def addDirToMachine(map, ip, directory):
         else:
             dset.add(directory)
 
-def validate_config(jscfg, args):
+def validate_config(jscfg, machines, args):
     meta = jscfg['meta']
     clustermgr = jscfg['cluster_manager']
     nodemgr = jscfg['node_manager']
@@ -208,12 +208,60 @@ def validate_config(jscfg, args):
             addPortToMachine(portmap, node['ip'], args.defbrpc_http_port_clustermgr)
 
     for node in nodemgr['nodes']:
+        mach = machines.get(node['ip'])
         if node.has_key('brpc_http_port'):
             addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
         else:
             node['brpc_http_port'] = args.defbrpc_http_port_nodemgr
             addPortToMachine(portmap, node['ip'], args.defbrpc_http_port_nodemgr)
-
+        # The logic is that:
+        # - if it is a absolute path, just uses it
+        # - if it is a relative path, it is a path from basedir
+        # - if it is not set, it is default to $basedir/server_datadir
+        if node.has_key('server_datadir'):
+            server_datadir = node['server_datadir']
+            if server_datadir.startswith('/'):
+                pass
+            else:
+                node['server_datadir'] = "%s/%s" % (mach['basedir'], server_datadir) 
+        else:
+            node['server_datadir'] = "%s/server_datadir" % mach['basedir']
+        # The logic is that:
+        # - if it is a absolute path, just uses it
+        # - if it is a relative path, it is a path from basedir
+        # - if it is not set, it is default to $basedir/storage_datadir
+        if node.has_key('storage_datadir'):
+            storage_datadir = node['storage_datadir']
+            if storage_datadir.startswith('/'):
+                pass
+            else:
+                node['storage_datadir'] = "%s/%s" % (mach['basedir'], storage_datadir) 
+        else:
+            node['storage_datadir'] = "%s/storage_datadir" % mach['basedir']
+        # The logic is that:
+        # - if it is a absolute path, just uses it
+        # - if it is a relative path, it is a path from basedir
+        # - if it is not set, it is default to $basedir/storage_logdir
+        if node.has_key('storage_logdir'):
+            storage_logdir = node['storage_logdir']
+            if storage_logdir.startswith('/'):
+                pass
+            else:
+                node['storage_logdir'] = "%s/%s" % (mach['basedir'], storage_logdir) 
+        else:
+            node['storage_logdir'] = "%s/storage_logdir" % mach['basedir']
+        # The logic is that:
+        # - if it is a absolute path, just uses it
+        # - if it is a relative path, it is a path from basedir
+        # - if it is not set, it is default to $basedir/storage_waldir
+        if node.has_key('storage_waldir'):
+            storage_waldir = node['storage_waldir']
+            if storage_waldir.startswith('/'):
+                pass
+            else:
+                node['storage_waldir'] = "%s/%s" % (mach['basedir'], storage_waldir) 
+        else:
+            node['storage_waldir'] = "%s/storage_waldirerver_datadir" % mach['basedir']
 
 def get_ha_mode(jscfg, args):
     meta = jscfg['meta']
@@ -232,7 +280,7 @@ def install_meta_env(comf, mach, machines, args):
     else:
         process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
     # Set up the files
-    process_file(comf, args, machines, ip, '%s.tgz' % storagedir, mach['basedir'])
+    process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % storagedir, mach['basedir'])
     process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % storagedir)
 
 	# files
@@ -271,7 +319,7 @@ def install_nodemgr_env(comf, mach, machines, args):
         process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
     # Set up the files
     process_file(comf, args, machines, ip, 'install/change_config.sh', mach['basedir'])
-    process_file(comf, args, machines, ip, '%s.tgz' % progname, mach['basedir'])
+    process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
     process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
 
 def install_clustermgr_env(comf, mach, machines, args):
@@ -285,21 +333,32 @@ def install_clustermgr_env(comf, mach, machines, args):
         process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
     # Set up the files
     process_file(comf, args, machines, ip, 'install/change_config.sh', mach['basedir'])
-    process_file(comf, args, machines, ip, '%s.tgz' % progname, mach['basedir'])
+    process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
     process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
 
-def install_clustermgr(args):
-    conf = open(args.config)
-    jscfg = json.loads(conf.read(), object_pairs_hook=collections.OrderedDict)
-    validate_config(jscfg, args)
-
-    machines = {}
-    for mach in jscfg['machines']:
+def setup_machines(jscfg, machines, args):
+    machnodes = jscfg.get('machines', [])
+    meta = jscfg.get('meta', {"nodes": []})
+    nodemgr = jscfg.get('node_manager', {"nodes": []})
+    clustermgr = jscfg.get('cluster_manager', {"nodes": []})
+    for mach in machnodes:
 	ip=mach['ip']
 	user=mach.get('user', args.defuser)
 	base=mach.get('basedir', args.defbase)
 	addMachineToMap(machines, ip, user, base)
+    for node in meta['nodes']:
+        addIpToMachineMap(machines, node['ip'], args)
+    for node in nodemgr['nodes']:
+        addIpToMachineMap(machines, node['ip'], args)
+    for node in clustermgr['nodes']:
+        addIpToMachineMap(machines, node['ip'], args)
 
+def install_clustermgr(args):
+    conf = open(args.config)
+    jscfg = json.loads(conf.read(), object_pairs_hook=collections.OrderedDict)
+    machines = {}
+    setup_machines(jscfg, machines, args)
+    validate_config(jscfg, machines, args)
     comf = open(r'clustermgr/install.sh', 'w')
     comf.write('#! /bin/bash\n')
     install_with_config(jscfg, comf, machines, args)
@@ -308,19 +367,16 @@ def install_clustermgr(args):
 def clean_clustermgr(args):
     conf = open(args.config)
     jscfg = json.loads(conf.read(), object_pairs_hook=collections.OrderedDict)
-    validate_config(jscfg, args)
-
     machines = {}
-    for mach in jscfg['machines']:
-	ip=mach['ip']
-	user=mach.get('user', args.defuser)
-	base=mach.get('basedir', args.defbase)
-	addMachineToMap(machines, ip, user, base)
-
+    setup_machines(jscfg, machines, args)
+    validate_config(jscfg, machines, args)
     comf = open(r'clustermgr/clean.sh', 'w')
     comf.write('#! /bin/bash\n')
     clean_with_config(jscfg, comf, machines, args)
     comf.close()
+
+def getuuid():
+    return str(uuid.uuid1())
 
 def install_with_config(jscfg, comf, machines, args):
     meta = jscfg['meta']
@@ -342,6 +398,8 @@ def install_with_config(jscfg, comf, machines, args):
     extraopt = " --ha_mode=%s" % ha_mode
 
     # used for install storage nodes
+    if not meta.has_key('group_uuid'):
+	    meta['group_uuid'] = getuuid()
     my_metaname = 'mysql_meta.json'
     metaf = open(r'clustermgr/%s' % my_metaname,'w')
     json.dump(meta, metaf, indent=4)
@@ -405,18 +463,33 @@ def install_with_config(jscfg, comf, machines, args):
     metaseeds=",".join(meta_addrs)
     cmdpat = "bash change_config.sh %s '%s' '%s'"
     nodemgrips = set()
+    nodemgrsql = 'nodemgr.sql'
+    sqlf = open('clustermgr/%s' % nodemgrsql, 'w') 
     for node in nodemgr['nodes']:
         confpath = "%s/conf/node_mgr.cnf" % nodemgrdir
         addIpToMachineMap(machines, node['ip'], args)
         nodemgrips.add(node['ip'])
         mach = machines.get(node['ip'])
+        addToDirMap(dirmap, node['ip'], node['server_datadir'])
+        addToDirMap(dirmap, node['ip'], node['storage_datadir'])
+        addToDirMap(dirmap, node['ip'], node['storage_logdir'])
+        addToDirMap(dirmap, node['ip'], node['storage_waldir'])
+        sqlf.write("insert into kunlun_metadata_db.server_nodes(hostaddr, comp_datadir, datadir, logdir, wal_log_dir) values('%s','%s','%s','%s','%s');\n" %
+                (node['ip'], node['server_datadir'], node['storage_datadir'], node['storage_logdir'], node['storage_waldir']))
         targetdir = "program_binaries"
         addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
+        addToDirMap(dirmap, node['ip'], "%s/%s/util" % (mach['basedir'], targetdir))
         addToDirMap(dirmap, node['ip'], "%s/instance_binaries" % mach['basedir'])
-        addNodeToFilesMap(filesmap, node, "../%s.tgz" % storagedir, targetdir)
-        addNodeToFilesMap(filesmap, node, "../%s.tgz" % serverdir, targetdir)
-        addNodeToFilesMap(filesmap, node, "../prometheus.tgz", targetdir)
-        addToCommandsList(commandslist, node['ip'], '.', "mkdir -p instance_binaries")
+        addNodeToFilesMap(filesmap, node, "%s.tgz" % storagedir, targetdir)
+        addNodeToFilesMap(filesmap, node, "%s.tgz" % storagedir, targetdir)
+        addNodeToFilesMap(filesmap, node, "hadoop-3.3.1.tar.gz", targetdir)
+        addNodeToFilesMap(filesmap, node, "jdk-8u131-linux-x64.tar.gz", targetdir)
+        addNodeToFilesMap(filesmap, node, "prometheus.tgz", targetdir)
+        addNodeToFilesMap(filesmap, node, "backup", "%s/util" % targetdir)
+        addNodeToFilesMap(filesmap, node, "restore", "%s/util" % targetdir)
+        addNodeToFilesMap(filesmap, node, "xtrabackup", "%s/util" % targetdir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf hadoop-3.3.1.tar.gz")
+        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
         addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf prometheus.tgz")
         addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'meta_group_seeds', metaseeds))
         addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_http_port', node['brpc_http_port']))
@@ -427,8 +500,14 @@ def install_with_config(jscfg, comf, machines, args):
         addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'storage_prog_package_name', storagedir))
         addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'computer_prog_package_name', serverdir))
         addToCommandsList(commandslist, node['ip'], "%s/bin" % nodemgrdir, "bash start_node_mgr.sh </dev/null >& run.log &")
+    sqlf.close()
+    targetdir = '%s/dba_tools' % storagedir
+    addNodeToFilesMap(filesmap, firstmeta, nodemgrsql, targetdir)
+    cmdpat = "mysql -h%s -P %s -upgx -ppgx_pwd < %s"
+    addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (firstmeta['ip'], str(firstmeta['port']), nodemgrsql), "storage")
 
     clustermgrips = set()
+    cmdpat = "bash change_config.sh %s '%s' '%s'"
     confpath = "%s/conf/cluster_mgr.cnf" % clustermgrdir
     initmember = "%s:%d:0," % (clustermgr['nodes'][0]['ip'], clustermgr['nodes'][0]['brpc_raft_port'])
     for node in clustermgr['nodes']:
@@ -438,9 +517,9 @@ def install_with_config(jscfg, comf, machines, args):
         targetdir = "program_binaries"
         addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
         addToDirMap(dirmap, node['ip'], "%s/instance_binaries" % mach['basedir'])
-        addNodeToFilesMap(filesmap, node, "../%s.tgz" % storagedir, targetdir)
-        addNodeToFilesMap(filesmap, node, "../%s.tgz" % serverdir, targetdir)
-        addNodeToFilesMap(filesmap, node, "../prometheus.tgz", targetdir)
+        addNodeToFilesMap(filesmap, node, "%s.tgz" % storagedir, targetdir)
+        addNodeToFilesMap(filesmap, node, "%s.tgz" % serverdir, targetdir)
+        addNodeToFilesMap(filesmap, node, "prometheus.tgz", targetdir)
         addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf prometheus.tgz")
         addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'meta_group_seeds', metaseeds))
         addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_raft_port', node['brpc_raft_port']))
