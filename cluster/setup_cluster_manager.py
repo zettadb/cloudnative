@@ -353,6 +353,7 @@ def install_with_config(jscfg, comf, machines, args):
     objs = []
     for node in meta['nodes']:
 	obj = {}
+	obj['is_primary'] = node.get('is_primary', False)
 	obj['ip'] = node['ip']
 	obj['port'] = node['port']
 	obj['user'] = "pgx"
