@@ -223,7 +223,7 @@ def validate_config(jscfg, machines, args):
             if server_datadir.startswith('/'):
                 pass
             else:
-                node['server_datadir'] = "%s/%s" % (mach['basedir'], server_datadir) 
+                node['server_datadir'] = "%s/%s" % (mach['basedir'], server_datadir)
         else:
             node['server_datadir'] = "%s/server_datadir" % mach['basedir']
         # The logic is that:
@@ -235,7 +235,7 @@ def validate_config(jscfg, machines, args):
             if storage_datadir.startswith('/'):
                 pass
             else:
-                node['storage_datadir'] = "%s/%s" % (mach['basedir'], storage_datadir) 
+                node['storage_datadir'] = "%s/%s" % (mach['basedir'], storage_datadir)
         else:
             node['storage_datadir'] = "%s/storage_datadir" % mach['basedir']
         # The logic is that:
@@ -247,7 +247,7 @@ def validate_config(jscfg, machines, args):
             if storage_logdir.startswith('/'):
                 pass
             else:
-                node['storage_logdir'] = "%s/%s" % (mach['basedir'], storage_logdir) 
+                node['storage_logdir'] = "%s/%s" % (mach['basedir'], storage_logdir)
         else:
             node['storage_logdir'] = "%s/storage_logdir" % mach['basedir']
         # The logic is that:
@@ -259,7 +259,7 @@ def validate_config(jscfg, machines, args):
             if storage_waldir.startswith('/'):
                 pass
             else:
-                node['storage_waldir'] = "%s/%s" % (mach['basedir'], storage_waldir) 
+                node['storage_waldir'] = "%s/%s" % (mach['basedir'], storage_waldir)
         else:
             node['storage_waldir'] = "%s/storage_waldirerver_datadir" % mach['basedir']
 
@@ -459,12 +459,19 @@ def install_with_config(jscfg, comf, machines, args):
     targetdir='%s/dba_tools' % storagedir
     cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql' + extraopt
     addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % reg_metaname, "storage")
+    nodemgrsql = 'nodemgr.sql'
+    sqlf = open('clustermgr/%s' % nodemgrsql, 'w')
+    for node in nodemgr['nodes']:
+        sqlf.write("insert into kunlun_metadata_db.server_nodes(hostaddr, comp_datadir, datadir, logdir, wal_log_dir) values('%s','%s','%s','%s','%s');\n" %
+                (node['ip'], node['server_datadir'], node['storage_datadir'], node['storage_logdir'], node['storage_waldir']))
+    sqlf.close()
+    addNodeToFilesMap(filesmap, firstmeta, nodemgrsql, targetdir)
+    cmdpat = "mysql -h%s -P %s -upgx -ppgx_pwd < %s"
+    addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (firstmeta['ip'], str(firstmeta['port']), nodemgrsql), "storage")
 
     metaseeds=",".join(meta_addrs)
     cmdpat = "bash change_config.sh %s '%s' '%s'"
     nodemgrips = set()
-    nodemgrsql = 'nodemgr.sql'
-    sqlf = open('clustermgr/%s' % nodemgrsql, 'w') 
     for node in nodemgr['nodes']:
         confpath = "%s/conf/node_mgr.cnf" % nodemgrdir
         addIpToMachineMap(machines, node['ip'], args)
@@ -474,8 +481,6 @@ def install_with_config(jscfg, comf, machines, args):
         addToDirMap(dirmap, node['ip'], node['storage_datadir'])
         addToDirMap(dirmap, node['ip'], node['storage_logdir'])
         addToDirMap(dirmap, node['ip'], node['storage_waldir'])
-        sqlf.write("insert into kunlun_metadata_db.server_nodes(hostaddr, comp_datadir, datadir, logdir, wal_log_dir) values('%s','%s','%s','%s','%s');\n" %
-                (node['ip'], node['server_datadir'], node['storage_datadir'], node['storage_logdir'], node['storage_waldir']))
         targetdir = "program_binaries"
         addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
         addToDirMap(dirmap, node['ip'], "%s/%s/util" % (mach['basedir'], targetdir))
@@ -500,11 +505,7 @@ def install_with_config(jscfg, comf, machines, args):
         addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'storage_prog_package_name', storagedir))
         addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'computer_prog_package_name', serverdir))
         addToCommandsList(commandslist, node['ip'], "%s/bin" % nodemgrdir, "bash start_node_mgr.sh </dev/null >& run.log &")
-    sqlf.close()
-    targetdir = '%s/dba_tools' % storagedir
-    addNodeToFilesMap(filesmap, firstmeta, nodemgrsql, targetdir)
-    cmdpat = "mysql -h%s -P %s -upgx -ppgx_pwd < %s"
-    addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (firstmeta['ip'], str(firstmeta['port']), nodemgrsql), "storage")
+
 
     clustermgrips = set()
     cmdpat = "bash change_config.sh %s '%s' '%s'"
@@ -634,6 +635,8 @@ if  __name__ == '__main__':
     parser.add_argument('--defbrpc_http_port_nodemgr', type=int, help="default brpc_http_port for node_manager", default=58002)
 
     args = parser.parse_args()
+    if not args.defbase.startswith('/'):
+        raise ValueError('Error: the default basedir must be absolute path!')
 
     print str(sys.argv)
     checkdirs(['clustermgr'])
