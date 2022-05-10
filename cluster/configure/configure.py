@@ -95,11 +95,15 @@ def configs():
                 SCompPort = str(CompPort)
                 
                 of=open('config.sh','a')
+                '''
                 AddLine = "line=`cat %s/postgresql.conf | awk -F= '\\'{print \\$1}\\'' | grep -n -w '\\'^%s\\'' | awk -F: '\\'{print \\$1}\\''` && " % (SCompDir,SCompkeys)
                 SedDel = 'sed -i "${line}d" ' + SCompDir +'/postgresql.conf && '
                 SedAdd = 'sed -i "${line}i ' + SCompkeys + ' = ' + SCompvalues + '" ' + SCompDir +'/postgresql.conf'
                 BashStmt = AddLine + SedDel + SedAdd
+                '''
+                BashStmt = 'echo %s = %s > %s/postgresql.conf' % (SCompvalues, SCompkeys, SCompDir )
                 of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SCompIp, BashStmt, defuser, SCompIp, BashStmt))
+                of.write("")
                 of.close()
             else:
                 err = 'Computing node' + SCompIp + ':' + SCompPort + 'parameter :"' + SCompkeys + '" values is null'
@@ -122,10 +126,13 @@ def configs():
                 SMetaPort = str(MetaPort[MIPN])
                 SMetaDir = ''.join(MetaDir[MIPN])
                 of=open('config.sh','a')
+                '''
                 AddLine = "line=`cat %s/%s/my_%s.cnf | awk -F= '\\'{print \\$1}\\'' | grep -n -w '\\'^%s\\'' | awk -F: '\\'{print \\$1}\\''` && " % (SMetaDir, SMetaPort, SMetaPort, SMedakeys)
                 SedDel = 'sed -i "${line}d" ' + SMetaDir +'/' + SMetaPort + '/my_' + SMetaPort +'.cnf && '
                 SedAdd = 'sed -i "${line}i ' + SMedakeys + ' = ' + SMedavalues + '" ' + SMetaDir +'/' + SMetaPort + '/my_' + SMetaPort +'.cnf '
                 BashStmt = AddLine + SedDel + SedAdd
+                '''
+                BashStmt = 'echo %s = %s > %s/%s/my_%s.conf' % (SMedakeys, SMedavalues, SMetaDir, SMetaPort, SMetaPort)
                 of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SMetaIp, BashStmt, defuser, SMetaIp, BashStmt))
                 of.close()
             else:
@@ -146,10 +153,13 @@ def configs():
                 SDataDir = ''.join(DataDir[DIPN])
 
                 of=open('config.sh','a')
+                '''
                 AddLine = "line=`cat  %s/%s/my_%s.cnf | awk -F= '\\'{print \\$1}\\'' | grep -n -w '\\'^%s\\'' | awk -F: '\\'{print \\$1}\\''` && " % (SDataDir, SDataPort, SDataPort, SMedakeys)
                 SedDel = 'sed -i "${line}d" ' + SDataDir +'/' + SDataPort + '/my_' + SDataPort +'.cnf && '
                 SedAdd = 'sed -i "${line}i ' + SMedakeys + ' = ' + SMedavalues + '" ' + SDataDir +'/' + SDataPort + '/my_' + SDataPort +'.cnf '
                 BashStmt = AddLine + SedDel + SedAdd
+                '''
+                BashStmt = 'echo %s = %s > %s/%s/my_%s.conf' % (SMedakeys, SMedavalues, SDataDir, SDataPort, SDataPort)
                 of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SDataIp, BashStmt, defuser, SDataIp, BashStmt))
                 of.close()
             else:
@@ -162,6 +172,9 @@ def configs():
     for i in Medakeys:
         stmt = 'set shard global ' + i + ' = ' + str(Medavalues[n])
         print(stmt)
+        of=open('config.sh','a')
+        of.write("#%s\n\n" % (stmt))
+        of.close()
         conn = psycopg2.connect(database = 'postgres', user = CompUser[0], host = CompIp[0], port = CompPort[0], password = CompPwd[0])
         conn.autocommit = True
         cur = conn.cursor()
@@ -171,7 +184,7 @@ def configs():
         conn.close()
         n = n + 1
 
-    subprocess.run("bash ./config.sh",shell=True)
+    #subprocess.run("bash ./config.sh",shell=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Configure')
