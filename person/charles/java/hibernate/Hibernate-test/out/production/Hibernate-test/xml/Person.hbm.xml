@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC
+        "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping>
+    <!-- step1 : 在class标签里面把实体类的路径给放进来 table名是数据库表的名字  -->
+     <class name="org.Hibernate.entity.Person" table="Person">
+         <!-- step2 : id标签的name值是实体类对象的属性值。column值为生成的表的字段名称-->
+         <id name="pid" column="pid" >
+             <!-- generator标签是用来设置数据库表的增长策略，其中native就是自动增长 -->
+             <generator class="native"></generator>
+         </id>
+        <!-- 现在配置其它的属性，不用id标签了，用property标签，其中name也是实体类对象的属性值，column是为生表的字段名 -->
+<!--         如果column不写的话会默认在数据库里生成和name一样的字段名-->
+<!--         还有type参数，使用方法 type="int" ,就是指定数据库表生成的字段类型-->
+         <property name="pname" column="pname" length="20"></property>
+
+         <property name="page" column="page"></property>
+
+         <property name="psex" column="psex" length="20"></property>
+     </class>
+</hibernate-mapping>

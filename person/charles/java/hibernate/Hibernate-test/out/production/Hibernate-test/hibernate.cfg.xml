@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+<!--        不要忘记session-factory标签，没写这个标签就会错误-->
+    <session-factory>
+<!--   ## PostgreSQL
+       #hibernate.dialect org.hibernate.dialect.PostgreSQLDialect
+       #hibernate.connection.driver_class org.postgresql.Driver-
+       #hibernate.connection.url jdbc:postgresql:template1
+       #hibernate.connection.username pg
+       #hibernate.connection.password
+       #hibernate.query.substitutions yes 'Y', no 'N'  -->
+
+<!--        配置数据库的信息,解压hibernate后搜索文件 hibernate.properties.template 的文件，里面就有上面注释的信息 -->
+        <property name="dialect">org.hibernate.dialect.PostgreSQL82Dialect</property>
+        <property name="connection.driver_class">org.postgresql.Driver</property>
+        <property name="connection.url">jdbc:postgresql://192.168.0.113:8881/postgres</property>
+        <property name="connection.username">abc</property>
+        <property name="connection.password">abc</property>
+<!--        <property name="connection.url">jdbc:postgresql://192.168.0.126:5555/postgres</property>-->
+<!--        <property name="connection.username">vito</property>-->
+<!--        <property name="connection.password">vito123456</property>-->
+<!--        配置hibernate的信息-->
+<!--        展示底层的sql语句-->
+        <property name="show_sql">true</property>
+<!--            在核心配置文件中配置绑定session的属性-->
+            <property name="hibernate.current_session_context_class">thread</property>
+<!--格式化sql语句-->
+        <property name="format_sql">true</property>
+
+<!--        hibernate.hbm2ddl.auto是用来自动创建|更新|验证数据库表结构,没有这个就不会自动创建表，该框架就没有意义了-->
+<!--        update是自动创建更新一个表不会删除表-->
+<!--        create是创建之前如果找到相同的表就会删除然后再创建，如果要这个表的内容不被删除就甚用-->
+<!--        create-drop是sessionFactory一旦关闭表就会自动删除-->
+<!--        validate： 每次加载hibernate时，验证创建数据库表结构，只会和数据库中的表进行比较，不会创建新表，但是会插入新值。-->
+<!--        <property name="hibernate.hbm2ddl.auto">update</property>-->
+        <property name="hibernate.hbm2ddl.auto">create</property>
+
+
+        <property name="connection.autocommit">true</property>
+
+<!--    把映射文件放到核心配置文件里面-->
+        <mapping resource="xml/Person.hbm.xml"></mapping>
+        
+        
+
+    </session-factory>
+</hibernate-configuration>
