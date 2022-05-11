@@ -207,6 +207,12 @@ def validate_config(jscfg, machines, args):
             node['brpc_http_port'] = args.defbrpc_http_port_clustermgr
             addPortToMachine(portmap, node['ip'], args.defbrpc_http_port_clustermgr)
 
+    defpaths = {
+            "server_datadirs": "server_datadir",
+            "storage_datadirs": "storage_datadir",
+            "storage_logdirs": "storage_logdir",
+            "storage_waldirs": "storage_waldir",
+        }
     for node in nodemgr['nodes']:
         mach = machines.get(node['ip'])
         if node.has_key('brpc_http_port'):
@@ -215,53 +221,16 @@ def validate_config(jscfg, machines, args):
             node['brpc_http_port'] = args.defbrpc_http_port_nodemgr
             addPortToMachine(portmap, node['ip'], args.defbrpc_http_port_nodemgr)
         # The logic is that:
-        # - if it is a absolute path, just uses it
-        # - if it is a relative path, it is a path from basedir
-        # - if it is not set, it is default to $basedir/server_datadir
-        if node.has_key('server_datadir'):
-            server_datadir = node['server_datadir']
-            if server_datadir.startswith('/'):
-                pass
+        # - if it is set, check every item is an absolute path.
+        # - if it is not set, it is default to $basedir/{server_datadir, storage_datadir, storage_logdir, storage_waldir}
+        for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
+            if node.has_key(item):
+                nodedirs = node[item].strip()
+                for d in nodedirs.split(","):
+                    if not d.strip().startswith('/'):
+                        raise ValueError('Error: the dir in %s must be absolute path!' % item)
             else:
-                node['server_datadir'] = "%s/%s" % (mach['basedir'], server_datadir)
-        else:
-            node['server_datadir'] = "%s/server_datadir" % mach['basedir']
-        # The logic is that:
-        # - if it is a absolute path, just uses it
-        # - if it is a relative path, it is a path from basedir
-        # - if it is not set, it is default to $basedir/storage_datadir
-        if node.has_key('storage_datadir'):
-            storage_datadir = node['storage_datadir']
-            if storage_datadir.startswith('/'):
-                pass
-            else:
-                node['storage_datadir'] = "%s/%s" % (mach['basedir'], storage_datadir)
-        else:
-            node['storage_datadir'] = "%s/storage_datadir" % mach['basedir']
-        # The logic is that:
-        # - if it is a absolute path, just uses it
-        # - if it is a relative path, it is a path from basedir
-        # - if it is not set, it is default to $basedir/storage_logdir
-        if node.has_key('storage_logdir'):
-            storage_logdir = node['storage_logdir']
-            if storage_logdir.startswith('/'):
-                pass
-            else:
-                node['storage_logdir'] = "%s/%s" % (mach['basedir'], storage_logdir)
-        else:
-            node['storage_logdir'] = "%s/storage_logdir" % mach['basedir']
-        # The logic is that:
-        # - if it is a absolute path, just uses it
-        # - if it is a relative path, it is a path from basedir
-        # - if it is not set, it is default to $basedir/storage_waldir
-        if node.has_key('storage_waldir'):
-            storage_waldir = node['storage_waldir']
-            if storage_waldir.startswith('/'):
-                pass
-            else:
-                node['storage_waldir'] = "%s/%s" % (mach['basedir'], storage_waldir)
-        else:
-            node['storage_waldir'] = "%s/storage_waldirerver_datadir" % mach['basedir']
+                node[item] = "%s/%s" % (mach['basedir'], defpaths[item])
 
 def get_ha_mode(jscfg, args):
     meta = jscfg['meta']
@@ -463,7 +432,7 @@ def install_with_config(jscfg, comf, machines, args):
     sqlf = open('clustermgr/%s' % nodemgrsql, 'w')
     for node in nodemgr['nodes']:
         sqlf.write("insert into kunlun_metadata_db.server_nodes(hostaddr, comp_datadir, datadir, logdir, wal_log_dir) values('%s','%s','%s','%s','%s');\n" %
-                (node['ip'], node['server_datadir'], node['storage_datadir'], node['storage_logdir'], node['storage_waldir']))
+                (node['ip'], node['server_datadirs'], node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs']))
     sqlf.close()
     addNodeToFilesMap(filesmap, firstmeta, nodemgrsql, targetdir)
     cmdpat = "mysql -h%s -P %s -upgx -ppgx_pwd < %s"
@@ -477,10 +446,10 @@ def install_with_config(jscfg, comf, machines, args):
         addIpToMachineMap(machines, node['ip'], args)
         nodemgrips.add(node['ip'])
         mach = machines.get(node['ip'])
-        addToDirMap(dirmap, node['ip'], node['server_datadir'])
-        addToDirMap(dirmap, node['ip'], node['storage_datadir'])
-        addToDirMap(dirmap, node['ip'], node['storage_logdir'])
-        addToDirMap(dirmap, node['ip'], node['storage_waldir'])
+        for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
+            nodedirs = node[item].strip()
+            for d in nodedirs.split(","):
+                addToDirMap(dirmap, node['ip'], d.strip())
         targetdir = "program_binaries"
         addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
         addToDirMap(dirmap, node['ip'], "%s/%s/util" % (mach['basedir'], targetdir))
@@ -508,9 +477,12 @@ def install_with_config(jscfg, comf, machines, args):
 
 
     clustermgrips = set()
+    members=[]
+    for node in clustermgr['nodes']:
+        members.append("%s:%d:0" % (clustermgr['nodes'][0]['ip'], clustermgr['nodes'][0]['brpc_raft_port']))
+    initmember = "%s," % ",".join(members)
     cmdpat = "bash change_config.sh %s '%s' '%s'"
     confpath = "%s/conf/cluster_mgr.cnf" % clustermgrdir
-    initmember = "%s:%d:0," % (clustermgr['nodes'][0]['ip'], clustermgr['nodes'][0]['brpc_raft_port'])
     for node in clustermgr['nodes']:
         addIpToMachineMap(machines, node['ip'], args)
         clustermgrips.add(node['ip'])
@@ -601,6 +573,11 @@ def clean_with_config(jscfg, comf, machines, args):
     for node in nodemgr['nodes']:
 	addIpToMachineMap(machines, node['ip'], args)
         addToCommandsList(commandslist, node['ip'], "%s/bin" % nodemgrdir, "bash stop_node_mgr.sh")
+        for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
+            nodedirs = node[item].strip()
+            for d in nodedirs.split(","):
+                cmdpat = '%srm -fr %s/*'
+                addToCommandsList(commandslist, node['ip'], "/", cmdpat % (sudopfx, d))
 
     # stop the nodemgr processes
     for node in clustermgr['nodes']:

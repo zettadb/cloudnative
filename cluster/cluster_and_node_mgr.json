@@ -84,10 +84,10 @@
 		},
 		{ 
  		"ip": "192.168.0.100",
-		"server_datadir": "/nodemgrdata/server_datadir",
-		"storage_datadir": "/nodemgrdata/storage_datadir",
-		"storage_logdir": "/nodemgrdata/storage_logdir",
-		"storage_waldir": "/nodemgrdata/storage_waldir"
+		"server_datadirs": "/nodemgrdata/server_datadir",
+		"storage_datadirs": "/nodemgrdata/storage_datadir",
+		"storage_logdirs": "/nodemgrdata/storage_logdir",
+		"storage_waldirs": "/nodemgrdata/storage_waldir"
 		}
 	    ]	
     }
