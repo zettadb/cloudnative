@@ -342,7 +342,8 @@ def generate_install_scripts(jscfg, args):
     objs = []
     for node in meta['nodes']:
 	obj = {}
-	obj['is_primary'] = node.get('is_primary', False)
+        obj['is_primary'] = node.get('is_primary', False)
+        obj['data_dir_path'] = node['data_dir_path']
 	obj['ip'] = node['ip']
 	obj['port'] = node['port']
 	obj['user'] = "pgx"
