@@ -384,8 +384,8 @@ def install_with_config(jscfg, comf, machines, args):
         obj['data_dir_path'] = node['data_dir_path']
 	obj['ip'] = node['ip']
 	obj['port'] = node['port']
-	obj['user'] = "clustmgr"
-	obj['password'] = "clustmgr_pwd"
+	obj['user'] = "pgx"
+	obj['password'] = "pgx_pwd"
 	objs.append(obj)
     json.dump(objs, metaf, indent=4)
     metaf.close()
@@ -436,7 +436,7 @@ def install_with_config(jscfg, comf, machines, args):
                 (node['ip'], node['server_datadirs'], node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs']))
     sqlf.close()
     addNodeToFilesMap(filesmap, firstmeta, nodemgrsql, targetdir)
-    cmdpat = "mysql -h%s -P %s -uclustmgr -pclustmgr_pwd < %s"
+    cmdpat = "mysql -h%s -P %s -upgx -ppgx_pwd < %s"
     addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (firstmeta['ip'], str(firstmeta['port']), nodemgrsql), "storage")
 
     metaseeds=",".join(meta_addrs)
