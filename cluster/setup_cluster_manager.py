@@ -290,6 +290,7 @@ def install_nodemgr_env(comf, mach, machines, args):
     process_file(comf, args, machines, ip, 'install/change_config.sh', mach['basedir'])
     process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
     process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
+    process_command_noenv(comf, args, machines, ip, mach['basedir'], 'touch env.sh')
 
 def install_clustermgr_env(comf, mach, machines, args):
     progname = "kunlun-cluster-manager-%s" % args.product_version
@@ -304,6 +305,7 @@ def install_clustermgr_env(comf, mach, machines, args):
     process_file(comf, args, machines, ip, 'install/change_config.sh', mach['basedir'])
     process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
     process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
+    process_command_noenv(comf, args, machines, ip, mach['basedir'], 'touch env.sh')
 
 def setup_machines(jscfg, machines, args):
     machnodes = jscfg.get('machines', [])
