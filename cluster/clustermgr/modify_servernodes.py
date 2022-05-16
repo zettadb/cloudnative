@@ -75,7 +75,7 @@ def add_nodemgr_nodes(args):
 
 def remove_nodemgr_nodes(args):
     meta_conn = get_master_conn(args, args.seeds)
-   if meta_conn is None:
+    if meta_conn is None:
         return
     nodes = get_nodemgr_nodes(args.config)
     meta_cursor = meta_conn.cursor(prepared=True)
