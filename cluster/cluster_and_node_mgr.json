@@ -26,9 +26,6 @@
  		"xport":60010,
  		"mgr_port":60011,
  		"innodb_buffer_pool_size":"64MB",
- 		"data_dir_path":"/data1",
- 		"log_dir_path":"/data1/log",
- 		"user":"kunlun",
  		"election_weight":50
                 },
                 {
@@ -38,9 +35,6 @@
  		"xport":60020,
  		"mgr_port":60021,
  		"innodb_buffer_pool_size":"64MB",
- 		"data_dir_path":"/data2",
- 		"log_dir_path":"/data2/log",
- 		"user":"kunlun",
  		"election_weight":50
                 },
                 {
@@ -50,9 +44,6 @@
  		"xport":60030,
  		"mgr_port":60031,
  		"innodb_buffer_pool_size":"64MB",
- 		"data_dir_path":"/data3",
- 		"log_dir_path":"/data3/log",
- 		"user":"kunlun",
  		"election_weight":50
                 }
         ]

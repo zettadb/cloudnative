@@ -4,6 +4,7 @@
 # combined with Common Clause Condition 1.0, as detailed in the NOTICE file.
 
 tries=10
+export LD_LIBRARY_PATH="`pwd`:$LD_LIBRARY_PATH"
 find ../bin -type f | while read f; do
 	cur=0
 	while test "$cur" -lt "$tries"; do

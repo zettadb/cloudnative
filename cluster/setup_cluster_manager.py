@@ -30,10 +30,9 @@ def addMachineToMap(map, ip, user, basedir):
 
 def addIpToFilesMap(map, ip, fname, targetdir):
     if not map.has_key(ip):
-	map[ip] = {}
-    tmap = map[ip]
-    if not tmap.has_key(fname):
-	tmap[fname] = targetdir
+	map[ip] = []
+    tlist = map[ip]
+    tlist.append([fname, targetdir])
 
 def addNodeToFilesMap(map, node, fname, targetdir):
     ip = node['ip']
@@ -49,10 +48,6 @@ def addToCommandsMap(map, ip, targetdir, command):
 	map[ip] = []
     cmds = map[ip]
     cmds.append([targetdir, command])
-
-def addToFileList(files, ip, sourcepath, target):
-    lst = [ip, sourcepath, target]
-    files.append(lst)
 
 def addToCommandsListNoenv(cmds, ip, targetdir, command):
     lst = [ip, targetdir, command]
@@ -153,10 +148,24 @@ def addDirToMachine(map, ip, directory):
         else:
             dset.add(directory)
 
+def set_metapath_using_nodemgr(machines, nodem, noden):
+    nodem['data_dir_path'] = "%s/%s" % (noden['storage_datadirs'].split(",")[0], str(nodem['port']))
+    nodem['log_dir_path'] = "%s/%s" % (noden['storage_logdirs'].split(",")[0], str(nodem['port']))
+    nodem['innodb_log_dir_path'] = "%s/%s" % (noden['storage_waldirs'].split(",")[0], str(nodem['port']))
+    mach = machines.get(nodem['ip'])
+    nodem['program_dir'] = "instance_binaries/storage/%s" % str(nodem['port'])
+    nodem['user'] = mach['user']
+
 def validate_config(jscfg, machines, args):
-    meta = jscfg['meta']
-    clustermgr = jscfg['cluster_manager']
-    nodemgr = jscfg['node_manager']
+    meta = jscfg.get('meta', {'nodes':[]})
+    if not meta.has_key('nodes'):
+        meta['nodes'] = []
+    clustermgr = jscfg.get('cluster_manager', {'nodes':[]})
+    if not clustermgr.has_key('nodes'):
+        clustermgr['nodes'] = []
+    nodemgr = jscfg.get('node_manager', {'nodes':[]})
+    if not nodemgr.has_key('nodes'):
+        nodemgr['nodes'] = []
     ha_mode = meta.get('ha_mode', '')
     portmap = {}
     dirmap = {}
@@ -167,7 +176,7 @@ def validate_config(jscfg, machines, args):
             ha_mode = 'mgr'
         else:
             ha_mode = 'no_rep'
-    if nodecnt == 0:
+    if nodecnt == 0 and not meta.has_key('group_seeds'):
         raise ValueError('Error: There must be at least one node in meta shard')
     if nodecnt > 1 and ha_mode == 'no_rep':
         raise ValueError('Error: ha_mode is no_rep, but there are multiple nodes in meta shard')
@@ -175,15 +184,15 @@ def validate_config(jscfg, machines, args):
         raise ValueError('Error: ha_mode is mgr/rbr, but there is only one node in meta shard')
     hasPrimary=False
     for node in meta['nodes']:
+        # These attr should not be set explicitly.
+        for attr in ['data_dir_path', 'log_dir_path', 'innodb_log_dir_path']:
+            if node.has_key(attr):
+                raise ValueError('%s can not be set explicitly for meta node %s:%d' % (attr, node['ip'], node['port']))
         addPortToMachine(portmap, node['ip'], node['port'])
         if node.has_key('xport'):
             addPortToMachine(portmap, node['ip'], node['xport'])
         if node.has_key('mgr_port'):
             addPortToMachine(portmap, node['ip'], node['mgr_port'])
-        addDirToMachine(dirmap, node['ip'], node['data_dir_path'])
-        addDirToMachine(dirmap, node['ip'], node['log_dir_path'])
-        if node.has_key('innodb_log_dir_path'):
-            addDirToMachine(dirmap, node['ip'], node['innodb_log_dir_path'])
         if node.get('is_primary', False):
             if hasPrimary:
                 raise ValueError('Error: Two primaries found in meta shard, there should be one and only one Primary specified !')
@@ -192,10 +201,14 @@ def validate_config(jscfg, machines, args):
     if nodecnt > 1:
         if not hasPrimary:
             raise ValueError('Error: No primary found in meta shard, there should be one and only one !')
-    else:
+    elif nodecnt > 0:
             node['is_primary'] = True
 
+    clustermgrips = set()
     for node in clustermgr['nodes']:
+        if node['ip'] in clustermgrips:
+            raise ValueError('Error: %s exists, only one cluster_mgr can be run on a machine!' % node['ip'])
+        clustermgrips.add(node['ip'])
         if node.has_key('brpc_raft_port'):
             addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
         else:
@@ -213,8 +226,12 @@ def validate_config(jscfg, machines, args):
             "storage_logdirs": "storage_logdir",
             "storage_waldirs": "storage_waldir",
         }
+    nodemgrips = set()
     for node in nodemgr['nodes']:
         mach = machines.get(node['ip'])
+        if node['ip'] in nodemgrips:
+            raise ValueError('Error: %s exists, only one node_mgr can be run on a machine!' % node['ip'])
+        nodemgrips.add(node['ip'])
         if node.has_key('brpc_http_port'):
             addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
         else:
@@ -227,6 +244,7 @@ def validate_config(jscfg, machines, args):
             if node.has_key(item):
                 nodedirs = node[item].strip()
                 for d in nodedirs.split(","):
+                    addDirToMachine(dirmap, node['ip'], d)
                     if not d.strip().startswith('/'):
                         raise ValueError('Error: the dir in %s must be absolute path!' % item)
             else:
@@ -239,89 +257,118 @@ def get_ha_mode(jscfg, args):
     else:
         return 'no_rep'
 
-def install_meta_env(comf, mach, machines, args):
+def get_default_nodemgr(args, machines, ip):
+    mach = machines.get(ip)
+    defpaths = {
+            "server_datadirs": "server_datadir",
+            "storage_datadirs": "storage_datadir",
+            "storage_logdirs": "storage_logdir",
+            "storage_waldirs": "storage_waldir",
+        }
+    node =  {
+            'ip': ip,
+            'brpc_http_port': args.defbrpc_http_port_nodemgr
+            }
+    for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
+        node[item] = "%s/%s" % (mach['basedir'], defpaths[item])
+    return node
+
+def install_meta_env(comf, node, machines, args):
     storagedir = "kunlun-storage-%s" % args.product_version
-    ip = mach['ip']
-    if args.sudo:
-        process_command_noenv(comf, args, machines, ip, '/',
-            'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
-            mach['user'], mach['user'], mach['basedir']))
-    else:
-        process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
+    ip = node['ip']
+    mach = machines.get(ip)
     # Set up the files
-    process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % storagedir, mach['basedir'])
-    process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % storagedir)
-
-	# files
-    flist = [
-        ['install/build_driver_formysql.sh', '%s/resources' % storagedir],
-        ['install/process_deps.sh', '.'],
-        ['install/change_config.sh', '.']
-        ]
-    for fpair in flist:
-        process_file(comf, args, machines, ip, fpair[0], "%s/%s" % (mach['basedir'], fpair[1]))
-
-    # Set up the env.sh, this must be before 'process_command_setenv'
-    process_file(comf, args, machines, ip, 'env.sh.template', mach['basedir'])
-    extstr = "sed -s 's#KUNLUN_BASEDIR#%s#g' env.sh.template > env.sh" % mach['basedir']
-    process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
-    extstr = "sed -i 's#KUNLUN_VERSION#%s#g' env.sh" % args.product_version
-    process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
-
-    comstr = "bash ../../process_deps.sh"
-    process_command_setenv(comf, args, machines, ip, "%s/lib" % storagedir, comstr, "storage")
-
-    comstr = "bash build_driver_formysql.sh"
-    process_command_setenv(comf, args, machines, ip, "%s/resources" % storagedir, comstr, "storage")
- 
-    comstr = "cd %s || exit 1; test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0" % storagedir
-    process_command_noenv(comf, args, machines, ip, mach['basedir'], comstr)
+    process_command_setenv(comf, args, machines, ip, '.', 'mkdir -p %s' %  node['program_dir'])
+    process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % storagedir, '%s/%s' % (mach['basedir'], node['program_dir']))
+    process_command_setenv(comf, args, machines, ip, node['program_dir'], 'tar -xzf %s.tgz' % storagedir)
+    comstr = "bash %s/process_deps.sh"
+    process_command_setenv(comf, args, machines, ip,
+        "%s/%s/lib" % (node['program_dir'], storagedir), comstr % mach['basedir'], "storage")
+    comstr = "test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0"
+    process_command_setenv(comf, args, machines, ip, "%s/%s" % (node['program_dir'], storagedir), comstr)
 
 def install_nodemgr_env(comf, mach, machines, args):
     progname = "kunlun-node-manager-%s" % args.product_version
     ip = mach['ip']
-    if args.sudo:
-        process_command_noenv(comf, args, machines, ip, '/',
-            'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
-            mach['user'], mach['user'], mach['basedir']))
-    else:
-        process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
     # Set up the files
-    process_file(comf, args, machines, ip, 'install/change_config.sh', mach['basedir'])
     process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
     process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
-    process_command_noenv(comf, args, machines, ip, mach['basedir'], 'touch env.sh')
+
+def setup_nodemgr_commands(args, machines, node, commandslist, dirmap, filesmap, metaseeds):
+    cmdpat = "bash change_config.sh %s '%s' '%s'"
+    nodemgrdir = "kunlun-node-manager-%s" % args.product_version
+    storagedir = "kunlun-storage-%s" % args.product_version
+    serverdir = "kunlun-server-%s" % args.product_version
+    confpath = "%s/conf/node_mgr.cnf" % nodemgrdir
+    mach = machines.get(node['ip'])
+    targetdir = "program_binaries"
+    setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
+    for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
+        nodedirs = node[item].strip()
+        for d in nodedirs.split(","):
+            addToDirMap(dirmap, node['ip'], d.strip())
+    addNodeToFilesMap(filesmap, node, "hadoop-3.3.1.tar.gz", targetdir)
+    addNodeToFilesMap(filesmap, node, "jdk-8u131-linux-x64.tar.gz", targetdir)
+    addNodeToFilesMap(filesmap, node, "backup", "%s/util" % targetdir)
+    addNodeToFilesMap(filesmap, node, "restore", "%s/util" % targetdir)
+    addNodeToFilesMap(filesmap, node, "xtrabackup", "%s/util" % targetdir)
+    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf hadoop-3.3.1.tar.gz")
+    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'meta_group_seeds', metaseeds))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_http_port', node['brpc_http_port']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'local_ip', node['ip']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'program_binaries_path', '%s/program_binaries' % mach['basedir']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'instance_binaries_path', '%s/instance_binaries' % mach['basedir']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'storage_prog_package_name', storagedir))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'computer_prog_package_name', serverdir))
 
 def install_clustermgr_env(comf, mach, machines, args):
     progname = "kunlun-cluster-manager-%s" % args.product_version
     ip = mach['ip']
-    if args.sudo:
-        process_command_noenv(comf, args, machines, ip, '/',
-            'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
-            mach['user'], mach['user'], mach['basedir']))
-    else:
-        process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
     # Set up the files
-    process_file(comf, args, machines, ip, 'install/change_config.sh', mach['basedir'])
     process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
     process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
-    process_command_noenv(comf, args, machines, ip, mach['basedir'], 'touch env.sh')
+
+def setup_clustermgr_commands(args, machines, node, commandslist, dirmap, filesmap, metaseeds, initmember, initcommon):
+    cmdpat = "bash change_config.sh %s '%s' '%s'"
+    clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
+    storagedir = "kunlun-storage-%s" % args.product_version
+    serverdir = "kunlun-server-%s" % args.product_version
+    confpath = "%s/conf/cluster_mgr.cnf" % clustermgrdir
+    mach = machines.get(node['ip'])
+    targetdir = "program_binaries"
+    if initcommon:
+        setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'meta_group_seeds', metaseeds))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_raft_port', node['brpc_raft_port']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_http_port', node['brpc_http_port']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'local_ip', node['ip']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'raft_group_member_init_config', initmember))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'program_binaries_path', '%s/program_binaries' % mach['basedir']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'instance_binaries_path', '%s/instance_binaries' % mach['basedir']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'storage_prog_package_name', storagedir))
+    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'computer_prog_package_name', serverdir))
 
 def setup_machines(jscfg, machines, args):
     machnodes = jscfg.get('machines', [])
-    meta = jscfg.get('meta', {"nodes": []})
+    meta = jscfg['meta']
+    metanodes = meta.get('nodes', [])
     nodemgr = jscfg.get('node_manager', {"nodes": []})
+    nodemgrnodes = nodemgr.get('nodes', [])
     clustermgr = jscfg.get('cluster_manager', {"nodes": []})
+    clustermgrnodes = clustermgr.get('nodes', [])
     for mach in machnodes:
 	ip=mach['ip']
 	user=mach.get('user', args.defuser)
 	base=mach.get('basedir', args.defbase)
 	addMachineToMap(machines, ip, user, base)
-    for node in meta['nodes']:
+    for node in metanodes:
         addIpToMachineMap(machines, node['ip'], args)
-    for node in nodemgr['nodes']:
+    for node in nodemgrnodes:
         addIpToMachineMap(machines, node['ip'], args)
-    for node in clustermgr['nodes']:
+    for node in clustermgrnodes:
         addIpToMachineMap(machines, node['ip'], args)
 
 def install_clustermgr(args):
@@ -349,6 +396,24 @@ def clean_clustermgr(args):
 def getuuid():
     return str(uuid.uuid1())
 
+def setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir):
+    mach = machines.get(node['ip'])
+    addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
+    addToDirMap(dirmap, node['ip'], "%s/%s/util" % (mach['basedir'], targetdir))
+    addToDirMap(dirmap, node['ip'], "%s/instance_binaries" % mach['basedir'])
+    addNodeToFilesMap(filesmap, node, "prometheus.tgz", targetdir)
+    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf prometheus.tgz")
+    addNodeToFilesMap(filesmap, node, "%s.tgz" % storagedir, targetdir)
+    addNodeToFilesMap(filesmap, node, "%s.tgz" % serverdir, targetdir)
+    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % storagedir)
+    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % serverdir)
+    addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, storagedir), "bash %s/process_deps.sh" % mach['basedir'])
+    addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, serverdir), "bash %s/process_deps.sh" % mach['basedir'])
+    #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % storagedir)
+    #addToCommandsList(commandslist, node['ip'], targetdir, "tar -czf %s.tgz %s" % (storagedir, storagedir))
+    #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
+    #addToCommandsList(commandslist, node['ip'], targetdir, "tar -czf %s.tgz %s" % (serverdir, serverdir))
+
 def install_with_config(jscfg, comf, machines, args):
     meta = jscfg['meta']
     clustermgr = jscfg['cluster_manager']
@@ -365,51 +430,78 @@ def install_with_config(jscfg, comf, machines, args):
     filesmap = {}
     commandslist = []
     dirmap = {}
+
     cluster_name = 'meta'
     extraopt = " --ha_mode=%s" % ha_mode
+    meta_addrs = []
+    metaips = set()
+    for node in meta['nodes']:
+        metaips.add(node['ip'])
+        meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
+    metaseeds = meta.get('group_seeds', '')
+    if metaseeds == '':
+        metaseeds=",".join(meta_addrs)
+        print 'metaseeds:%s' % metaseeds
+
+    nodemgrips = set()
+    nodemgrmaps = {}
+    for node in nodemgr['nodes']:
+        nodemgrips.add(node['ip'])
+        nodemgrmaps[node['ip']] = node
+    for ip in metaips:
+        if ip not in nodemgrips:
+            node = get_default_nodemgr(args, machines, ip)
+            nodemgr['nodes'].append(node)
+            nodemgrmaps[ip] = node
+            nodemgrips.add(ip)
+    for node in meta['nodes']:
+        set_metapath_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
+
+    clustermgrips = set()
+    members=[]
+    for node in clustermgr['nodes']:
+        clustermgrips.add(node['ip'])
+        members.append("%s:%d:0" % (clustermgr['nodes'][0]['ip'], clustermgr['nodes'][0]['brpc_raft_port']))
+    initmember = clustermgr.get('raft_group_member_init_config', '')
+    if initmember == '':
+        initmember = "%s," % ",".join(members)
 
     # used for install storage nodes
+    my_metaname = 'mysql_meta.json'
+    reg_metaname = 'reg_meta.json'
     if not meta.has_key('group_uuid'):
 	    meta['group_uuid'] = getuuid()
-    my_metaname = 'mysql_meta.json'
-    metaf = open(r'clustermgr/%s' % my_metaname,'w')
-    json.dump(meta, metaf, indent=4)
-    metaf.close()
-
-    # used for bootstrap
-    reg_metaname = 'reg_meta.json'
-    metaf = open(r'clustermgr/%s' % reg_metaname, 'w')
-    objs = []
-    for node in meta['nodes']:
-	obj = {}
-	obj['is_primary'] = node.get('is_primary', False)
-        obj['data_dir_path'] = node['data_dir_path']
-	obj['ip'] = node['ip']
-	obj['port'] = node['port']
-	obj['user'] = "pgx"
-	obj['password'] = "pgx_pwd"
-	objs.append(obj)
-    json.dump(objs, metaf, indent=4)
-    metaf.close()
+    if len(meta['nodes']) > 0:
+        metaf = open(r'clustermgr/%s' % my_metaname,'w')
+        json.dump(meta, metaf, indent=4)
+        metaf.close()
+        metaf = open(r'clustermgr/%s' % reg_metaname, 'w')
+        objs = []
+        for node in meta['nodes']:
+	    obj = {}
+	    obj['is_primary'] = node.get('is_primary', False)
+            obj['data_dir_path'] = node['data_dir_path']
+	    obj['ip'] = node['ip']
+	    obj['port'] = node['port']
+	    obj['user'] = "pgx"
+	    obj['password'] = "pgx_pwd"
+	    objs.append(obj)
+        json.dump(objs, metaf, indent=4)
+        metaf.close()
 
     cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s'
     if args.small:
         cmdpat += ' --dbcfg=./template-small.cnf'
     # commands like:
     # python2 install-mysql.py --config=./mysql_meta.json --target_node_index=0
-    targetdir='%s/dba_tools' % storagedir
     shard_id = 'meta'
     pries = []
     secs = []
-    meta_addrs = []
-    i = 0 
-    metaips = set()
+    i = 0
     for node in meta['nodes']:
-        metaips.add(node['ip'])
-	meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
+	targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
 	addNodeToFilesMap(filesmap, node, reg_metaname, targetdir)
 	addNodeToFilesMap(filesmap, node, my_metaname, targetdir)
-	addIpToMachineMap(machines, node['ip'], args)
 	cmd = cmdpat % (sudopfx, my_metaname, i, cluster_name, shard_id)
 	if node.get('is_primary', False):
             pries.append([node['ip'], targetdir, cmd])
@@ -417,102 +509,79 @@ def install_with_config(jscfg, comf, machines, args):
             secs.append([node['ip'], targetdir, cmd])
 	addToDirMap(dirmap, node['ip'], node['data_dir_path'])
 	addToDirMap(dirmap, node['ip'], node['log_dir_path'])
-        if node.has_key('innodb_log_dir_path'):
-            addToDirMap(dirmap, node['ip'], node['innodb_log_dir_path'])
+	addToDirMap(dirmap, node['ip'], node['innodb_log_dir_path'])
 	i+=1
-
     for item in pries:
         addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
     for item in secs:
         addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
 
     # bootstrap the cluster
-    firstmeta = meta['nodes'][0]
-    targetdir='%s/dba_tools' % storagedir
-    cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql' + extraopt
-    addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % reg_metaname, "storage")
-    nodemgrsql = 'nodemgr.sql'
-    sqlf = open('clustermgr/%s' % nodemgrsql, 'w')
-    for node in nodemgr['nodes']:
-        sqlf.write("insert into kunlun_metadata_db.server_nodes(hostaddr, comp_datadir, datadir, logdir, wal_log_dir) values('%s','%s','%s','%s','%s');\n" %
-                (node['ip'], node['server_datadirs'], node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs']))
-    sqlf.close()
-    addNodeToFilesMap(filesmap, firstmeta, nodemgrsql, targetdir)
-    cmdpat = "mysql -h%s -P %s -upgx -ppgx_pwd < %s"
-    addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (firstmeta['ip'], str(firstmeta['port']), nodemgrsql), "storage")
+    if len(meta['nodes']) > 0:
+        firstmeta = meta['nodes'][0]
+        targetdir='%s/%s/dba_tools' % (firstmeta['program_dir'], storagedir)
+        cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql' + extraopt
+        addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % reg_metaname, "storage")
 
-    metaseeds=",".join(meta_addrs)
-    cmdpat = "bash change_config.sh %s '%s' '%s'"
-    nodemgrips = set()
+    if len(nodemgr['nodes']) > 0:
+        nodemgrjson = "nodemgr.json"
+        nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
+        json.dump(nodemgr['nodes'], nodemgrf, indent=4)
+        nodemgrf.close()
+        worknode = None
+        if len(meta['nodes']) > 0:
+            worknode = meta['nodes'][0]
+        elif len(nodemgr['nodes']) > 0:
+            worknode = nodemgr['nodes'][0]
+        else:
+            worknode = clustermgr['nodes'][0]
+        if worknode is not None:
+            ip = worknode['ip']
+            mach = machines.get(ip)
+            addNodeToFilesMap(filesmap, worknode, 'modify_servernodes.py', '.')
+            addNodeToFilesMap(filesmap, worknode, nodemgrjson, '.')
+            addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
+                "python2 modify_servernodes.py --config %s --action=add --seeds=%s" % (nodemgrjson, metaseeds))
+
     for node in nodemgr['nodes']:
-        confpath = "%s/conf/node_mgr.cnf" % nodemgrdir
-        addIpToMachineMap(machines, node['ip'], args)
-        nodemgrips.add(node['ip'])
-        mach = machines.get(node['ip'])
-        for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
-            nodedirs = node[item].strip()
-            for d in nodedirs.split(","):
-                addToDirMap(dirmap, node['ip'], d.strip())
-        targetdir = "program_binaries"
-        addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
-        addToDirMap(dirmap, node['ip'], "%s/%s/util" % (mach['basedir'], targetdir))
-        addToDirMap(dirmap, node['ip'], "%s/instance_binaries" % mach['basedir'])
-        addNodeToFilesMap(filesmap, node, "%s.tgz" % storagedir, targetdir)
-        addNodeToFilesMap(filesmap, node, "%s.tgz" % storagedir, targetdir)
-        addNodeToFilesMap(filesmap, node, "hadoop-3.3.1.tar.gz", targetdir)
-        addNodeToFilesMap(filesmap, node, "jdk-8u131-linux-x64.tar.gz", targetdir)
-        addNodeToFilesMap(filesmap, node, "prometheus.tgz", targetdir)
-        addNodeToFilesMap(filesmap, node, "backup", "%s/util" % targetdir)
-        addNodeToFilesMap(filesmap, node, "restore", "%s/util" % targetdir)
-        addNodeToFilesMap(filesmap, node, "xtrabackup", "%s/util" % targetdir)
-        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf hadoop-3.3.1.tar.gz")
-        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
-        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf prometheus.tgz")
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'meta_group_seeds', metaseeds))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_http_port', node['brpc_http_port']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'local_ip', node['ip']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'program_binaries_path', '%s/program_binaries' % mach['basedir']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'instance_binaries_path', '%s/instance_binaries' % mach['basedir']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'storage_prog_package_name', storagedir))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'computer_prog_package_name', serverdir))
+        setup_nodemgr_commands(args, machines, node, commandslist, dirmap, filesmap, metaseeds)
+
+    for node in clustermgr['nodes']:
+        setup_clustermgr_commands(args, machines, node, commandslist, dirmap, filesmap, metaseeds, initmember, ip not in nodemgrips)
+
+    # start the nodemgr and clustermgr process finally.
+    for node in nodemgr['nodes']:
         addToCommandsList(commandslist, node['ip'], "%s/bin" % nodemgrdir, "bash start_node_mgr.sh </dev/null >& run.log &")
-
-
-    clustermgrips = set()
-    members=[]
     for node in clustermgr['nodes']:
-        members.append("%s:%d:0" % (clustermgr['nodes'][0]['ip'], clustermgr['nodes'][0]['brpc_raft_port']))
-    initmember = "%s," % ",".join(members)
-    cmdpat = "bash change_config.sh %s '%s' '%s'"
-    confpath = "%s/conf/cluster_mgr.cnf" % clustermgrdir
-    for node in clustermgr['nodes']:
-        addIpToMachineMap(machines, node['ip'], args)
-        clustermgrips.add(node['ip'])
-        mach = machines.get(node['ip'])
-        targetdir = "program_binaries"
-        addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
-        addToDirMap(dirmap, node['ip'], "%s/instance_binaries" % mach['basedir'])
-        addNodeToFilesMap(filesmap, node, "%s.tgz" % storagedir, targetdir)
-        addNodeToFilesMap(filesmap, node, "%s.tgz" % serverdir, targetdir)
-        addNodeToFilesMap(filesmap, node, "prometheus.tgz", targetdir)
-        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf prometheus.tgz")
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'meta_group_seeds', metaseeds))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_raft_port', node['brpc_raft_port']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_http_port', node['brpc_http_port']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'local_ip', node['ip']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'raft_group_member_init_config', initmember))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'program_binaries_path', '%s/program_binaries' % mach['basedir']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'instance_binaries_path', '%s/instance_binaries' % mach['basedir']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'storage_prog_package_name', storagedir))
-        addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'computer_prog_package_name', serverdir))
         addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash start_cluster_mgr.sh </dev/null >& start.log &")
 
+    workips = set()
+    workips.update(metaips)
+    workips.update(nodemgrips)
+    workips.update(clustermgrips)
+    print "workips:%s" % str(workips)
+    for ip in workips:
+	mach = machines.get(ip)
+	if args.sudo:
+            process_command_noenv(comf, args, machines, ip, '/',
+                'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
+                    mach['user'], mach['user'], mach['basedir']))
+	else:
+            process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
+        process_file(comf, args, machines, ip, 'env.sh.template', mach['basedir'])
+        extstr = "sed -s 's#KUNLUN_BASEDIR#%s#g' env.sh.template > env.sh" % mach['basedir']
+        process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
+        extstr = "sed -i 's#KUNLUN_VERSION#%s#g' env.sh" % args.product_version
+        process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
+        process_file(comf, args, machines, ip, 'install/process_deps.sh', mach['basedir'])
+        process_file(comf, args, machines, ip, 'install/change_config.sh', mach['basedir'])
+        process_file(comf, args, machines, ip, 'install/build_driver_formysql.sh', mach['basedir'])
+        process_file(comf, args, machines, ip, 'clustermgr/mysql-connector-python-2.1.3.tar.gz', mach['basedir'])
+        process_command_noenv(comf, args, machines, ip, mach['basedir'], 'bash ./build_driver_formysql.sh %s' % mach['basedir'])
+
    # setup env for meta
-    for ip in metaips:
-        mach = machines.get(ip)
-        install_meta_env(comf, mach, machines, args)
+    for node in meta['nodes']:
+        install_meta_env(comf, node, machines, args)
 
    # setup env for nodemgr
     for ip in nodemgrips:
@@ -539,8 +608,8 @@ def install_with_config(jscfg, comf, machines, args):
     for ip in filesmap:
 	mach = machines.get(ip)
 	fmap = filesmap[ip]
-	for fname in fmap:
-            process_file(comf, args, machines, ip, 'clustermgr/%s' % fname, '%s/%s' % (mach['basedir'], fmap[fname]))
+	for fpair in fmap:
+            process_file(comf, args, machines, ip, 'clustermgr/%s' % fpair[0], '%s/%s' % (mach['basedir'], fpair[1]))
 
     # The reason for not using commands map is that, we need to keep the order for the commands.
     process_commandslist_setenv(comf, args, machines, commandslist)
@@ -560,37 +629,80 @@ def clean_with_config(jscfg, comf, machines, args):
     commandslist = []
     dirmap = {}
 
-    # clean the meta nodes
-    targetdir='%s/dba_tools' % storagedir
+    metaips = set()
+    meta_addrs = []
     for node in meta['nodes']:
-	addIpToMachineMap(machines, node['ip'], args)
+        metaips.add(node['ip'])
+        meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
+    metaseeds = meta.get('group_seeds', '')
+    if metaseeds == '':
+        metaseeds=",".join(meta_addrs)
+
+    nodemgrips = set()
+    nodemgrmaps = {}
+    for node in nodemgr['nodes']:
+        nodemgrips.add(node['ip'])
+        nodemgrmaps[node['ip']] = node
+    for ip in metaips:
+        if ip not in nodemgrips:
+            node = get_default_nodemgr(args, machines, ip)
+            nodemgr['nodes'].append(node)
+            nodemgrmaps[ip] = node
+            nodemgrips.add(ip)
+    for node in meta['nodes']:
+        set_metapath_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
+
+    clustermgrips = set()
+    for node in clustermgr['nodes']:
+        clustermgrips.add(node['ip'])
+
+    # clean the meta nodes
+    for node in meta['nodes']:
+        targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
 	cmdpat = r'bash stopmysql.sh %d'
 	addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'], "storage")
 	cmdpat = r'%srm -fr %s'
 	addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['log_dir_path']))
 	addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['data_dir_path']))
-	if node.has_key('innodb_log_dir_path'):
-		addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['innodb_log_dir_path']))
+	addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['innodb_log_dir_path']))
+        addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['program_dir']))
 
     # stop the nodemgr processes
     for node in nodemgr['nodes']:
-	addIpToMachineMap(machines, node['ip'], args)
+        mach = machines.get(node['ip'])
         addToCommandsList(commandslist, node['ip'], "%s/bin" % nodemgrdir, "bash stop_node_mgr.sh")
         for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
             nodedirs = node[item].strip()
             for d in nodedirs.split(","):
                 cmdpat = '%srm -fr %s/*'
                 addToCommandsList(commandslist, node['ip'], "/", cmdpat % (sudopfx, d))
+        addToCommandsList(commandslist, node['ip'], "", '%srm -fr %s/%s' % (sudopfx, mach['basedir'], nodemgrdir))
+
 
     # stop the nodemgr processes
     for node in clustermgr['nodes']:
-        addIpToMachineMap(machines, node['ip'], args)
         addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash stop_cluster_mgr.sh")
+        addToCommandsList(commandslist, node['ip'], "", '%srm -fr %s/%s' % (sudopfx, mach['basedir'], clustermgrdir))
 
-    for ip in machines:
-	mach =machines[ip]
-        cmdpat = '%srm -fr %s/*'
-        addToCommandsList(commandslist, ip, ".", cmdpat % (sudopfx, mach['basedir']))
+    if len(nodemgr['nodes']) > 0 and meta.has_key('group_seeds'):
+        nodemgrjson = "nodemgr.json"
+        nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
+        json.dump(nodemgr['nodes'], nodemgrf, indent=4)
+        nodemgrf.close()
+        worknode = None
+        if len(meta['nodes']) > 0:
+            worknode = meta['nodes'][0]
+        elif len(nodemgr['nodes']) > 0:
+            worknode = nodemgr['nodes'][0]
+        else:
+            worknode = clustermgr['nodes'][0]
+        if worknode is not None:
+            ip = worknode['ip']
+            mach = machines.get(ip)
+            addNodeToFilesMap(filesmap, worknode, 'modify_servernodes.py', '.')
+            addNodeToFilesMap(filesmap, worknode, nodemgrjson, '.')
+            addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
+                "python2 modify_servernodes.py --config %s --action=remove --seeds=%s" % (nodemgrjson, metaseeds))
 
     process_commandslist_setenv(comf, args, machines, commandslist)
 

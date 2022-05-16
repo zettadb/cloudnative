@@ -5,12 +5,11 @@
 
 user="`id -un`"
 group="`id -gn`"
+prefix="$1"
 
 python2 -c 'import mysql.connector' >/dev/null 2>/dev/null || (
 	tar -xzf mysql-connector-python-2.1.3.tar.gz
 	cd mysql-connector-python-2.1.3
 	python2 setup.py build >/dev/null
-	sudo PATH="$PATH" python2 setup.py install >/dev/null
-	cd ..
-	sudo chown -R $user:$group mysql-connector-python-2.1.3
+	python2 setup.py install --prefix="$prefix" >/dev/null
 ) 
