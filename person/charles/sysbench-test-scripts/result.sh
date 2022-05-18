@@ -1,7 +1,7 @@
 rm -rf result
 touch result
 
-for list in point_select insert read_only read_write write_only update_index update_non_index
+for list in point_select point_select_k insert write_only read_only read_only_k read_write read_write_k update_index update_non_index
 do
         echo "== ${list} == " >> result
         #for a in `seq 1 10`
@@ -23,7 +23,7 @@ sed -i 's/ / || /g' result && sed -i 's/^/|| kunlun || /' result
 sed -i 's/$/ ||/' result
 sed -i "1 i * `date`" result && sed -i "1 i [[PageOutline]]" result
 
-for i in point_select insert read_only read_write write_only update_index update_non_index
+for i in point_select point_select_k insert write_only read_only read_only_k read_write read_write_k update_index update_non_index
 do
 	ai=`cat -n result | grep $i | awk '{print $1}'`
 	sed -i "$ai a\|| db || threads || tps || pqs || avg response time(ms) || .95 response time(ms) ||" result

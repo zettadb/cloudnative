@@ -26,7 +26,7 @@ echo ================ parameters ================
 echo 
 
 #point_select insert write_only read_only read_write update_index update_non_index
-for i in point_select insert write_only read_only read_write update_index update_non_index 
+for i in point_select point_select_k insert write_only read_only read_only_k read_write read_write_k update_index update_non_index 
 do
 	echo
 	date

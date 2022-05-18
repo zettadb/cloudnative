@@ -7,7 +7,7 @@ if [ $# -lt 7 ] ; then
 	exit 1
 fi
 
-for i in point_select delete insert read_only read_write write_only update_index update_non_index
+for i in point_select point_select_k insert write_only read_only read_only_k read_write read_write_k update_index update_non_index
 do
         # create test result dir
         if [ ! -d $i ] ; then
@@ -30,12 +30,12 @@ cp result result_before
 
 for n in `seq 1 10`
 do
-        for a in point_select write_only insert update_index update_non_index
+        for a in point_select point_select_k insert write_only read_only read_only_k read_write read_write_k update_index update_non_index
         do
                 for i in 300 600 900
 		do
 
-                        b=`cat result | grep -A 11 "=== $a" | grep "|| $i ||" | awk '{print $16}' | sed 's/...$//'`
+                        b=`cat result | grep -A 11 "=== $a" | grep "|| $i ||" | awk '{print $10}' | sed 's/...$//'`
                         if [[ "$b" -eq '' ]]; then
                                 echo
                                 date
