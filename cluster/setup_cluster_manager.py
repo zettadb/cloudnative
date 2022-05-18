@@ -149,9 +149,9 @@ def addDirToMachine(map, ip, directory):
             dset.add(directory)
 
 def set_metapath_using_nodemgr(machines, nodem, noden):
-    nodem['data_dir_path'] = "%s/%s" % (noden['storage_datadirs'].split(",")[0], str(nodem['port']))
-    nodem['log_dir_path'] = "%s/%s" % (noden['storage_logdirs'].split(",")[0], str(nodem['port']))
-    nodem['innodb_log_dir_path'] = "%s/%s" % (noden['storage_waldirs'].split(",")[0], str(nodem['port']))
+    nodem['data_dir_path'] = "%s/instance_data/data_dir_path/%s" % (noden['storage_datadirs'].split(",")[0], str(nodem['port']))
+    nodem['log_dir_path'] = "%s/instance_data/log_dir_path/%s" % (noden['storage_logdirs'].split(",")[0], str(nodem['port']))
+    nodem['innodb_log_dir_path'] = "%s/instance_data/innodb_log_dir_path/%s" % (noden['storage_waldirs'].split(",")[0], str(nodem['port']))
     mach = machines.get(nodem['ip'])
     nodem['program_dir'] = "instance_binaries/storage/%s" % str(nodem['port'])
     nodem['user'] = mach['user']
@@ -243,10 +243,16 @@ def validate_config(jscfg, machines, args):
         for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
             if node.has_key(item):
                 nodedirs = node[item].strip()
+                dirs = set()
                 for d in nodedirs.split(","):
-                    addDirToMachine(dirmap, node['ip'], d)
-                    if not d.strip().startswith('/'):
+                    formald = d.strip()
+                    #addDirToMachine(dirmap, node['ip'], d)
+                    if not formald.startswith('/'):
                         raise ValueError('Error: the dir in %s must be absolute path!' % item)
+                    if formald in dirs:
+                        raise ValueError('Error: duplicate dir on %s(%s): %s!' % (node['ip'], item, d))
+                    dirs.add(formald)
+
             else:
                 node[item] = "%s/%s" % (mach['basedir'], defpaths[item])
 
