@@ -77,6 +77,13 @@ def addDirToMachine(map, ip, directory):
         else:
             dset.add(directory)
 
+def validate_ha_mode(ha_mode):
+    if ha_mode not in ['rbr', 'no_rep', 'mgr']:
+        raise ValueError('Error: The ha_mode must be rbr, mgr or no_rep')
+
+# ha_mode logic:
+# for meta_ha_mode, the check order is: meta['ha_mode'] -> cluster['ha_mode'] -> no_rep(1 node)/mgr(multi nodes)
+# for shard_ha_mode, the check order is: cluster['ha_mode'] -> meta_ha_mode
 def validate_config(jscfg, args):
     cluster = jscfg['cluster']
     meta = cluster['meta']
@@ -85,14 +92,34 @@ def validate_config(jscfg, args):
     clustermgr = cluster['clustermgr']
     portmap = {}
     dirmap = {}
+
+    meta_ha_mode = ''
+    shard_ha_mode = ''
+    if cluster.has_key('ha_mode'):
+        mode = cluster['ha_mode']
+        validate_ha_mode(mode)
+        meta_ha_mode = mode
+        shard_ha_mode = mode
+
+    if meta.has_key('ha_mode'):
+        mode = meta.get('ha_mode')
+        validate_ha_mode(mode)
+        meta_ha_mode = mode
+
     metacnt = len(meta['nodes'])
     if metacnt == 0:
         raise ValueError('Error: There must be at least one node in meta shard')
+    if meta_ha_mode == '':
+        if metacnt > 1:
+            meta_ha_mode = 'mgr'
+        else:
+            meta_ha_mode = 'no_rep'
 
-    if cluster.has_key('ha_mode'):
-        ha_mode = cluster['ha_mode']
-        if ha_mode != 'rbr' and ha_mode != 'mgr' and ha_mode != 'no_rep':
-            raise ValueError('Error: The ha_mode must be rbr, mgr or no_rep')
+    meta['ha_mode'] = meta_ha_mode
+    if metacnt > 1 and meta_ha_mode == 'no_rep':
+        raise ValueError('Error: meta_ha_mode is no_rep, but there are multiple nodes in meta shard')
+    elif metacnt == 1 and meta_ha_mode != 'no_rep':
+        raise ValueError('Error: meta_ha_mode is mgr/rbr, but there is only one node in meta shard')
 
     hasPrimary=False
     for node in meta['nodes']:
@@ -119,15 +146,20 @@ def validate_config(jscfg, args):
     for node in comps:
         addPortToMachine(portmap, node['ip'], node['port'])
         addDirToMachine(dirmap, node['ip'], node['datadir'])
+
+    if shard_ha_mode == '':
+        shard_ha_mode = meta_ha_mode
+    cluster['ha_mode'] = shard_ha_mode
+
     i=1
     for shard in datas:
         nodecnt = len(shard['nodes'])
         if nodecnt == 0:
             raise ValueError('Error: There must be at least one node in data shard%d' % i)
-        if nodecnt > 1 and metacnt == 1:
-            raise ValueError('Error: Meta shard has only one node, but data shard%d has two or more' % i)
-        elif nodecnt == 1 and metacnt > 1:
-            raise ValueError('Error: Meta shard has two or more node, but data shard%d has only one' % i)
+        if nodecnt > 1 and shard_ha_mode == 'no_rep':
+            raise ValueError('Error: shard_ha_mode is no_rep, but data shard%d has two or more' % i)
+        elif nodecnt == 1 and shard_ha_mode != 'no_rep':
+            raise ValueError('Error: shard_ha_mode is mgr/rbr, but data shard%d has only one' % i)
         hasPrimary=False
         for node in shard['nodes']:
             addPortToMachine(portmap, node['ip'], node['port'])
@@ -144,7 +176,7 @@ def validate_config(jscfg, args):
                     raise ValueError('Error: Two primaries found in shard%d, there should be one and only one Primary specified !' % i)
                 else:
                     hasPrimary = True
-        if metacnt > 1:
+        if nodecnt > 1:
             if not hasPrimary:
                 raise ValueError('Error: No primary found in shard%d, there should be one and only one primary specified !' % i)
         else:
@@ -158,20 +190,24 @@ def validate_config(jscfg, args):
         if node.has_key('brpc_raft_port'):
             addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
         else:
+            node['brpc_raft_port'] = args.defbrpc_raft_port
             addPortToMachine(portmap, node['ip'], args.defbrpc_raft_port)
         if clustermgr.has_key('brpc_http_port'):
             addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
         else:
+            node['brpc_http_port'] = args.defbrpc_http_port
             addPortToMachine(portmap, node['ip'], args.defbrpc_http_port)
     elif clustermgr.has_key('nodes'):
         for node in clustermgr['nodes']:
             if node.has_key('brpc_raft_port'):
                 addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
             else:
+                node['brpc_raft_port'] = args.defbrpc_raft_port
                 addPortToMachine(portmap, node['ip'], args.defbrpc_raft_port)
             if node.has_key('brpc_http_port'):
                 addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
             else:
+                node['brpc_http_port'] = args.defbrpc_http_port
                 addPortToMachine(portmap, node['ip'], args.defbrpc_http_port)
     else:
         raise ValueError('Error:ip or(x-or) nodes must be set for clustermgr !')
@@ -227,12 +263,6 @@ def generate_haproxy_config(jscfg, machines, confname):
         i += 1
     conf.close()
 
-def get_ha_mode(jscfg, args):
-    if jscfg['cluster'].has_key("ha_mode"):
-        return jscfg['cluster']['ha_mode']
-    else:
-        return ""
-
 def generate_install_scripts(jscfg, args):
     validate_config(jscfg, args)
 
@@ -256,26 +286,16 @@ def generate_install_scripts(jscfg, args):
     filesmap = {}
     commandslist = []
     dirmap = {}
-    usemgr=True
 
     cluster = jscfg['cluster']
     cluster_name = cluster['name']
     meta = cluster['meta']
-
-    usemgr=False
-    metacnt = len(meta['nodes'])
-
-    # for nodes > 1, by default it is mgr, unless we specify rbr.
-    # Specify no_rep for nodes>1 is equal to not set.
-    ha_mode = "no_rep"
-    if metacnt > 1:
-        ha_mode = get_ha_mode(jscfg, args)
-        if ha_mode == '' or ha_mode == 'no_rep':
-            ha_mode = 'mgr'
-    extraopt = " --ha_mode=%s" % ha_mode
+    datas = cluster['data']
 
     if not meta.has_key('group_uuid'):
 	    meta['group_uuid'] = getuuid()
+    meta_extraopt = " --ha_mode=%s" % meta['ha_mode']
+
     my_metaname = 'mysql_meta.json'
     metaf = open(r'install/%s' % my_metaname,'w')
     json.dump(meta, metaf, indent=4)
@@ -288,8 +308,8 @@ def generate_install_scripts(jscfg, args):
     # python2 install-mysql.py --config=./mysql_meta.json --target_node_index=0
     targetdir='%s/dba_tools' % storagedir
     i=0
-    pries = []
-    secs = []
+    mpries = []
+    msecs = []
     shard_id = "meta"
     meta_addrs = []
     for node in meta['nodes']:
@@ -298,16 +318,18 @@ def generate_install_scripts(jscfg, args):
 	addIpToMachineMap(machines, node['ip'], args)
 	cmd = cmdpat % (sudopfx, my_metaname, i, cluster_name, shard_id)
 	if node.get('is_primary', False):
-		pries.append([node['ip'], targetdir, cmd])
+		mpries.append([node['ip'], targetdir, cmd])
 	else:
-		secs.append([node['ip'], targetdir, cmd])
+		msecs.append([node['ip'], targetdir, cmd])
 	addToDirMap(dirmap, node['ip'], node['data_dir_path'])
 	addToDirMap(dirmap, node['ip'], node['log_dir_path'])
         if node.has_key('innodb_log_dir_path'):
             addToDirMap(dirmap, node['ip'], node['innodb_log_dir_path'])
 	i+=1
 
-    datas = cluster['data']
+    pries = []
+    secs = []
+    shard_extraopt = " --ha_mode=%s" % cluster['ha_mode']
     i=1
     for shard in datas:
 	    if not shard.has_key('group_uuid'):
@@ -332,10 +354,16 @@ def generate_install_scripts(jscfg, args):
 		    addToDirMap(dirmap, node['ip'], node['innodb_log_dir_path'])
 		j += 1
 	    i+=1
+
+    for item in mpries:
+        addToCommandsList(commandslist, item[0], item[1], item[2] + meta_extraopt)
     for item in pries:
-        addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
+        addToCommandsList(commandslist, item[0], item[1], item[2] + shard_extraopt)
+    for item in msecs:
+        addToCommandsList(commandslist, item[0], item[1], item[2] + meta_extraopt)
     for item in secs:
-        addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
+        addToCommandsList(commandslist, item[0], item[1], item[2] + shard_extraopt)
+
     # This only needs to transfered to machine creating the cluster.
     pg_metaname = 'postgres_meta.json'
     metaf = open(r'install/%s' % pg_metaname, 'w')
@@ -391,13 +419,12 @@ def generate_install_scripts(jscfg, args):
     resourcedir = "%s/resources" % serverdir
     cmdpat=r'/bin/bash build_driver.sh'
     addToCommandsList(commandslist, comp1['ip'], resourcedir, cmdpat, "all")
-    cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql' + extraopt
+    cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql' + meta_extraopt
     addToCommandsList(commandslist, comp1['ip'], targetdir, cmdpat % pg_metaname, "storage")
     cmdpat='python2 create_cluster.py --shards_config=./%s \
---comps_config=./%s  --meta_config=./%s --cluster_name=%s --cluster_owner=abc --cluster_biz=test'
-    cmdpat = cmdpat + extraopt
+--comps_config=./%s  --meta_config=./%s --cluster_name=%s --meta_ha_mode=%s --ha_mode=%s --cluster_owner=abc --cluster_biz=test'
     addToCommandsList(commandslist, comp1['ip'], targetdir,
-        cmdpat % (pg_shardname, pg_compname, pg_metaname, cluster_name), "all")
+        cmdpat % (pg_shardname, pg_compname, pg_metaname, cluster_name, meta['ha_mode'], cluster['ha_mode']), "all")
 
     clmgrnodes = get_clustermgr_nodes(jscfg, args)
     metaseeds=",".join(meta_addrs)
