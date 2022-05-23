@@ -156,6 +156,81 @@ def set_metapath_using_nodemgr(machines, nodem, noden):
     nodem['program_dir'] = "instance_binaries/storage/%s" % str(nodem['port'])
     nodem['user'] = mach['user']
 
+def generate_storage_service(args, machines, commandslist, node, idx, filesmap):
+    mach = machines.get(node['ip'])
+    storagedir = "kunlun-storage-%s" % args.product_version
+    fname = "%d-kunlun-storage-%d.service" % (idx, node['port'])
+    servname = "kunlun-storage-%d" % node['port']
+    fname_to = "kunlun-storage-%d.service" % node['port']
+    servicef = open('clustermgr/%s' % fname, 'w')
+    servicef.write("# kunlun-storage-%d systemd service file\n\n" % node['port'])
+    servicef.write("[Unit]\n")
+    servicef.write("Description=kunlun-storage-%d\n" % node['port'])
+    servicef.write("After=network.target\n\n")
+    servicef.write("[Install]\n")
+    servicef.write("WantedBy=multi-user.target\n\n")
+    servicef.write("[Service]\n")
+    servicef.write("Type=forking\n")
+    servicef.write("User=%s\n" % mach['user'])
+    servicef.write("Restart=on-failure\n")
+    servicef.write("WorkingDirectory=%s/instance_binaries/storage/%s/%s/dba_tools\n" % (mach['basedir'], str(node['port']), storagedir))
+    servicef.write("ExecStart=/bin/bash startmysql.sh %d\n" % (node['port']))
+    servicef.write("ExecStop=/bin/bash stopmysql.sh %d\n" % (node['port']))
+    servicef.close()
+    addNodeToFilesMap(filesmap, node, fname, './%s' % fname_to)
+    addToCommandsList(commandslist, node['ip'], '.', "sudo cp -f %s /usr/lib/systemd/system/" % fname_to)
+    addToCommandsList(commandslist, node['ip'], '.', "sudo systemctl enable %s" % servname)
+
+def generate_clustermgr_service(args, machines, commandslist, node, idx, filesmap):
+    mach = machines.get(node['ip'])
+    clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
+    fname = "%d-kunlun-cluster-manager-%d.service" % (idx, node['brpc_raft_port'])
+    servname = "kunlun-cluster-manager-%d" % node['brpc_raft_port']
+    fname_to = "kunlun-cluster-manager-%d.service" % node['brpc_raft_port']
+    servicef = open('clustermgr/%s' % fname, 'w')
+    servicef.write("# kunlun-cluster-manager-%d systemd service file\n\n" % node['brpc_raft_port'])
+    servicef.write("[Unit]\n")
+    servicef.write("Description=kunlun-cluster-manager-%d\n" % node['brpc_raft_port'])
+    servicef.write("After=network.target\n\n")
+    servicef.write("[Install]\n")
+    servicef.write("WantedBy=multi-user.target\n\n")
+    servicef.write("[Service]\n")
+    servicef.write("Type=forking\n")
+    servicef.write("User=%s\n" % mach['user'])
+    servicef.write("Restart=on-failure\n")
+    servicef.write("WorkingDirectory=%s/%s/bin\n" % (mach['basedir'], clustermgrdir))
+    servicef.write("ExecStart=/bin/bash start_cluster_mgr.sh\n")
+    servicef.write("ExecStop=/bin/bash stop_cluster_mgr.sh\n")
+    servicef.close()
+    addNodeToFilesMap(filesmap, node, fname, './%s' % fname_to)
+    addToCommandsList(commandslist, node['ip'], '.', "sudo cp -f %s /usr/lib/systemd/system/" % fname_to)
+    addToCommandsList(commandslist, node['ip'], '.', "sudo systemctl enable %s" % servname)
+
+def generate_nodemgr_service(args, machines, commandslist, node, idx, filesmap):
+    mach = machines.get(node['ip'])
+    nodemgrdir = "kunlun-node-manager-%s" % args.product_version
+    fname = "%d-kunlun-node-manager-%d.service" % (idx, node['brpc_http_port'])
+    servname = "kunlun-node-manager-%d" % node['brpc_http_port']
+    fname_to = "kunlun-node-manager-%d.service" % node['brpc_http_port']
+    servicef = open('clustermgr/%s' % fname, 'w')
+    servicef.write("# kunlun-node-manager-%d systemd service file\n\n" % node['brpc_http_port'])
+    servicef.write("[Unit]\n")
+    servicef.write("Description=kunlun-node-manager-%d\n" % node['brpc_http_port'])
+    servicef.write("After=network.target\n\n")
+    servicef.write("[Install]\n")
+    servicef.write("WantedBy=multi-user.target\n\n")
+    servicef.write("[Service]\n")
+    servicef.write("Type=forking\n")
+    servicef.write("User=%s\n" % mach['user'])
+    servicef.write("Restart=on-failure\n")
+    servicef.write("WorkingDirectory=%s/%s/bin\n" % (mach['basedir'], nodemgrdir))
+    servicef.write("ExecStart=/bin/bash start_node_mgr.sh\n")
+    servicef.write("ExecStop=/bin/bash stop_node_mgr.sh\n")
+    servicef.close()
+    addNodeToFilesMap(filesmap, node, fname, './%s' % fname_to)
+    addToCommandsList(commandslist, node['ip'], '.', "sudo cp -f %s /usr/lib/systemd/system/" % fname_to)
+    addToCommandsList(commandslist, node['ip'], '.', "sudo systemctl enable %s" % servname)
+
 def validate_config(jscfg, machines, args):
     meta = jscfg.get('meta', {'nodes':[]})
     if not meta.has_key('nodes'):
@@ -252,7 +327,6 @@ def validate_config(jscfg, machines, args):
                     if formald in dirs:
                         raise ValueError('Error: duplicate dir on %s(%s): %s!' % (node['ip'], item, d))
                     dirs.add(formald)
-
             else:
                 node[item] = "%s/%s" % (mach['basedir'], defpaths[item])
 
@@ -300,8 +374,8 @@ def install_nodemgr_env(comf, mach, machines, args):
     process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
     process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
 
-def setup_nodemgr_commands(args, machines, node, commandslist, dirmap, filesmap, metaseeds):
-    cmdpat = "bash change_config.sh %s '%s' '%s'"
+def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, filesmap, metaseeds):
+    cmdpat = "bash change_config.sh %s '%s' '%s'\n"
     nodemgrdir = "kunlun-node-manager-%s" % args.product_version
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -318,16 +392,24 @@ def setup_nodemgr_commands(args, machines, node, commandslist, dirmap, filesmap,
     addNodeToFilesMap(filesmap, node, "backup", "%s/util" % targetdir)
     addNodeToFilesMap(filesmap, node, "restore", "%s/util" % targetdir)
     addNodeToFilesMap(filesmap, node, "xtrabackup", "%s/util" % targetdir)
+    addNodeToFilesMap(filesmap, node, "xbstream", "%s/util" % targetdir)
+    addToCommandsList(commandslist, node['ip'], targetdir, "chmod a+x util/*")
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf hadoop-3.3.1.tar.gz")
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'meta_group_seeds', metaseeds))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_http_port', node['brpc_http_port']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'local_ip', node['ip']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'program_binaries_path', '%s/program_binaries' % mach['basedir']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'instance_binaries_path', '%s/instance_binaries' % mach['basedir']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'storage_prog_package_name', storagedir))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'computer_prog_package_name', serverdir))
+    script_name = "setup_nodemgr_%d.sh" % idx
+    scriptf = open('clustermgr/%s' % script_name, 'w')
+    scriptf.write("#! /bin/bash\n")
+    scriptf.write(cmdpat % (confpath, 'meta_group_seeds', metaseeds))
+    scriptf.write(cmdpat % (confpath, 'brpc_http_port', node['brpc_http_port']))
+    scriptf.write(cmdpat % (confpath, 'local_ip', node['ip']))
+    scriptf.write(cmdpat % (confpath, 'program_binaries_path', '%s/program_binaries' % mach['basedir']))
+    scriptf.write(cmdpat % (confpath, 'instance_binaries_path', '%s/instance_binaries' % mach['basedir']))
+    scriptf.write(cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
+    scriptf.write(cmdpat % (confpath, 'storage_prog_package_name', storagedir))
+    scriptf.write(cmdpat % (confpath, 'computer_prog_package_name', serverdir))
+    scriptf.close()
+    addNodeToFilesMap(filesmap, node, script_name, '.')
+    addToCommandsList(commandslist, node['ip'], '.', "bash ./%s" % script_name)
 
 def install_clustermgr_env(comf, mach, machines, args):
     progname = "kunlun-cluster-manager-%s" % args.product_version
@@ -336,8 +418,8 @@ def install_clustermgr_env(comf, mach, machines, args):
     process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
     process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
 
-def setup_clustermgr_commands(args, machines, node, commandslist, dirmap, filesmap, metaseeds, initmember, initcommon):
-    cmdpat = "bash change_config.sh %s '%s' '%s'"
+def setup_clustermgr_commands(args, idx, machines, node, commandslist, dirmap, filesmap, metaseeds, initmember, initcommon):
+    cmdpat = "bash change_config.sh %s '%s' '%s'\n"
     clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -346,16 +428,22 @@ def setup_clustermgr_commands(args, machines, node, commandslist, dirmap, filesm
     targetdir = "program_binaries"
     if initcommon:
         setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'meta_group_seeds', metaseeds))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_raft_port', node['brpc_raft_port']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'brpc_http_port', node['brpc_http_port']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'local_ip', node['ip']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'raft_group_member_init_config', initmember))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'program_binaries_path', '%s/program_binaries' % mach['basedir']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'instance_binaries_path', '%s/instance_binaries' % mach['basedir']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'storage_prog_package_name', storagedir))
-    addToCommandsList(commandslist, node['ip'], '.', cmdpat % (confpath, 'computer_prog_package_name', serverdir))
+    script_name = "setup_clustermgr_%d.sh" % idx
+    scriptf = open('clustermgr/%s' % script_name, 'w')
+    scriptf.write("#! /bin/bash\n")
+    scriptf.write(cmdpat % (confpath, 'meta_group_seeds', metaseeds))
+    scriptf.write(cmdpat % (confpath, 'brpc_raft_port', node['brpc_raft_port']))
+    scriptf.write(cmdpat % (confpath, 'brpc_http_port', node['brpc_http_port']))
+    scriptf.write(cmdpat % (confpath, 'local_ip', node['ip']))
+    scriptf.write(cmdpat % (confpath, 'raft_group_member_init_config', initmember))
+    scriptf.write(cmdpat % (confpath, 'program_binaries_path', '%s/program_binaries' % mach['basedir']))
+    scriptf.write(cmdpat % (confpath, 'instance_binaries_path', '%s/instance_binaries' % mach['basedir']))
+    scriptf.write(cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
+    scriptf.write(cmdpat % (confpath, 'storage_prog_package_name', storagedir))
+    scriptf.write(cmdpat % (confpath, 'computer_prog_package_name', serverdir))
+    scriptf.close()
+    addNodeToFilesMap(filesmap, node, script_name, '.')
+    addToCommandsList(commandslist, node['ip'], '.', "bash ./%s" % script_name)
 
 def setup_machines(jscfg, machines, args):
     machnodes = jscfg.get('machines', [])
@@ -516,6 +604,8 @@ def install_with_config(jscfg, comf, machines, args):
 	addToDirMap(dirmap, node['ip'], node['data_dir_path'])
 	addToDirMap(dirmap, node['ip'], node['log_dir_path'])
 	addToDirMap(dirmap, node['ip'], node['innodb_log_dir_path'])
+        if args.autostart:
+            generate_storage_service(args, machines, commandslist, node, i, filesmap)
 	i+=1
     for item in pries:
         addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
@@ -548,12 +638,19 @@ def install_with_config(jscfg, comf, machines, args):
             addNodeToFilesMap(filesmap, worknode, nodemgrjson, '.')
             addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
                 "python2 modify_servernodes.py --config %s --action=add --seeds=%s" % (nodemgrjson, metaseeds))
-
+    i = 0
     for node in nodemgr['nodes']:
-        setup_nodemgr_commands(args, machines, node, commandslist, dirmap, filesmap, metaseeds)
+        setup_nodemgr_commands(args, i, machines, node, commandslist, dirmap, filesmap, metaseeds)
+        if args.autostart:
+            generate_nodemgr_service(args, machines, commandslist, node, i, filesmap)
+        i += 1
 
+    i = 0
     for node in clustermgr['nodes']:
-        setup_clustermgr_commands(args, machines, node, commandslist, dirmap, filesmap, metaseeds, initmember, ip not in nodemgrips)
+        setup_clustermgr_commands(args, i, machines, node, commandslist, dirmap, filesmap, metaseeds, initmember, ip not in nodemgrips)
+        if args.autostart:
+            generate_clustermgr_service(args, machines, commandslist, node, i, filesmap)
+        i += 1
 
     # start the nodemgr and clustermgr process finally.
     for node in nodemgr['nodes']:
@@ -620,6 +717,14 @@ def install_with_config(jscfg, comf, machines, args):
     # The reason for not using commands map is that, we need to keep the order for the commands.
     process_commandslist_setenv(comf, args, machines, commandslist)
 
+def generate_systemctl_clean(servname, ip, commandslist):
+    syscmdpat1 = "sudo systemctl stop %s"
+    syscmdpat2 = "sudo systemctl disable %s"
+    syscmdpat3 = "sudo rm -f /usr/lib/systemd/system/%s"
+    addToCommandsList(commandslist, ip, '/', syscmdpat1 % servname)
+    addToCommandsList(commandslist, ip, '/', syscmdpat2 % servname)
+    addToCommandsList(commandslist, ip, '/', syscmdpat3 % servname)
+
 def clean_with_config(jscfg, comf, machines, args):
     meta = jscfg['meta']
     clustermgr = jscfg['cluster_manager']
@@ -672,6 +777,9 @@ def clean_with_config(jscfg, comf, machines, args):
 	addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['data_dir_path']))
 	addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['innodb_log_dir_path']))
         addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['program_dir']))
+        if args.autostart:
+            servname = 'kunlun-storage-%d.service' % node['port']
+            generate_systemctl_clean(servname, node['ip'], commandslist)
 
     # stop the nodemgr processes
     for node in nodemgr['nodes']:
@@ -683,12 +791,18 @@ def clean_with_config(jscfg, comf, machines, args):
                 cmdpat = '%srm -fr %s/*'
                 addToCommandsList(commandslist, node['ip'], "/", cmdpat % (sudopfx, d))
         addToCommandsList(commandslist, node['ip'], "", '%srm -fr %s/%s' % (sudopfx, mach['basedir'], nodemgrdir))
+        if args.autostart:
+            servname = 'kunlun-node-manager-%d.service' % node['brpc_http_port']
+            generate_systemctl_clean(servname, node['ip'], commandslist)
 
 
     # stop the nodemgr processes
     for node in clustermgr['nodes']:
         addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash stop_cluster_mgr.sh")
         addToCommandsList(commandslist, node['ip'], "", '%srm -fr %s/%s' % (sudopfx, mach['basedir'], clustermgrdir))
+        if args.autostart:
+            servname = 'kunlun-cluster-manager-%d.service' % node['brpc_raft_port']
+            generate_systemctl_clean(servname, node['ip'], commandslist)
 
     if len(nodemgr['nodes']) > 0 and meta.has_key('group_seeds'):
         nodemgrjson = "nodemgr.json"
@@ -728,6 +842,7 @@ if  __name__ == '__main__':
     parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.2')
     parser.add_argument('--localip', type=str, help="The local ip address", default='127.0.0.1')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
+    parser.add_argument('--autostart', help="whether to start the cluster automaticlly", default=False, action='store_true')
     parser.add_argument('--defbrpc_raft_port_clustermgr', type=int, help="default brpc_raft_port for cluster_manager", default=58001)
     parser.add_argument('--defbrpc_http_port_clustermgr', type=int, help="default brpc_http_port for cluster_manager", default=58000)
     parser.add_argument('--defbrpc_http_port_nodemgr', type=int, help="default brpc_http_port for node_manager", default=58002)
@@ -735,6 +850,8 @@ if  __name__ == '__main__':
     args = parser.parse_args()
     if not args.defbase.startswith('/'):
         raise ValueError('Error: the default basedir must be absolute path!')
+    if args.autostart:
+        args.sudo = True
 
     print str(sys.argv)
     checkdirs(['clustermgr'])
