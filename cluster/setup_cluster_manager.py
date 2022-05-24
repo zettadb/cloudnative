@@ -572,9 +572,11 @@ def install_with_config(jscfg, comf, machines, args):
         metaf = open(r'clustermgr/%s' % reg_metaname, 'w')
         objs = []
         for node in meta['nodes']:
+	    mach = machines.get(node['ip'])
 	    obj = {}
 	    obj['is_primary'] = node.get('is_primary', False)
             obj['data_dir_path'] = node['data_dir_path']
+	    obj['nodemgr_bin_path'] = "%s/%s/bin" % (mach['basedir'], nodemgrdir)
 	    obj['ip'] = node['ip']
 	    obj['port'] = node['port']
 	    obj['user'] = "pgx"
