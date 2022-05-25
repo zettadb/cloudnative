@@ -389,13 +389,9 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
             addToDirMap(dirmap, node['ip'], d.strip())
     addNodeToFilesMap(filesmap, node, "hadoop-3.3.1.tar.gz", targetdir)
     addNodeToFilesMap(filesmap, node, "jdk-8u131-linux-x64.tar.gz", targetdir)
-    addNodeToFilesMap(filesmap, node, "backup", "%s/util" % targetdir)
-    addNodeToFilesMap(filesmap, node, "restore", "%s/util" % targetdir)
-    addNodeToFilesMap(filesmap, node, "xtrabackup", "%s/util" % targetdir)
-    addNodeToFilesMap(filesmap, node, "xbstream", "%s/util" % targetdir)
-    addToCommandsList(commandslist, node['ip'], targetdir, "chmod a+x util/*")
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf hadoop-3.3.1.tar.gz")
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
+    addToCommandsList(commandslist, node['ip'], nodemgrdir, "chmod a+x bin/util/*")
     script_name = "setup_nodemgr_%d.sh" % idx
     scriptf = open('clustermgr/%s' % script_name, 'w')
     scriptf.write("#! /bin/bash\n")
@@ -409,6 +405,7 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     scriptf.write(cmdpat % (confpath, 'computer_prog_package_name', serverdir))
     scriptf.close()
     addNodeToFilesMap(filesmap, node, script_name, '.')
+    addNodeToFilesMap(filesmap, node, 'clear_instances.sh', '.')
     addToCommandsList(commandslist, node['ip'], '.', "bash ./%s" % script_name)
 
 def install_clustermgr_env(comf, mach, machines, args):
@@ -555,7 +552,7 @@ def install_with_config(jscfg, comf, machines, args):
     members=[]
     for node in clustermgr['nodes']:
         clustermgrips.add(node['ip'])
-        members.append("%s:%d:0" % (clustermgr['nodes'][0]['ip'], clustermgr['nodes'][0]['brpc_raft_port']))
+        members.append("%s:%d:0" % (node['ip'], node['brpc_raft_port']))
     initmember = clustermgr.get('raft_group_member_init_config', '')
     if initmember == '':
         initmember = "%s," % ",".join(members)
@@ -792,6 +789,8 @@ def clean_with_config(jscfg, comf, machines, args):
             for d in nodedirs.split(","):
                 cmdpat = '%srm -fr %s/*'
                 addToCommandsList(commandslist, node['ip'], "/", cmdpat % (sudopfx, d))
+        addNodeToFilesMap(filesmap, node, 'clear_instances.sh', '.')
+        addToCommandsList(commandslist, node['ip'], ".", 'bash ./clear_instances.sh %s %s >& clear.log || true' % (mach['basedir'], args.product_version))
         addToCommandsList(commandslist, node['ip'], "", '%srm -fr %s/%s' % (sudopfx, mach['basedir'], nodemgrdir))
         if args.autostart:
             servname = 'kunlun-node-manager-%d.service' % node['brpc_http_port']
@@ -825,6 +824,13 @@ def clean_with_config(jscfg, comf, machines, args):
             addNodeToFilesMap(filesmap, worknode, nodemgrjson, '.')
             addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
                 "python2 modify_servernodes.py --config %s --action=remove --seeds=%s" % (nodemgrjson, metaseeds))
+
+    # files copy.
+    for ip in filesmap:
+	mach = machines.get(ip)
+	fmap = filesmap[ip]
+	for fpair in fmap:
+            process_file(comf, args, machines, ip, 'clustermgr/%s' % fpair[0], '%s/%s' % (mach['basedir'], fpair[1]))
 
     process_commandslist_setenv(comf, args, machines, commandslist)
 
