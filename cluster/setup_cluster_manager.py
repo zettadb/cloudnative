@@ -784,11 +784,11 @@ def clean_with_config(jscfg, comf, machines, args):
     for node in nodemgr['nodes']:
         mach = machines.get(node['ip'])
         addToCommandsList(commandslist, node['ip'], "%s/bin" % nodemgrdir, "bash stop_node_mgr.sh")
-        for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
-            nodedirs = node[item].strip()
-            for d in nodedirs.split(","):
-                cmdpat = '%srm -fr %s/*'
-                addToCommandsList(commandslist, node['ip'], "/", cmdpat % (sudopfx, d))
+        #for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
+        #    nodedirs = node[item].strip()
+        #    for d in nodedirs.split(","):
+        #        cmdpat = '%srm -fr %s/*'
+        #        addToCommandsList(commandslist, node['ip'], "/", cmdpat % (sudopfx, d))
         addNodeToFilesMap(filesmap, node, 'clear_instances.sh', '.')
         addToCommandsList(commandslist, node['ip'], ".", 'bash ./clear_instances.sh %s %s >& clear.log || true' % (mach['basedir'], args.product_version))
         addToCommandsList(commandslist, node['ip'], "", '%srm -fr %s/%s' % (sudopfx, mach['basedir'], nodemgrdir))
