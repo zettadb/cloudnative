@@ -355,15 +355,20 @@ def get_default_nodemgr(args, machines, ip):
 
 def install_meta_env(comf, node, machines, args):
     storagedir = "kunlun-storage-%s" % args.product_version
+    serverdir = "kunlun-server-%s" % args.product_version
     ip = node['ip']
     mach = machines.get(ip)
     # Set up the files
     process_command_setenv(comf, args, machines, ip, '.', 'mkdir -p %s' %  node['program_dir'])
     process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % storagedir, '%s/%s' % (mach['basedir'], node['program_dir']))
+    process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % serverdir, '%s/%s' % (mach['basedir'], node['program_dir']))
     process_command_setenv(comf, args, machines, ip, node['program_dir'], 'tar -xzf %s.tgz' % storagedir)
+    process_command_setenv(comf, args, machines, ip, node['program_dir'], 'tar -xzf %s.tgz' % serverdir)
     comstr = "bash %s/process_deps.sh"
     process_command_setenv(comf, args, machines, ip,
         "%s/%s/lib" % (node['program_dir'], storagedir), comstr % mach['basedir'], "storage")
+    process_command_setenv(comf, args, machines, ip,
+        "%s/%s/lib" % (node['program_dir'], serverdir), comstr % mach['basedir'], "computing")
     comstr = "test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0"
     process_command_setenv(comf, args, machines, ip, "%s/%s" % (node['program_dir'], storagedir), comstr)
 
@@ -593,7 +598,7 @@ def install_with_config(jscfg, comf, machines, args):
     i = 0
     for node in meta['nodes']:
 	targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
-	addNodeToFilesMap(filesmap, node, reg_metaname, targetdir)
+	addNodeToFilesMap(filesmap, node, reg_metaname, "%s/%s/scripts" % (node['program_dir'], serverdir))
 	addNodeToFilesMap(filesmap, node, my_metaname, targetdir)
 	cmd = cmdpat % (sudopfx, my_metaname, i, cluster_name, shard_id)
 	if node.get('is_primary', False):
@@ -614,7 +619,7 @@ def install_with_config(jscfg, comf, machines, args):
     # bootstrap the cluster
     if len(meta['nodes']) > 0:
         firstmeta = meta['nodes'][0]
-        targetdir='%s/%s/dba_tools' % (firstmeta['program_dir'], storagedir)
+        targetdir='%s/%s/scripts' % (firstmeta['program_dir'], serverdir)
         cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql' + extraopt
         addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % reg_metaname, "storage")
 
@@ -844,8 +849,8 @@ if  __name__ == '__main__':
     actions=["install", "clean"]
     parser.add_argument('--config', type=str, help="The config path", required=True)
     parser.add_argument('--action', type=str, help="The action", default='install', choices=actions)
-    parser.add_argument('--defuser', type=str, help="the command", default=getpass.getuser())
-    parser.add_argument('--defbase', type=str, help="the command", default='/kunlun')
+    parser.add_argument('--defuser', type=str, help="the default user", default=getpass.getuser())
+    parser.add_argument('--defbase', type=str, help="the default basedir", default='/kunlun')
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
     parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.2')
     parser.add_argument('--localip', type=str, help="The local ip address", default='127.0.0.1')
