@@ -19,20 +19,6 @@ ls | while read p; do
 	export PATH=`pwd`/../bin:$PATH
 	export LD_LIBRARY_PATH=`pwd`/../lib:$LD_LIBRARY_PATH
 	bash stopmysql.sh $p
-	mycnf=`cat ../etc/instances_list.txt | sed '/^$/d' | sed 's/.*==>//g'`
-	test "$mycnf" = "" && continue
-	datadir_path=`dirname $mycnf`
-	logdir_path=`cat $mycnf| grep '#log dir is=' | sed  's/#log dir is=//' | sed 's#/dblogs$##'`
-	waldir_path=`cat $mycnf| grep 'innodb_log_group_home_dir.*=' | sed -e 's/innodb_log_group_home_dir.*= *//' -e 's#/arch$##'`
-	#echo "$p-datadir: $datadir_path"
-	#echo "$p-logdir: $logdir_path"
-	#echo "$p-waldir: $waldir_path"
-	test "$datadir_path" = "" && exit 1
-	test "$logdir_path" = "" && exit 1
-	test "$waldir_path" = "" && exit 1
-	rm -fr $datadir_path/*
-	rm -fr $logdir_path/*
-	rm -fr $waldir_path/*
 )
 done
 
@@ -46,7 +32,5 @@ ls | while read p; do
 	datadir=`cat ../etc/instances_list.txt | sed '/^$/d' | sed 's/.*==>//g'`
 	test "$datadir" = "" && exit 1
 	pg_ctl -D $datadir stop -m immedidate
-	#echo "$p-datadir"
-	rm -fr $datadir/*
 )
 done
