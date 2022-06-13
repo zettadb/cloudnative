@@ -278,6 +278,7 @@ def validate_and_set_config1(jscfg, args):
     comps = cluster['comp']['nodes']
     datas = cluster['data']
     clustermgr = cluster['clustermgr']
+    haproxy = cluster.get("haproxy", None)
     portmap = {}
     dirmap = {}
 
@@ -333,7 +334,13 @@ def validate_and_set_config1(jscfg, args):
 
     for node in comps:
         addPortToMachine(portmap, node['ip'], node['port'])
+        addPortToMachine(portmap, node['ip'], node['mysql_port'])
         addDirToMachine(dirmap, node['ip'], node['datadir'])
+
+    if haproxy is not None:
+        addPortToMachine(portmap, haproxy['ip'], haproxy['port'])
+        if haproxy.has_key('mysql_port'):
+            addPortToMachine(portmap, haproxy['ip'], haproxy['mysql_port'])
 
     if shard_ha_mode == '':
         shard_ha_mode = meta_ha_mode

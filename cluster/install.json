@@ -65,6 +65,7 @@
                     "name":"comp1",
                     "ip":"192.168.0.110",
                     "port":5401,
+		    "mysql_port": 5501,
                     "user":"abc",
                     "password":"abc",
                     "datadir":"/pgdatadir"
@@ -74,6 +75,7 @@
                     "name":"comp2",
                     "ip":"192.168.0.111",
                     "port":5401,
+		    "mysql_port": 5501,
                     "user":"abc",
                     "password":"abc",
                     "datadir":"/pgdatadir"
@@ -83,6 +85,7 @@
                     "name":"comp3",
                     "ip":"192.168.0.100",
                     "port":5401,
+		    "mysql_port": 5501,
                     "user":"abc",
                     "password":"abc",
                     "datadir":"/pgdatadir"
