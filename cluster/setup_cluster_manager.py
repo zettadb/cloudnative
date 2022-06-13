@@ -157,23 +157,6 @@ def generate_nodemgr_env(args, machines, node, idx, filesmap):
     envf.close()
     addNodeToFilesListMap(filesmap, node, fname, './%s' % fname_to)
 
-def get_default_nodemgr(args, machines, ip):
-    mach = machines.get(ip)
-    defpaths = {
-            "server_datadirs": "server_datadir",
-            "storage_datadirs": "storage_datadir",
-            "storage_logdirs": "storage_logdir",
-            "storage_waldirs": "storage_waldir",
-        }
-    node =  {
-            'ip': ip,
-            'brpc_http_port': args.defbrpc_http_port_nodemgr,
-            "tcp_port": args.deftcp_port_nodemgr
-            }
-    for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
-        node[item] = "%s/%s" % (mach['basedir'], defpaths[item])
-    return node
-
 def install_meta_env(comf, node, machines, args):
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -707,7 +690,7 @@ def start_with_config(jscfg, comf, machines, args):
             servname = 'kunlun-storage-%d.service' % node['port']
             generate_systemctl_start(servname, node['ip'], commandslist)
         else:
-            cmdpat = r'bash start-storage-%d.sh %d'
+            cmdpat = r'bash start-storage-%d.sh'
             addToCommandsList(commandslist, node['ip'], '.', cmdpat % node['port'], "storage")
 
     # start the clustermgr processes

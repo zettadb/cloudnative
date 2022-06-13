@@ -527,9 +527,9 @@ def validate_and_set_config2(jscfg, machines, args):
                 raise ValueError('%s can not be set explicitly for meta node %s:%d' % (attr, node['ip'], node['port']))
         addPortToMachine(portmap, node['ip'], node['port'])
         if node['ip'] not in nodemgrips:
-            node = get_default_nodemgr(args, machines, node['ip'])
-            nodemgr['nodes'].append(node)
-            nodemgrmaps[node['ip']] = node
+            nodem = get_default_nodemgr(args, machines, node['ip'])
+            nodemgr['nodes'].append(nodem)
+            nodemgrmaps[node['ip']] = nodem
             nodemgrips.add(node['ip'])
         # node['nodemgr'] = nodemgrmaps.get(node['ip'])
         set_metapath_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
@@ -547,3 +547,20 @@ def validate_and_set_config2(jscfg, machines, args):
             raise ValueError('Error: No primary found in meta shard, there should be one and only one !')
     elif nodecnt > 0:
             node['is_primary'] = True
+
+def get_default_nodemgr(args, machines, ip):
+    mach = machines.get(ip)
+    defpaths = {
+            "server_datadirs": "server_datadir",
+            "storage_datadirs": "storage_datadir",
+            "storage_logdirs": "storage_logdir",
+            "storage_waldirs": "storage_waldir",
+        }
+    node =  {
+            'ip': ip,
+            'brpc_http_port': args.defbrpc_http_port_nodemgr,
+            "tcp_port": args.deftcp_port_nodemgr
+            }
+    for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
+        node[item] = "%s/%s" % (mach['basedir'], defpaths[item])
+    return node

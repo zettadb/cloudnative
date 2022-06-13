@@ -71,9 +71,6 @@
  		"brpc_http_port": 35002
 		},
 		{ 
- 		"ip": "192.168.0.111"
-		},
-		{ 
  		"ip": "192.168.0.100",
 		"server_datadirs": "/nodemgrdata/server_datadir",
 		"storage_datadirs": "/nodemgrdata/storage_datadir",
