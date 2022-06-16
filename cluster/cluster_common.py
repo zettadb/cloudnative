@@ -6,8 +6,14 @@ import os.path
 import socket
 import uuid
 
+def my_print(toprint):
+    if sys.version_info.major == 2:
+        sys.stdout.write(toprint + "\n")
+    else:
+        print(toprint)
+
 def run_command_verbose(command, dryrun):
-    print command
+    my_print(command)
     sys.stdout.flush()
     if not dryrun:
         os.system(command)
@@ -74,9 +80,9 @@ def stop_server_node(machines, progdir, compobj, idx, dryrun):
     run_remote_command(machines, node['ip'], progdir, 'scripts', command, dryrun)
 
 def addIpToMachineMap(map, ip, args):
-    if not map.has_key(ip):
-	mac={"ip":ip, "user":args.defuser, "basedir":args.defbase}
-	map[ip] = mac
+    if not ip in map:
+        mac={"ip":ip, "user":args.defuser, "basedir":args.defbase}
+        map[ip] = mac
 
 def get_json_from_file(filepath):
     jsconf = open(filepath)
@@ -87,7 +93,7 @@ def get_json_from_file(filepath):
 
 def addMachineToMap(map, ip, user, basedir):
     # We can add logic here to check if the item exsits, new added should be unique to existing.
-    if map.has_key(ip):
+    if ip in map:
         return
     mac={"ip":ip, "user":user, "basedir":basedir}
     map[ip] = mac
@@ -101,19 +107,19 @@ def getuuid():
     return str(uuid.uuid1())
 
 def addIpToFilesMap(map, ip, fname, targetdir):
-    if not map.has_key(ip):
-	map[ip] = {}
+    if not ip in map:
+        map[ip] = {}
     tmap = map[ip]
-    if not tmap.has_key(fname):
-	tmap[fname] = targetdir
+    if not fname in tmap:
+        tmap[fname] = targetdir
 
 def addNodeToFilesMap(map, node, fname, targetdir):
     ip = node['ip']
     addIpToFilesMap(map, ip, fname, targetdir)
 
 def addIpToFilesListMap(map, ip, fname, targetdir):
-    if not map.has_key(ip):
-	map[ip] = []
+    if not ip in map:
+        map[ip] = []
     tlist = map[ip]
     tlist.append([fname, targetdir])
 
@@ -127,8 +133,8 @@ def addNodeToIpset(set, node):
 
 # Not used currently.
 def addToCommandsMap(map, ip, targetdir, command):
-    if not map.has_key(ip):
-	map[ip] = []
+    if not ip in map:
+        map[ip] = []
     cmds = map[ip]
     cmds.append([targetdir, command])
 
@@ -145,8 +151,8 @@ def addToCommandsList(cmds, ip, targetdir, command, envtype="no"):
     cmds.append(lst)
 
 def addToDirMap(map, ip, newdir):
-    if not map.has_key(ip):
-	map[ip] = []
+    if not ip in map:
+        map[ip] = []
     dirs = map[ip]
     dirs.append(newdir)
 
@@ -167,7 +173,7 @@ def process_filelist(comf, args, machines, filelist):
         else:
             mkstr = '''bash dist.sh --hosts=%s --user=%s %s %s '''
             tup= (ip, mach['user'], filetup[1], filetup[2])
-	comf.write(mkstr % tup)
+        comf.write(mkstr % tup)
         comf.write("\n")
 
 def process_file(comf, args, machines, ip, source, target):
@@ -175,8 +181,8 @@ def process_file(comf, args, machines, ip, source, target):
 
 def process_commandslist_noenv(comf, args, machines, commandslist):
     for cmd in commandslist:
-	ip=cmd[0]
-	mach = machines[ip]
+        ip=cmd[0]
+        mach = machines[ip]
         if islocal(args, ip, mach['user']):
             # For local, we do not consider the user.
             mkstr = '''/bin/bash -xc $"cd %s || exit 1; %s" '''
@@ -187,7 +193,7 @@ def process_commandslist_noenv(comf, args, machines, commandslist):
                 ttyopt="--tty"
             mkstr = '''bash remote_run.sh %s --user=%s %s $"cd %s || exit 1; %s" '''
             tup= (ttyopt, mach['user'], ip, cmd[1], cmd[2])
-	comf.write(mkstr % tup)
+        comf.write(mkstr % tup)
         comf.write("\n")
 
 def process_command_noenv(comf, args, machines, ip, targetdir, command):
@@ -195,8 +201,8 @@ def process_command_noenv(comf, args, machines, ip, targetdir, command):
 
 def process_commandslist_setenv(comf, args, machines, commandslist):
     for cmd in commandslist:
-	ip=cmd[0]
-	mach = machines[ip]
+        ip=cmd[0]
+        mach = machines[ip]
         if islocal(args, ip, mach['user']):
             # For local, we do not consider the user.
             mkstr = '''/bin/bash -c $"cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s" '''
@@ -207,7 +213,7 @@ def process_commandslist_setenv(comf, args, machines, commandslist):
                 ttyopt="--tty"
             mkstr = '''bash remote_run.sh %s --user=%s %s $"cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s" '''
             tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[3], cmd[1], cmd[2])
-	comf.write(mkstr % tup)
+        comf.write(mkstr % tup)
         comf.write("\n")
 
 def process_command_setenv(comf, args, machines, ip, targetdir, command, envtype='no'):
@@ -219,12 +225,12 @@ def validate_ha_mode(ha_mode):
 
 def checkdirs(dirs):
     for d in dirs:
-	if not os.path.exists(d):
-	    os.mkdir(d)
+        if not os.path.exists(d):
+            os.mkdir(d)
 
 def addPortToMachine(map, ip, port):
-    if not map.has_key(ip):
-	map[ip] = set([port])
+    if not ip in map:
+        map[ip] = set([port])
     else:
         pset = map[ip]
         if port in pset:
@@ -233,8 +239,8 @@ def addPortToMachine(map, ip, port):
             pset.add(port)
 
 def addDirToMachine(map, ip, directory):
-    if not map.has_key(ip):
-	map[ip] = set([directory])
+    if not ip in map:
+        map[ip] = set([directory])
     else:
         dset = map[ip]
         if directory in dset:
@@ -251,17 +257,17 @@ def setup_machines1(jscfg, machines, args):
     comp = cluster['comp']
     clustermgr = cluster['clustermgr']
     for mach in machnodes:
-	ip=mach['ip']
-	user=mach.get('user', args.defuser)
-	base=mach.get('basedir', args.defbase)
-	addMachineToMap(machines, ip, user, base)
+        ip=mach['ip']
+        user=mach.get('user', args.defuser)
+        base=mach.get('basedir', args.defbase)
+        addMachineToMap(machines, ip, user, base)
     for node in meta['nodes']:
         addIpToMachineMap(machines, node['ip'], args)
     for shard in datas:
         for node in shard['nodes']:
-	    addIpToMachineMap(machines, node['ip'], args)
+            addIpToMachineMap(machines, node['ip'], args)
     for node in comp['nodes']:
-	addIpToMachineMap(machines, node['ip'], args)
+        addIpToMachineMap(machines, node['ip'], args)
     for node in clustermgr['nodes']:
         addIpToMachineMap(machines, node['ip'], args)
     haproxy = cluster.get("haproxy", None)
@@ -284,13 +290,13 @@ def validate_and_set_config1(jscfg, args):
 
     meta_ha_mode = ''
     shard_ha_mode = ''
-    if cluster.has_key('ha_mode'):
+    if 'ha_mode' in cluster:
         mode = cluster['ha_mode']
         validate_ha_mode(mode)
         meta_ha_mode = mode
         shard_ha_mode = mode
 
-    if meta.has_key('ha_mode'):
+    if 'ha_mode' in meta:
         mode = meta.get('ha_mode')
         validate_ha_mode(mode)
         meta_ha_mode = mode
@@ -313,13 +319,13 @@ def validate_and_set_config1(jscfg, args):
     hasPrimary=False
     for node in meta['nodes']:
         addPortToMachine(portmap, node['ip'], node['port'])
-        if node.has_key('xport'):
+        if 'xport' in node:
             addPortToMachine(portmap, node['ip'], node['xport'])
-        if node.has_key('mgr_port'):
+        if 'mgr_port' in node:
             addPortToMachine(portmap, node['ip'], node['mgr_port'])
         addDirToMachine(dirmap, node['ip'], node['data_dir_path'])
         addDirToMachine(dirmap, node['ip'], node['log_dir_path'])
-        if node.has_key('innodb_log_dir_path'):
+        if 'innodb_log_dir_path' in node:
             addDirToMachine(dirmap, node['ip'], node['innodb_log_dir_path'])
         if node.get('is_primary', False):
             if hasPrimary:
@@ -339,7 +345,7 @@ def validate_and_set_config1(jscfg, args):
 
     if haproxy is not None:
         addPortToMachine(portmap, haproxy['ip'], haproxy['port'])
-        if haproxy.has_key('mysql_port'):
+        if 'mysql_port' in haproxy:
             addPortToMachine(portmap, haproxy['ip'], haproxy['mysql_port'])
 
     if shard_ha_mode == '':
@@ -358,13 +364,13 @@ def validate_and_set_config1(jscfg, args):
         hasPrimary=False
         for node in shard['nodes']:
             addPortToMachine(portmap, node['ip'], node['port'])
-            if node.has_key('xport'):
+            if 'xport' in node:
                 addPortToMachine(portmap, node['ip'], node['xport'])
-            if node.has_key('mgr_port'):
+            if 'mgr_port' in node:
                 addPortToMachine(portmap, node['ip'], node['mgr_port'])
             addDirToMachine(dirmap, node['ip'], node['data_dir_path'])
             addDirToMachine(dirmap, node['ip'], node['log_dir_path'])
-            if node.has_key('innodb_log_dir_path'):
+            if 'innodb_log_dir_path' in node:
                 addDirToMachine(dirmap, node['ip'], node['innodb_log_dir_path'])
             if node.get('is_primary', False):
                 if hasPrimary:
@@ -378,32 +384,32 @@ def validate_and_set_config1(jscfg, args):
             node['is_primary'] = True
         i+=1
     
-    if clustermgr.has_key('ip') and clustermgr.has_key('nodes'):
+    if 'ip' in clustermgr and 'nodes' in clustermgr:
         raise ValueError('Error: ip or nodes can not be both set for clustermgr !')
-    elif clustermgr.has_key('ip'):
+    elif 'ip' in clustermgr:
         node = {"ip": clustermgr['ip']}
         del clustermgr['ip']
-        if clustermgr.has_key('brpc_raft_port'):
+        if 'brpc_raft_port' in clustermgr:
             node['brpc_raft_port'] = clsutermgr['brpc_raft_port']
             del clsutermgr['brpc_raft_port']
         else:
             node['brpc_raft_port'] = args.defbrpc_raft_port
         addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
-        if clustermgr.has_key('brpc_http_port'):
+        if 'brpc_http_port' in clustermgr:
             node['brpc_http_port'] = clsutermgr['brpc_http_port']
             del clsutermgr['brpc_http_port']
         else:
             node['brpc_http_port'] = args.defbrpc_http_port
         addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
         clustermgr['nodes'] = [node]
-    elif clustermgr.has_key('nodes'):
+    elif 'nodes' in clustermgr:
         for node in clustermgr['nodes']:
-            if node.has_key('brpc_raft_port'):
+            if 'brpc_raft_port' in node:
                 addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
             else:
                 node['brpc_raft_port'] = args.defbrpc_raft_port
                 addPortToMachine(portmap, node['ip'], args.defbrpc_raft_port)
-            if node.has_key('brpc_http_port'):
+            if 'brpc_http_port' in node:
                 addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
             else:
                 node['brpc_http_port'] = args.defbrpc_http_port
@@ -421,10 +427,10 @@ def setup_machines2(jscfg, machines, args):
     clustermgr = jscfg.get('cluster_manager', {"nodes": []})
     clustermgrnodes = clustermgr.get('nodes', [])
     for mach in machnodes:
-	ip=mach['ip']
-	user=mach.get('user', args.defuser)
-	base=mach.get('basedir', args.defbase)
-	addMachineToMap(machines, ip, user, base)
+        ip=mach['ip']
+        user=mach.get('user', args.defuser)
+        base=mach.get('basedir', args.defbase)
+        addMachineToMap(machines, ip, user, base)
     for node in metanodes:
         addIpToMachineMap(machines, node['ip'], args)
     for node in nodemgrnodes:
@@ -443,13 +449,13 @@ def set_metapath_using_nodemgr(machines, nodem, noden):
 # validate and set the configuration object for clustermgr initialization/destroy scripts.
 def validate_and_set_config2(jscfg, machines, args):
     meta = jscfg.get('meta', {'nodes':[]})
-    if not meta.has_key('nodes'):
+    if not 'nodes' in meta:
         meta['nodes'] = []
     clustermgr = jscfg.get('cluster_manager', {'nodes':[]})
-    if not clustermgr.has_key('nodes'):
+    if not 'nodes' in clustermgr:
         clustermgr['nodes'] = []
     nodemgr = jscfg.get('node_manager', {'nodes':[]})
-    if not nodemgr.has_key('nodes'):
+    if not 'nodes' in nodemgr:
         nodemgr['nodes'] = []
 
     portmap = {}
@@ -460,12 +466,12 @@ def validate_and_set_config2(jscfg, machines, args):
         if node['ip'] in clustermgrips:
             raise ValueError('Error: %s exists, only one cluster_mgr can be run on a machine!' % node['ip'])
         clustermgrips.add(node['ip'])
-        if node.has_key('brpc_raft_port'):
+        if 'brpc_raft_port' in node:
             addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
         else:
             node['brpc_raft_port'] = args.defbrpc_raft_port_clustermgr
             addPortToMachine(portmap, node['ip'], args.defbrpc_raft_port_clustermgr)
-        if node.has_key('brpc_http_port'):
+        if 'brpc_http_port' in node:
             addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
         else:
             node['brpc_http_port'] = args.defbrpc_http_port_clustermgr
@@ -485,12 +491,12 @@ def validate_and_set_config2(jscfg, machines, args):
             raise ValueError('Error: %s exists, only one node_mgr can be run on a machine!' % node['ip'])
         nodemgrips.add(node['ip'])
         nodemgrmaps[node['ip']] = node
-        if node.has_key('brpc_http_port'):
+        if 'brpc_http_port' in node:
             addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
         else:
             node['brpc_http_port'] = args.defbrpc_http_port_nodemgr
             addPortToMachine(portmap, node['ip'], args.defbrpc_http_port_nodemgr)
-        if node.has_key('tcp_port'):
+        if 'tcp_port' in node:
             addPortToMachine(portmap, node['ip'], node['tcp_port'])
         else:
             node['tcp_port'] = args.deftcp_port_nodemgr
@@ -499,7 +505,7 @@ def validate_and_set_config2(jscfg, machines, args):
         # - if it is set, check every item is an absolute path.
         # - if it is not set, it is default to $basedir/{server_datadir, storage_datadir, storage_logdir, storage_waldir}
         for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
-            if node.has_key(item):
+            if item in node:
                 nodedirs = node[item].strip()
                 dirs = set()
                 for d in nodedirs.split(","):
@@ -520,7 +526,7 @@ def validate_and_set_config2(jscfg, machines, args):
             ha_mode = 'mgr'
         else:
             ha_mode = 'no_rep'
-    if nodecnt == 0 and not meta.has_key('group_seeds'):
+    if nodecnt == 0 and not 'group_seeds' in meta:
         raise ValueError('Error: There must be at least one node in meta shard')
     if nodecnt > 1 and ha_mode == 'no_rep':
         raise ValueError('Error: ha_mode is no_rep, but there are multiple nodes in meta shard')
@@ -530,7 +536,7 @@ def validate_and_set_config2(jscfg, machines, args):
     for node in meta['nodes']:
         # These attr should not be set explicitly.
         for attr in ['data_dir_path', 'log_dir_path', 'innodb_log_dir_path']:
-            if node.has_key(attr):
+            if attr in node:
                 raise ValueError('%s can not be set explicitly for meta node %s:%d' % (attr, node['ip'], node['port']))
         addPortToMachine(portmap, node['ip'], node['port'])
         if node['ip'] not in nodemgrips:
@@ -540,9 +546,9 @@ def validate_and_set_config2(jscfg, machines, args):
             nodemgrips.add(node['ip'])
         # node['nodemgr'] = nodemgrmaps.get(node['ip'])
         set_metapath_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
-        if node.has_key('xport'):
+        if 'xport' in node:
             addPortToMachine(portmap, node['ip'], node['xport'])
-        if node.has_key('mgr_port'):
+        if 'mgr_port' in node:
             addPortToMachine(portmap, node['ip'], node['mgr_port'])
         if node.get('is_primary', False):
             if hasPrimary:

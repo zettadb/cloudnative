@@ -14,15 +14,15 @@ to="$2"
 ffail=0
 for hostitem in $hosts; do
 	ufail=0
-        host="$hostitem"
-        hname="$hostitem"
+        host="${hostitem%:*}"
+        hname="${hostitem#*:}"
 
 	echo "=========== [`date`] transfer ($from) to $to on $host($hname) ==========="
 
 	if test "$SSHPASS" = ""; then
-		eval scp -r $from $REMOTE_USER@[$host]:$to || ufail=1
+		eval scp $sshopt -r $from $REMOTE_USER@$host:$to || ufail=1
 	else
-		eval sshpass -p "$REMOTE_PASSWORD" scp -r $from $REMOTE_USER@[$host]:$to || ufail=1
+		eval sshpass -p "$REMOTE_PASSWORD" scp $sshopt -r $from $REMOTE_USER@$host:$to || ufail=1
 	fi
 
 	if test "$ufail" = "1"; then
