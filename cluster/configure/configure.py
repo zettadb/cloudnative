@@ -62,19 +62,25 @@ def readJsonFile():
     finally:
         pass
     
-    global Compkeys, Compvalues, Medakeys, Medavalues
+    global Compkeys, Compvalues, Medakeys, Medavalues, Datakeys, Datavalues
 
     CompConf=ReadConf['comp'][0] # get data&metadata conf info
-    MedaConf=ReadConf['meta-storage'][0]
+    MedaConf=ReadConf['metadata'][0]
+    DataConf=ReadConf['storage'][0]
 
     Compkeys=list(CompConf.keys())
     Compvalues=list(CompConf.values())
     Medakeys=list(MedaConf.keys())
     Medavalues=list(MedaConf.values())
-    global CompNum, sCompNum, MedaNum
+    Datakeys=list(DataConf.keys())
+    Datavalues=list(DataConf.values())
+    global CompNum, sCompNum, MedaNum, DataNum
     CompNum=len(Compkeys)
     sCompNum = str(CompNum)
     MedaNum=len(Medakeys)
+    DataNum=len(Datakeys)
+    print(DataNum)
+
 
     try:
         os.remove('config.sh')
@@ -153,10 +159,10 @@ def configs():
     DIPN = 0
     print('========\nsetting datanode...\n========')
     for i in DataIp:
-        for a in range(0, MedaNum):
-            if Medavalues[a]:
-                SMedakeys = ''.join(Medakeys[a])
-                SMedavalues = str(Medavalues[a])
+        for a in range(0, DataNum):
+            if Datavalues[a]:
+                SDatakeys = ''.join(Datakeys[a])
+                SDatavalues = str(Datavalues[a])
                 SDataIp = ''.join(DataIp[DIPN])
                 SDataPort = str(DataPort[DIPN])
                 SDataDir = ''.join(DataDir[DIPN])
@@ -164,13 +170,13 @@ def configs():
                 of=open('config.sh','a')
                 #BashStmt = 'echo %s = %s >> %s/%s/my_%s.conf' % (SMedakeys, SMedavalues, SDataDir, SDataPort, SDataPort)
                 #of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SDataIp, BashStmt, defuser, SDataIp, BashStmt))
-                sql = 'set global %s = %s' %(SMedakeys, SMedavalues)
+                sql = 'set global %s = %s' %(SDatakeys, SDatavalues)
                 of.write("#%s:%s '%s'" % (i, SDataPort, sql))
                 of.close()
                 myconn(i, SDataPort, sql)
                 print("set dadanode %s:%s \"%s\"" % (i, SDataPort, sql))
             else:
-                err = 'Data node' + SDataIp + ':' + SDataPort + 'parameter :"' + SMedakeys + '" values is null!'
+                err = 'Data node' + SDataIp + ':' + SDataPort + 'parameter :"' + SDatakeys + '" values is null!'
                 print(err)
                     
         DIPN+=1
