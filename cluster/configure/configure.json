@@ -11,7 +11,8 @@
 	
 	"meta-storage":[{
 			"lock_wait_timeout":2000, 
-			"innodb_lock_wait_timeout":3000
+			"innodb_lock_wait_timeout":3000,
+			"fullsync_timeout":3000000
 		}
 	]
 }

@@ -4,6 +4,7 @@ import json
 import argparse
 import os
 import psycopg2
+import pymysql
 
 def readJsonFile():
     OpenCluster=open(install, encoding='utf-8')
@@ -82,6 +83,13 @@ def readJsonFile():
     finally:
         pass
 
+def myconn(host, port, sql):
+    conn = pymysql.connect(host = host, user = "pgx",port = int(port), password = "pgx_pwd", database = "mysql")
+    cursor = conn.cursor()
+    cursor.execute(sql)
+    cursor.close()
+    conn.close()
+
 def configs():
     CIPN = 0
     for i in CompIp:
@@ -101,7 +109,7 @@ def configs():
                 SedAdd = 'sed -i "${line}i ' + SCompkeys + ' = ' + SCompvalues + '" ' + SCompDir +'/postgresql.conf'
                 BashStmt = AddLine + SedDel + SedAdd
                 '''
-                BashStmt = 'echo %s = %s > %s/postgresql.conf' % (SCompvalues, SCompkeys, SCompDir )
+                BashStmt = 'echo %s = %s >> %s/postgresql.conf' % (SCompkeys, SCompvalues, SCompDir )
                 of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SCompIp, BashStmt, defuser, SCompIp, BashStmt))
                 of.write("")
                 of.close()
@@ -110,7 +118,7 @@ def configs():
                 print(err)
 
         of=open('config.sh','a')
-        stmt = "ssh %s@%s '%s/kunlun-server-0.9.1/bin/pg_ctl reload -D %s'\n\necho ssh %s@%s '%s/kunlun-server-0.9.1/bin/pg_ctl reload -D %s'\n\n" % (defuser, SCompIp, defbase, SCompDir, defuser, SCompIp, defbase, SCompDir)
+        stmt = "ssh %s@%s '%s/kunlun-server-0.9.2/bin/pg_ctl reload -D %s'\n\necho ssh %s@%s '%s/kunlun-server-0.9.2/bin/pg_ctl reload -D %s'\n\n" % (defuser, SCompIp, defbase, SCompDir, defuser, SCompIp, defbase, SCompDir)
         of.write(stmt)
         of.close()
 
@@ -132,7 +140,7 @@ def configs():
                 SedAdd = 'sed -i "${line}i ' + SMedakeys + ' = ' + SMedavalues + '" ' + SMetaDir +'/' + SMetaPort + '/my_' + SMetaPort +'.cnf '
                 BashStmt = AddLine + SedDel + SedAdd
                 '''
-                BashStmt = 'echo %s = %s > %s/%s/my_%s.conf' % (SMedakeys, SMedavalues, SMetaDir, SMetaPort, SMetaPort)
+                BashStmt = 'echo %s = %s >> %s/my_%s.cnf' % (SMedakeys, SMedavalues, SMetaDir, SMetaPort)
                 of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SMetaIp, BashStmt, defuser, SMetaIp, BashStmt))
                 of.close()
             else:
@@ -143,6 +151,7 @@ def configs():
         MIPN+=1
 
     DIPN = 0
+    print('========\nsetting datanode...\n========')
     for i in DataIp:
         for a in range(0, MedaNum):
             if Medavalues[a]:
@@ -153,21 +162,19 @@ def configs():
                 SDataDir = ''.join(DataDir[DIPN])
 
                 of=open('config.sh','a')
-                '''
-                AddLine = "line=`cat  %s/%s/my_%s.cnf | awk -F= '\\'{print \\$1}\\'' | grep -n -w '\\'^%s\\'' | awk -F: '\\'{print \\$1}\\''` && " % (SDataDir, SDataPort, SDataPort, SMedakeys)
-                SedDel = 'sed -i "${line}d" ' + SDataDir +'/' + SDataPort + '/my_' + SDataPort +'.cnf && '
-                SedAdd = 'sed -i "${line}i ' + SMedakeys + ' = ' + SMedavalues + '" ' + SDataDir +'/' + SDataPort + '/my_' + SDataPort +'.cnf '
-                BashStmt = AddLine + SedDel + SedAdd
-                '''
-                BashStmt = 'echo %s = %s > %s/%s/my_%s.conf' % (SMedakeys, SMedavalues, SDataDir, SDataPort, SDataPort)
-                of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SDataIp, BashStmt, defuser, SDataIp, BashStmt))
+                #BashStmt = 'echo %s = %s >> %s/%s/my_%s.conf' % (SMedakeys, SMedavalues, SDataDir, SDataPort, SDataPort)
+                #of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SDataIp, BashStmt, defuser, SDataIp, BashStmt))
+                sql = 'set global %s = %s' %(SMedakeys, SMedavalues)
+                of.write("#%s:%s '%s'" % (i, SDataPort, sql))
                 of.close()
+                myconn(i, SDataPort, sql)
+                print("set dadanode %s:%s \"%s\"" % (i, SDataPort, sql))
             else:
                 err = 'Data node' + SDataIp + ':' + SDataPort + 'parameter :"' + SMedakeys + '" values is null!'
                 print(err)
-
+                    
         DIPN+=1
-
+    print('========\nsetting done...\n========')
     n = 0
     for i in Medakeys:
         stmt = 'set shard global ' + i + ' = ' + str(Medavalues[n])
@@ -184,7 +191,7 @@ def configs():
         conn.close()
         n = n + 1
 
-    #subprocess.run("bash ./config.sh",shell=True)
+    subprocess.run("bash ./config.sh",shell=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Configure')
