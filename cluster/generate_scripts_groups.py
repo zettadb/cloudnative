@@ -72,9 +72,6 @@ def generate_install_scripts(jscfg, args):
     validate_config(jscfg, args)
 
     installtype = args.installtype
-    sudopfx=""
-    if args.sudo:
-        sudopfx="sudo "
     localip = '127.0.0.1'
 
     machines = {}
@@ -98,7 +95,9 @@ def generate_install_scripts(jscfg, args):
     cluster_name = cluster.get('name', 'individual_shards')
     datas = cluster['data']
 
-    cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --ha_mode=%s --server_id=%d'
+    cmdpat = 'python2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --ha_mode=%s --server_id=%d'
+    if args.small:
+        cmdpat += ' --dbcfg=./template-small.cnf'
     # commands like:
     # python2 install-mysql.py --config=./mysql_meta.json --target_node_index=0 --server_id=[int]
     targetdir='%s/dba_tools' % storagedir
@@ -121,7 +120,7 @@ def generate_install_scripts(jscfg, args):
         for node in shard['nodes']:
             addNodeToFilesMap(filesmap, node, my_shardname, targetdir)
             addIpToMachineMap(machines, node['ip'], args)
-            cmd = cmdpat % (sudopfx, my_shardname, j, cluster_name, shard_id, ha_mode, j+1)
+            cmd = cmdpat % (my_shardname, j, cluster_name, shard_id, ha_mode, j+1)
             if node.get('is_primary', False):
                 pries.append([node['ip'], targetdir, cmd])
             else:
@@ -203,9 +202,6 @@ def generate_install_scripts(jscfg, args):
 
 # The order is meta shard -> data shards -> cluster_mgr -> comp nodes
 def generate_start_scripts(jscfg, args):
-    sudopfx=""
-    if args.sudo:
-        sudopfx="sudo "
     localip = '127.0.0.1'
 
     machines = {}
@@ -232,8 +228,8 @@ def generate_start_scripts(jscfg, args):
     for shard in datas:
         for node in shard['nodes']:
             addIpToMachineMap(machines, node['ip'], args)
-            cmdpat = r'%sbash startmysql.sh %s'
-            addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (sudopfx, node['port']))
+            cmdpat = r'bash startmysql.sh %s'
+            addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
     
     com_name = 'commands.sh'
     os.system('mkdir -p start')
@@ -333,6 +329,7 @@ if  __name__ == '__main__':
     parser.add_argument('--installtype', type=str, help="the install type", default='full', choices=['full', 'cluster'])
     parser.add_argument('--cleantype', type=str, help="the clean type", default='full', choices=['full', 'cluster'])
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
+    parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--localip', type=str, help="The local ip address", default=gethostip())
     parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.2')
     parser.add_argument('--valgrind', help="whether to use valgrind", default=False, action='store_true')

@@ -5,6 +5,7 @@ import os
 import os.path
 import socket
 import uuid
+import getpass
 
 def my_print(toprint):
     if sys.version_info.major == 2:
@@ -80,6 +81,7 @@ def stop_server_node(machines, progdir, compobj, idx, dryrun):
     run_remote_command(machines, node['ip'], progdir, 'scripts', command, dryrun)
 
 def addIpToMachineMap(map, ip, args):
+    #my_print("add ip %s" % ip)
     if not ip in map:
         mac={"ip":ip, "user":args.defuser, "basedir":args.defbase}
         map[ip] = mac
@@ -205,19 +207,47 @@ def process_commandslist_setenv(comf, args, machines, commandslist):
         mach = machines[ip]
         if islocal(args, ip, mach['user']):
             # For local, we do not consider the user.
-            mkstr = '''/bin/bash -c $"cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s" '''
-            tup= (mach['basedir'], cmd[3], cmd[1], cmd[2])
+            mkstr = '''/bin/bash -c $"cd %s && cd %s || exit 1; envtype=%s && source %s/env.sh; %s" '''
+            tup= (mach['basedir'], cmd[1], cmd[3], mach['basedir'], cmd[2])
         else:
             ttyopt=""
             if cmd[2].find("sudo ") >= 0:
                 ttyopt="--tty"
-            mkstr = '''bash remote_run.sh %s --user=%s %s $"cd %s && envtype=%s && source ./env.sh && cd %s || exit 1; %s" '''
-            tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[3], cmd[1], cmd[2])
+            mkstr = '''bash remote_run.sh %s --user=%s %s $"cd %s && cd %s || exit 1; envtype=%s && source %s/env.sh; %s" '''
+            tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[1], cmd[3], mach['basedir'], cmd[2])
         comf.write(mkstr % tup)
         comf.write("\n")
 
 def process_command_setenv(comf, args, machines, ip, targetdir, command, envtype='no'):
     process_commandslist_setenv(comf, args, machines, [[ip, targetdir, command, envtype]])
+
+def process_dirmap(comf, dirmap, machines, args):
+    # dir making
+    for ip in dirmap:
+        mach = machines.get(ip)
+        dirs=dirmap[ip]
+        for d in dirs:
+            if args.sudo:
+                process_command_noenv(comf, args, machines, ip, '/',
+                    'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (d, mach['user'], mach['user'], d))
+            else:
+                process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % d)
+
+def process_fileslistmap(comf, filesmap, machines, prefix, args):
+    # files copy.
+    for ip in filesmap:
+        mach = machines.get(ip)
+        fmap = filesmap[ip]
+        for fpair in fmap:
+            process_file(comf, args, machines, ip, '%s/%s' % (prefix, fpair[0]), '%s/%s' % (mach['basedir'], fpair[1]))
+
+def process_filesmap(comf, filesmap, machines, prefix, args):
+    # files copy.
+    for ip in filesmap:
+        mach = machines.get(ip)
+        fmap = filesmap[ip]
+        for fname in fmap:
+            process_file(comf, args, machines, ip, '%s/%s' % (prefix, fname), '%s/%s' % (mach['basedir'], fmap[fname]))
 
 def validate_ha_mode(ha_mode):
     if ha_mode not in ['rbr', 'no_rep', 'mgr']:
@@ -426,6 +456,7 @@ def setup_machines2(jscfg, machines, args):
     nodemgrnodes = nodemgr.get('nodes', [])
     clustermgr = jscfg.get('cluster_manager', {"nodes": []})
     clustermgrnodes = clustermgr.get('nodes', [])
+    clusters = jscfg.get('clusters', [])
     for mach in machnodes:
         ip=mach['ip']
         user=mach.get('user', args.defuser)
@@ -437,14 +468,30 @@ def setup_machines2(jscfg, machines, args):
         addIpToMachineMap(machines, node['ip'], args)
     for node in clustermgrnodes:
         addIpToMachineMap(machines, node['ip'], args)
+    for cluster in clusters:
+        for node in cluster['comp']['nodes']:
+            addIpToMachineMap(machines, node['ip'], args)
+        for shard in cluster['data']:
+            for node in shard['nodes']:
+                addIpToMachineMap(machines, node['ip'], args)
 
-def set_metapath_using_nodemgr(machines, nodem, noden):
-    nodem['data_dir_path'] = "%s/instance_data/data_dir_path/%s" % (noden['storage_datadirs'].split(",")[0], str(nodem['port']))
-    nodem['log_dir_path'] = "%s/instance_data/log_dir_path/%s" % (noden['storage_logdirs'].split(",")[0], str(nodem['port']))
-    nodem['innodb_log_dir_path'] = "%s/instance_data/innodb_log_dir_path/%s" % (noden['storage_waldirs'].split(",")[0], str(nodem['port']))
-    mach = machines.get(nodem['ip'])
-    nodem['program_dir'] = "instance_binaries/storage/%s" % str(nodem['port'])
-    nodem['user'] = mach['user']
+def set_storage_using_nodemgr(machines, item, noden):
+    if 'data_dir_path' not in item:
+        item['data_dir_path'] = "%s/instance_data/data_dir_path/%s" % (noden['storage_datadirs'].split(",")[0], str(item['port']))
+    if 'log_dir_path' not in item:
+        item['log_dir_path'] = "%s/instance_data/log_dir_path/%s" % (noden['storage_logdirs'].split(",")[0], str(item['port']))
+    if 'innodb_log_dir_path' not in item:
+        item['innodb_log_dir_path'] = "%s/instance_data/innodb_log_dir_path/%s" % (noden['storage_waldirs'].split(",")[0], str(item['port']))
+    mach = machines.get(item['ip'])
+    item['program_dir'] = "instance_binaries/storage/%s" % str(item['port'])
+    item['user'] = mach['user']
+    if 'innodb_buffer_pool_size' not in item:
+        item['innodb_buffer_pool_size'] = "128MB"
+
+def set_server_using_nodemgr(machines, item, noden):
+    if 'datadir' not in item:
+        item['datadir'] = "%s/instance_data/comp_datadir/%s" % (noden['server_datadirs'].split(",")[0], str(item['port']))
+    item['program_dir'] = "instance_binaries/computer/%s" % str(item['port'])
 
 # validate and set the configuration object for clustermgr initialization/destroy scripts.
 def validate_and_set_config2(jscfg, machines, args):
@@ -454,9 +501,16 @@ def validate_and_set_config2(jscfg, machines, args):
     clustermgr = jscfg.get('cluster_manager', {'nodes':[]})
     if not 'nodes' in clustermgr:
         clustermgr['nodes'] = []
+    if not 'cluster_manager' in clustermgr:
+        jscfg['cluster_manager'] = clustermgr
     nodemgr = jscfg.get('node_manager', {'nodes':[]})
     if not 'nodes' in nodemgr:
         nodemgr['nodes'] = []
+    if not 'node_manager' in nodemgr:
+        jscfg['node_manager'] = nodemgr
+    clusters = jscfg.get('clusters', [])
+    if not 'clusters' in jscfg:
+        jscfg['clusters'] = clusters
 
     portmap = {}
     dirmap = {}
@@ -486,6 +540,8 @@ def validate_and_set_config2(jscfg, machines, args):
     nodemgrips = set()
     nodemgrmaps = {}
     for node in nodemgr['nodes']:
+        if 'skip' not in node:
+            node['skip'] = False
         mach = machines.get(node['ip'])
         if node['ip'] in nodemgrips:
             raise ValueError('Error: %s exists, only one node_mgr can be run on a machine!' % node['ip'])
@@ -545,7 +601,7 @@ def validate_and_set_config2(jscfg, machines, args):
             nodemgrmaps[node['ip']] = nodem
             nodemgrips.add(node['ip'])
         # node['nodemgr'] = nodemgrmaps.get(node['ip'])
-        set_metapath_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
+        set_storage_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
         if 'xport' in node:
             addPortToMachine(portmap, node['ip'], node['xport'])
         if 'mgr_port' in node:
@@ -561,6 +617,48 @@ def validate_and_set_config2(jscfg, machines, args):
     elif nodecnt > 0:
             node['is_primary'] = True
 
+    for cluster in clusters:
+        if 'name' not in cluster:
+            cluster['name'] = getuuid()
+        if  'ha_mode' not in cluster:
+            cluster['ha_mode'] = 'mgr'
+        if 'storage_template' not in cluster:
+            cluster['storage_template'] = 'normal'
+        ha_mode = cluster['ha_mode']
+        validate_ha_mode(ha_mode)
+        comps = cluster['comp']
+        datas = cluster['data']
+        for node in comps['nodes']:
+            addPortToMachine(portmap, node['ip'], node['port'])
+            if node['ip'] not in nodemgrips:
+                nodem = get_default_nodemgr(args, machines, node['ip'])
+                nodemgr['nodes'].append(nodem)
+                nodemgrmaps[node['ip']] = nodem
+                nodemgrips.add(node['ip'])
+            set_server_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
+        for shard in datas:
+            nodecnt = len(shard['nodes'])
+            if nodecnt == 0:
+                raise ValueError('Error: There must be at least one node in the shard')
+            if ha_mode == 'no_rep' and nodecnt > 1:
+                raise ValueError('Error: ha_mode is no_rep, but there are multiple nodes in the shard')
+            elif nodecnt == 1 and ha_mode != 'no_rep':
+                raise ValueError('Error: ha_mode is mgr/rbr, but there is only one node in the shard')
+            for node in shard['nodes']:
+                addPortToMachine(portmap, node['ip'], node['port'])
+                if node['ip'] not in nodemgrips:
+                    nodem = get_default_nodemgr(args, machines, node['ip'])
+                    nodemgr['nodes'].append(nodem)
+                    nodemgrmaps[node['ip']] = nodem
+                    nodemgrips.add(node['ip'])
+                if 'xport' in node:
+                    addPortToMachine(portmap, node['ip'], node['xport'])
+                if 'mgr_port' in node:
+                    addPortToMachine(portmap, node['ip'], node['mgr_port'])
+                if 'election_weight' not in node:
+                    node['election_weight'] = 50
+                set_storage_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
+
 def get_default_nodemgr(args, machines, ip):
     mach = machines.get(ip)
     defpaths = {
@@ -572,7 +670,8 @@ def get_default_nodemgr(args, machines, ip):
     node =  {
             'ip': ip,
             'brpc_http_port': args.defbrpc_http_port_nodemgr,
-            "tcp_port": args.deftcp_port_nodemgr
+            "tcp_port": args.deftcp_port_nodemgr,
+            "skip": True
             }
     for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
         node[item] = "%s/%s" % (mach['basedir'], defpaths[item])
