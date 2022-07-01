@@ -146,10 +146,6 @@ def generate_install_scripts(jscfg, args):
     clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
     installtype = args.installtype
 
-    sudopfx=""
-    if args.sudo:
-        sudopfx="sudo "
-
     valgrindopt = ""
     if args.valgrind:
         valgrindopt = "--valgrind"
@@ -172,7 +168,7 @@ def generate_install_scripts(jscfg, args):
     json.dump(meta, metaf, indent=4)
     metaf.close()
 
-    cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d'
+    cmdpat = 'python2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d'
     if args.small:
         cmdpat += ' --dbcfg=./template-small.cnf'
     # commands like:
@@ -187,7 +183,7 @@ def generate_install_scripts(jscfg, args):
     for node in meta['nodes']:
         meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
         addNodeToFilesMap(filesmap, node, my_metaname, targetdir)
-        cmd = cmdpat % (sudopfx, my_metaname, i, cluster_name, shard_id, i+1)
+        cmd = cmdpat % (my_metaname, i, cluster_name, shard_id, i+1)
         if node.get('is_primary', False):
             mpries.append([node['ip'], targetdir, cmd])
         else:
@@ -216,7 +212,7 @@ def generate_install_scripts(jscfg, args):
 	    j = 0
 	    for node in shard['nodes']:
                 addNodeToFilesMap(filesmap, node, my_shardname, targetdir)
-                cmd = cmdpat % (sudopfx, my_shardname, j, cluster_name, shard_id, j+1)
+                cmd = cmdpat % (my_shardname, j, cluster_name, shard_id, j+1)
                 if node.get('is_primary', False):
                     pries.append([node['ip'], targetdir, cmd])
                 else:
@@ -292,9 +288,6 @@ def generate_install_scripts(jscfg, args):
     comp1 = comps[0]
     addNodeToFilesMap(filesmap, comp1, reg_metaname, targetdir)
     addNodeToFilesMap(filesmap, comp1, reg_shardname, targetdir)
-    resourcedir = "%s/resources" % serverdir
-    cmdpat=r'/bin/bash build_driver_forpg.sh'
-    addToCommandsList(commandslist, comp1['ip'], resourcedir, cmdpat, "all")
     cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql' + meta_extraopt
     addToCommandsList(commandslist, comp1['ip'], targetdir, cmdpat % reg_metaname, "storage")
     cmdpat='python2 create_cluster.py --shards_config=./%s \
@@ -404,23 +397,9 @@ def generate_install_scripts(jscfg, args):
         process_command_noenv(comf, args, machines, ip, mach['basedir'], comstr)
 
     # dir making
-    for ip in dirmap:
-        mach = machines.get(ip)
-        dirs=dirmap[ip]
-        for d in dirs:
-            if args.sudo:
-                process_command_noenv(comf, args, machines, ip, '/',
-                    'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (d, mach['user'], mach['user'], d))
-            else:
-                process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % d)
-
+    process_dirmap(comf, dirmap, machines, args)
     # files copy.
-    for ip in filesmap:
-        mach = machines.get(ip)
-        fmap = filesmap[ip]
-        for fname in fmap:
-            process_file(comf, args, machines, ip, 'install/%s' % fname, '%s/%s' % (mach['basedir'], fmap[fname]))
-
+    process_filesmap(comf, filesmap, machines, 'install', args)
     # The reason for not using commands map is that, we need to keep the order for the commands.
     process_commandslist_setenv(comf, args, machines, commandslist)
     comf.close()
@@ -435,10 +414,6 @@ def generate_start_scripts(jscfg, args):
     serverdir = "kunlun-server-%s" % args.product_version
     clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
 
-    sudopfx=""
-    if args.sudo:
-        sudopfx="sudo "
-
     valgrindopt = ""
     if args.valgrind:
         valgrindopt = "--valgrind"
@@ -452,16 +427,16 @@ def generate_start_scripts(jscfg, args):
     # bash startmysql.sh [port]
     targetdir='%s/dba_tools' % storagedir
     for node in meta['nodes']:
-        cmdpat = r'%sbash startmysql.sh %s'
-        addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (sudopfx, node['port']))
+        cmdpat = r'bash startmysql.sh %s'
+        addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
 
     # bash startmysql.sh [port]
     targetdir='%s/dba_tools' % storagedir
     datas = cluster['data']
     for shard in datas:
 	    for node in shard['nodes']:
-                cmdpat = r'%sbash startmysql.sh %s'
-                addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (sudopfx, node['port']))
+                cmdpat = r'bash startmysql.sh %s'
+                addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
     
     clmgrnodes = jscfg['cluster']['clustermgr']['nodes']
     cmdpat = r'bash start_cluster_mgr.sh </dev/null >& run.log &'
@@ -656,11 +631,8 @@ def generate_check_scripts(jscfg, args):
     cluster = jscfg['cluster']
     meta = cluster['meta']
     metacnt = len(meta['nodes'])
-    ha_mode = "no_rep"
-    if metacnt > 1:
-        ha_mode = get_ha_mode(jscfg, args)
-        if ha_mode == '' or ha_mode == 'no_rep':
-            ha_mode = 'mgr'
+    meta_hamode = cluster['meta']['ha_mode']
+    cluster_hamode = cluster['ha_mode']
 
     # commands like:
     # bash check_storage.sh [host] [port] [ha_mode]
@@ -669,13 +641,13 @@ def generate_check_scripts(jscfg, args):
     cmdpat = r'bash check_storage.sh %s %s %s'
     for node in meta['nodes']:
         addNodeToFilesMap(filesmap, node, 'check/check_storage.sh', targetdir)
-        addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (node['ip'], str(node['port']), ha_mode), "storage")
+        addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (node['ip'], str(node['port']), meta_hamode), "storage")
 
     datas = cluster['data']
     for shard in datas:
 	    for node in shard['nodes']:
                 addNodeToFilesMap(filesmap, node, 'check/check_storage.sh', targetdir)
-                addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (node['ip'], str(node['port']), ha_mode), "storage")
+                addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (node['ip'], str(node['port']), cluster_hamode), "storage")
 
     # commands like:
     # bash check_cluster_manager.sh [basedir]
@@ -699,12 +671,7 @@ def generate_check_scripts(jscfg, args):
     comf.write('#! /bin/bash\n')
 
     # files copy.
-    for ip in filesmap:
-        mach = machines.get(ip)
-        fmap = filesmap[ip]
-        for fname in fmap:
-            process_file(comf, args, machines, ip, fname, '%s/%s' % (mach['basedir'], fmap[fname]))
-
+    process_filesmap(comf, filesmap, machines, '.', args)
     process_commandslist_setenv(comf, args, machines, commandslist)
     comf.close()
 

@@ -1,14 +1,13 @@
 #! /bin/bash
 
-brpcport="${1}"
-basedir="${2:-`pwd`}"
-version="${3:-0.9.2}"
+basedir="${1:-`pwd`}"
+version="${2:-0.9.2}"
 
 #cd $basedir/kunlun-node-manager-$version/bin && \
 #bash start_node_mgr.sh
 
 cd $basedir
-test -f env.sh.$brpcport && . ./env.sh.$brpcport
+test -f env.sh.nodemgr && . ./env.sh.nodemgr
 cd -
 
 # clear the kunlun-storage instances

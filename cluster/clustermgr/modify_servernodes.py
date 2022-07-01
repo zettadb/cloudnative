@@ -67,6 +67,8 @@ def add_nodemgr_nodes(args):
     meta_cursor0.execute("start transaction")
     stmt = "insert into server_nodes(hostaddr, comp_datadir, datadir, logdir, wal_log_dir) values(%s,%s,%s,%s,%s)"
     for node in nodes:
+        if node['skip']:
+            continue
         meta_cursor.execute(stmt, (node['ip'], node['server_datadirs'], node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs']))
     meta_cursor0.execute("commit")
     meta_cursor.close()
@@ -84,6 +86,8 @@ def remove_nodemgr_nodes(args):
     stmt1 = "delete t2 from server_nodes_stats t2 inner join server_nodes t1 using(id) where t1.hostaddr=%s"
     stmt2 = "delete from server_nodes t1 where t1.hostaddr=%s"
     for node in nodes:
+        if node['skip']:
+            continue
         meta_cursor.execute(stmt1, (node['ip'],))
         meta_cursor.execute(stmt2, (node['ip'],))
     meta_cursor0.execute("commit")
