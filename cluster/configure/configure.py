@@ -10,54 +10,38 @@ def readJsonFile():
     OpenCluster=open(install, encoding='utf-8')
     ReadCluster=json.loads(OpenCluster.read())
 
-    MetaTotal=ReadCluster['cluster']['meta']['nodes']
     CompTotal=ReadCluster['cluster']['comp']['nodes']
-    DataTotal=ReadCluster['cluster']['data']
+    if types == 'cluster_mgr':
+        global insBin, serDat
+        insBin = ReadCluster['instance_binaries']
+        serDat = ReadCluster['server_datadir']
+        
 
     # get cluster info
-    global MetaIp, MetaPort, MetaDir, CompIp, CompPwd, MetaUser, CompPort, CompDir, CompUser, DataIp, DataPort, DataDir, DataUser
+    global CompIp, CompPwd, CompPort, CompDir, CompUser
     
-    MetaIp, MetaPort, MetaDir, CompIp, CompPwd, MetaUser, CompPort, CompDir, CompUser, DataIp, DataPort, DataDir, DataUser = [], [], [], [], [], [], [], [], [], [], [], [], []
-
-    for i in MetaTotal: #get metadata node info
-        ip=i['ip']
-        port=i['port']
-        datadir=i['data_dir_path']
-        user=i['user']
-        MetaIp.append(ip)
-        MetaPort.append(port)
-        MetaDir.append(datadir)
-        MetaUser.append(user)
-        
+    CompIp, CompPwd, CompPort, CompDir, CompUser = [], [], [], [], []
 
     for i in CompTotal: # get computing node info
         ip=i['ip']
         port=i['port']
-        datadir=i['datadir']
+        #datadir=i['datadir']
         user=i['user']
         pwd=i['password']
         CompPwd.append(pwd)
         CompIp.append(ip)
         CompPort.append(port)
-        CompDir.append(datadir)
+        #CompDir.append(datadir)
         CompUser.append(user)
-
-    for i in DataTotal: # get data node info
-        for a in i['nodes']:
-            ip=a['ip']
-            port=a['port']
-            datadir=a['data_dir_path']
-            user=a['user']
-            DataIp.append(ip)
-            DataPort.append(port)
-            DataDir.append(datadir)
-            DataUser.append(user)
+        if types == 'one_click':
+            datadir=i['datadir']
+            CompDir.append(datadir)
 
     try:
         OpenConf=open(config,encoding='utf-8') # get computing conf info
         ReadConf=json.loads(OpenConf.read())
     except:
-        printe="========================================================================"
+        print="========================================================================"
         print("\n\n%s\n--------- open configuration file %s fail, please check --------\n%s\n" % (printe, config,printe))
     finally:
         pass
@@ -79,7 +63,6 @@ def readJsonFile():
     sCompNum = str(CompNum)
     MedaNum=len(Medakeys)
     DataNum=len(Datakeys)
-    print(DataNum)
 
 
     try:
@@ -89,6 +72,31 @@ def readJsonFile():
     finally:
         pass
 
+def pgconn(host, port, user, pwd, sql):
+    global lists
+    conn = psycopg2.connect(database = 'postgres', user = user, host = host, port = port, password = pwd)
+    conn.autocommit = True
+    cur = conn.cursor()
+    cur.execute(sql)
+    lists = cur.fetchall()
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def wFile(stmt):
+    of=open('config.sh','a')
+    of.write("#%s\n\n" % (stmt))
+    of.close()
+
+def WFile(stmt, es):
+    of=open('config.sh','a')
+    if es == 'y':
+        of.write("echo %s\n" % (stmt))
+    elif es == 'n':
+        of.write('%s\n\n' % (stmt))
+        of.write("")
+    of.close()
+
 def myconn(host, port, sql):
     conn = pymysql.connect(host = host, user = "pgx",port = int(port), password = "pgx_pwd", database = "mysql")
     cursor = conn.cursor()
@@ -96,123 +104,142 @@ def myconn(host, port, sql):
     cursor.close()
     conn.close()
 
+def varPort():
+    global port
+    port = []
+    for row in lists:
+        srow = (str(row))
+        srow = srow.replace('(','')
+        srow = srow.replace(',)','')
+        srow = int(srow)
+        port.append(srow)
+
+def varHost():
+    global host
+    host = []
+    for row in lists:
+        srow = (str(row))
+        srow = srow.replace('\'','')
+        srow = srow.replace('(','')
+        srow = srow.replace(',)','')
+        host.append(srow)
+
+def chInfo(stmt):
+    stmt = '\n========================================================================\nsetting %s...\n========================================================================\n'% (stmt)
+    print(stmt)
+
 def configs():
+    
+    # setting computing node ========================================================================
     CIPN = 0
     for i in CompIp:
         for a in range(0, CompNum):
             if Compvalues[a] :
                 SCompkeys = ''.join(Compkeys[a])
-                SCompDir = ''.join(CompDir[CIPN])
+                if types == 'one_click':
+                    SCompDir = ''.join(CompDir[CIPN])
                 SCompvalues = str(Compvalues[a])
-                SCompUser = ''.join(MetaUser[CIPN])
                 SCompIp = ''.join(CompIp[CIPN])
-                SCompPort = str(CompPort)
+                SCompPort = str(CompPort[CIPN])
                 
-                of=open('config.sh','a')
-                '''
-                AddLine = "line=`cat %s/postgresql.conf | awk -F= '\\'{print \\$1}\\'' | grep -n -w '\\'^%s\\'' | awk -F: '\\'{print \\$1}\\''` && " % (SCompDir,SCompkeys)
-                SedDel = 'sed -i "${line}d" ' + SCompDir +'/postgresql.conf && '
-                SedAdd = 'sed -i "${line}i ' + SCompkeys + ' = ' + SCompvalues + '" ' + SCompDir +'/postgresql.conf'
-                BashStmt = AddLine + SedDel + SedAdd
-                '''
-                BashStmt = 'echo %s = %s >> %s/postgresql.conf' % (SCompkeys, SCompvalues, SCompDir )
-                of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SCompIp, BashStmt, defuser, SCompIp, BashStmt))
-                of.write("")
-                of.close()
+                num = 0
+                if types == 'one_click':
+                    BashStmt = "ssh %s@%s \'echo %s = %s >> %s/postgresql.conf\'" % (defuser, SCompIp, SCompkeys, SCompvalues, SCompDir)
+                    print(BashStmt)
+                    
+                elif types == 'xpenal':
+                    #/home/kunlun/testmgr0.9.2/server_datadir/instance_data/comp_datadir/57030/postgresql.conf
+                    BashStmt = "ssh %s@%s \'echo %s = %s >> %s/server_datadir/instance_data/comp_datadir/%s/postgresql.conf\'" % (defuser, SCompIp, SCompkeys, SCompvalues, defbase, SCompPort)
+                    num = num + 1
+                
+                elif types == 'cluster_mgr':
+                    BashStmt = "ssh %s@%s \'echo %s = %s >> %s/%s/postgresql.conf\'" % (defuser, SCompIp, SCompkeys, SCompvalues, serDat, SCompPort)
+                    num = num + 1
+
+                WFile(BashStmt, 'y')
+                WFile(BashStmt, 'n')
+            
             else:
                 err = 'Computing node' + SCompIp + ':' + SCompPort + 'parameter :"' + SCompkeys + '" values is null'
                 print(err)
 
-        of=open('config.sh','a')
-        stmt = "ssh %s@%s '%s/kunlun-server-0.9.2/bin/pg_ctl reload -D %s'\n\necho ssh %s@%s '%s/kunlun-server-0.9.2/bin/pg_ctl reload -D %s'\n\n" % (defuser, SCompIp, defbase, SCompDir, defuser, SCompIp, defbase, SCompDir)
-        of.write(stmt)
-        of.close()
+        if types == 'one_click':
+            stmt = "ssh %s@%s \'%s/kunlun-server-0.9.2/bin/pg_ctl reload -D %s\'" % (defuser, SCompIp, defbase, SCompDir)
+        
+        elif types == 'xpenal':
+            #/home/kunlun/testmgr0.9.2/instance_binaries/computer/57030/kunlun-server-0.9.2/bin/pg_ctl
+            stmt = "ssh %s@%s \'%s/instance_binaries/computer/%s/kunlun-server-0.9.2/bin/pg_ctl reload -D %s/server_datadir/instance_data/comp_datadir/%s\'" % (defuser, SCompIp, defbase, SCompPort, defbase, SCompPort) 
 
+        elif types == 'cluster_mgr':
+            stmt = "ssh %s@%s \'%s/%s/kunlun-server-0.9.2/bin/pg_ctl reload -D %s/%s\'" % (defuser, SCompIp, insBin, SCompPort, serDat, SCompPort)
+
+        WFile(stmt, 'y')
+        WFile(stmt, 'n')
         CIPN+=1
 
-    MIPN = 0
-    for i in MetaIp:
-        for a in range(0, MedaNum):
-            if Medavalues[a]:
-                SMedakeys = ''.join(Medakeys[a])
-                SMedavalues = str(Medavalues[a])
-                SMetaIp = ''.join(MetaIp[MIPN])
-                SMetaPort = str(MetaPort[MIPN])
-                SMetaDir = ''.join(MetaDir[MIPN])
-                of=open('config.sh','a')
-                '''
-                AddLine = "line=`cat %s/%s/my_%s.cnf | awk -F= '\\'{print \\$1}\\'' | grep -n -w '\\'^%s\\'' | awk -F: '\\'{print \\$1}\\''` && " % (SMetaDir, SMetaPort, SMetaPort, SMedakeys)
-                SedDel = 'sed -i "${line}d" ' + SMetaDir +'/' + SMetaPort + '/my_' + SMetaPort +'.cnf && '
-                SedAdd = 'sed -i "${line}i ' + SMedakeys + ' = ' + SMedavalues + '" ' + SMetaDir +'/' + SMetaPort + '/my_' + SMetaPort +'.cnf '
-                BashStmt = AddLine + SedDel + SedAdd
-                '''
-                BashStmt = 'echo %s = %s >> %s/my_%s.cnf' % (SMedakeys, SMedavalues, SMetaDir, SMetaPort)
-                of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SMetaIp, BashStmt, defuser, SMetaIp, BashStmt))
-                of.close()
-            else:
-                err = 'Metadata node' + SMetaIp + ':' + SMetaPort + 'parameter :"' + SMedakeys + '" vaules is null! '
-                print(err)
-
-
-        MIPN+=1
-
-    DIPN = 0
-    print('========\nsetting datanode...\n========')
-    for i in DataIp:
-        for a in range(0, DataNum):
-            if Datavalues[a]:
-                SDatakeys = ''.join(Datakeys[a])
-                SDatavalues = str(Datavalues[a])
-                SDataIp = ''.join(DataIp[DIPN])
-                SDataPort = str(DataPort[DIPN])
-                SDataDir = ''.join(DataDir[DIPN])
-
-                of=open('config.sh','a')
-                #BashStmt = 'echo %s = %s >> %s/%s/my_%s.conf' % (SMedakeys, SMedavalues, SDataDir, SDataPort, SDataPort)
-                #of.write("ssh %s@%s '%s'\n\necho ssh %s@%s '%s'\n\n" %(defuser, SDataIp, BashStmt, defuser, SDataIp, BashStmt))
-                sql = 'set global %s = %s' %(SDatakeys, SDatavalues)
-                of.write("#%s:%s '%s'" % (i, SDataPort, sql))
-                of.close()
-                myconn(i, SDataPort, sql)
-                print("set dadanode %s:%s \"%s\"" % (i, SDataPort, sql))
-            else:
-                err = 'Data node' + SDataIp + ':' + SDataPort + 'parameter :"' + SDatakeys + '" values is null!'
-                print(err)
-                    
-        DIPN+=1
-    print('========\nsetting done...\n========')
+    #setting Metadata nodes ========================================================================
+    chInfo('Metadatas')
     n = 0
     for i in Medakeys:
-        stmt = 'set shard global ' + i + ' = ' + str(Medavalues[n])
-        print(stmt)
-        of=open('config.sh','a')
-        of.write("#%s\n\n" % (stmt))
-        of.close()
-        conn = psycopg2.connect(database = 'postgres', user = CompUser[0], host = CompIp[0], port = CompPort[0], password = CompPwd[0])
-        conn.autocommit = True
-        cur = conn.cursor()
-        cur.execute(stmt)
-        conn.commit()
-        cur.close()
-        conn.close()
+        hostSql = 'select hostaddr from pg_cluster_meta_nodes'
+        portSql = 'select port from pg_cluster_meta_nodes'
+
+        pgconn(CompIp[0], CompPort[0], CompUser[0], CompPwd[0], portSql)
+        varPort()
+        pgconn(CompIp[0], CompPort[0], CompUser[0], CompPwd[0], hostSql)
+        varHost()
+
+        num = 0
+        for hosts in host:
+            stmt = 'set global %s = %s' % (i, str(Medavalues[n]))
+            wf = 'mysql -h %s -P %s -upgx -ppgx_pwd "%s"' % (hosts, port[num], stmt)
+            print(wf)
+            myconn(hosts, port[num], stmt)
+            wFile(wf)
+            num = num + 1
+
+        n = n + 1
+    
+    chInfo('Datanodes')
+    #setting Datanodes ========================================================================
+    n = 0
+    for i in Datakeys:
+        hostSql = 'select hostaddr from pg_shard_node'
+        portSql = 'select port from pg_shard_node'
+        pgconn(CompIp[0], CompPort[0], CompUser[0], CompPwd[0], portSql)
+        varPort()
+        pgconn(CompIp[0], CompPort[0], CompUser[0], CompPwd[0], hostSql)
+        varHost()
+        num = 0
+        for hosts in host:
+            stmt = 'set global %s = %s' % (i, str(Datavalues[n])) 
+            wf = 'mysql -h %s -P %s -upgx -ppgx_pwd "%s"' % (hosts, port[num], stmt)
+            print(wf)
+            myconn(hosts, port[num], stmt)
+            wFile(wf)
+
+            num = num + 1
+
         n = n + 1
 
+    chInfo('computing nodes')
     subprocess.run("bash ./config.sh",shell=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Configure')
     parser.add_argument('--defuser', type=str, default='kunlun', help='User')
-    parser.add_argument('--defbase', type=str, default='/kunlun', help='basedir')
+    parser.add_argument('--defbase', type=str, default='/kunlun', help='basedir, 如果是通过cluster_mgr直接安装的则不用传该参数')
     parser.add_argument('--install', type=str, default='./install.json', help='The original configuration file for the Kunlun_cluster')
     parser.add_argument('--config', type=str, default='./configure.json', help='the configuration file')
-
+    parser.add_argument('--type', type = str, default='one_click', help = 'can be "one_click" or "cluster_mgr" or "xpenal", "one_click" 是用的一键脚本安装的集群，"cluster_mgr"是用的cluster_mgr安装的集群,"xpenal"就是通过xpenal安装的集群')
     args = parser.parse_args()
     print (args)
 
-    defuser=args.defuser
-    defbase=args.defbase
-    install=args.install
-    config=args.config
+    defuser = args.defuser
+    defbase = args.defbase
+    install = args.install
+    config = args.config
+    types = args.type
     readJsonFile()
     configs()
 
