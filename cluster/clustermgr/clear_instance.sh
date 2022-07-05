@@ -38,6 +38,7 @@ if test "$cleartype" = "storage"; then
 	rm -fr $logdir_path
 	rm -fr $waldir_path/*
 	rm -fr $waldir_path
+	rm -fr $basedir/instance_binaries/storage/$p
 elif test "$cleartype" = "server"; then
 	cd $basedir/instance_binaries/computer/$p/kunlun-server-$version/scripts 2>/dev/null || exit 1
 	export PATH=`pwd`/../bin:$PATH
@@ -47,4 +48,5 @@ elif test "$cleartype" = "server"; then
 	pg_ctl -D $datadir stop -m immediate
 	#echo "$p-datadir"
 	rm -fr $datadir
+	rm -fr $basedir/instance_binaries/computer/$p
 fi

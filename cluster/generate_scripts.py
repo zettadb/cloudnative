@@ -291,9 +291,9 @@ def generate_install_scripts(jscfg, args):
     cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql' + meta_extraopt
     addToCommandsList(commandslist, comp1['ip'], targetdir, cmdpat % reg_metaname, "storage")
     cmdpat='python2 create_cluster.py --shards_config=./%s \
---comps_config=./%s  --meta_config=./%s --cluster_name=%s --meta_ha_mode=%s --ha_mode=%s --cluster_owner=abc --cluster_biz=test'
+--comps_config=./%s  --meta_config=./%s --cluster_name=%s --meta_ha_mode=%s --ha_mode=%s --cluster_owner=abc --cluster_biz=%s'
     addToCommandsList(commandslist, comp1['ip'], targetdir,
-        cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta['ha_mode'], cluster['ha_mode']), "all")
+        cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta['ha_mode'], cluster['ha_mode'], cluster_name), "all")
 
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid clustermgr.cnf >& run.log </dev/null &
     clmgrnodes = jscfg['cluster']['clustermgr']['nodes']

@@ -448,9 +448,9 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         addNodeToFilesListMap(filesmap, node, reg_metaname, targetdir)
         addNodeToFilesListMap(filesmap, node, reg_shardname, targetdir)
         cmdpat='python2 create_cluster.py --shards_config=./%s \
---comps_config=./%s  --meta_config=./%s --cluster_name=%s --meta_ha_mode=%s --ha_mode=%s --cluster_owner=abc --cluster_biz=test'
+--comps_config=./%s  --meta_config=./%s --cluster_name=%s --meta_ha_mode=%s --ha_mode=%s --cluster_owner=abc --cluster_biz=%s'
         addToCommandsList(commandslist, node['ip'], targetdir,
-            cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta_hamode, cluster['ha_mode']), "all")
+            cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta_hamode, cluster['ha_mode'], cluster_name), "all")
 
         cmdpat = r'%spython2 add_comp_self.py  --meta_config=./%s --cluster_name=%s --user=%s --password=%s --port=%d --mysql_port=%d --datadir=%s --install --ha_mode=%s'
         idx=0
@@ -508,7 +508,9 @@ def stop_clusters(clusters, nodemgrmaps, machines, comf):
 def clean_clusters(args, clusters, nodemgrmaps, machines, comf):
     commandslist = []
     targetdir = '.'
+    names = []
     for cluster in clusters:
+        names.append(cluster['name'])
         cmdpat = "bash clear_instance.sh %d storage %s %s"
         for shard in cluster['data']:
             for node in shard['nodes']:
@@ -525,6 +527,7 @@ def clean_clusters(args, clusters, nodemgrmaps, machines, comf):
             mach = machines.get(node['ip'])
             addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (node['port'], mach['basedir'], args.product_version))
     process_commandslist_setenv(comf, args, machines, commandslist)
+    return names
 
 def install_with_config(jscfg, comf, machines, args):
     meta = jscfg['meta']
@@ -806,6 +809,7 @@ def clean_with_config(jscfg, comf, machines, args):
         #        cmdpat = '%srm -fr %s/*'
         #        addToCommandsList(commandslist, node['ip'], "/", cmdpat % (sudopfx, d))
         addNodeToFilesListMap(filesmap, node, 'clear_instances.sh', '.')
+        addNodeToFilesListMap(filesmap, node, 'clear_instance.sh', '.')
         addToCommandsList(commandslist, node['ip'], ".", 'bash ./clear_instances.sh %s %s >& clear.log || true' % (
             mach['basedir'], args.product_version))
         addToCommandsList(commandslist, node['ip'], "", '%srm -fr %s/%s' % (sudopfx, mach['basedir'], nodemgrdir))
@@ -813,7 +817,7 @@ def clean_with_config(jscfg, comf, machines, args):
             servname = 'kunlun-node-manager-%d.service' % node['brpc_http_port']
             generate_systemctl_clean(servname, node['ip'], commandslist)
 
-    clean_clusters(args, jscfg['clusters'], nodemgrmaps, machines, comf)
+    rnames = clean_clusters(args, jscfg['clusters'], nodemgrmaps, machines, comf)
 
     # clean the nodemgr processes
     for node in clustermgr['nodes']:
@@ -823,25 +827,33 @@ def clean_with_config(jscfg, comf, machines, args):
             servname = 'kunlun-cluster-manager-%d.service' % node['brpc_raft_port']
             generate_systemctl_clean(servname, node['ip'], commandslist)
 
-    if len(nodemgr['nodes']) > 0 and 'group_seeds' in meta:
-        nodemgrjson = "nodemgr.json"
-        nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
-        json.dump(nodemgr['nodes'], nodemgrf, indent=4)
-        nodemgrf.close()
-        worknode = None
-        if len(meta['nodes']) > 0:
-            worknode = meta['nodes'][0]
-        elif len(nodemgr['nodes']) > 0:
-            worknode = nodemgr['nodes'][0]
-        else:
-            worknode = clustermgr['nodes'][0]
-        if worknode is not None:
-            ip = worknode['ip']
-            mach = machines.get(ip)
-            addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
+    worknode = None
+    if len(meta['nodes']) > 0:
+        worknode = meta['nodes'][0]
+    elif len(nodemgr['nodes']) > 0:
+        worknode = nodemgr['nodes'][0]
+    else:
+        worknode = clustermgr['nodes'][0]
+
+    if worknode is not None:
+        ip = worknode['ip']
+        mach = machines.get(ip)
+        addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
+        addNodeToFilesListMap(filesmap, worknode, 'delete_cluster.py', '.')
+        # Skip if we clean the meta.
+        if len(nodemgr['nodes']) > 0 and 'group_seeds' in meta:
+            nodemgrjson = "nodemgr.json"
+            nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
+            json.dump(nodemgr['nodes'], nodemgrf, indent=4)
+            nodemgrf.close()
             addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
             addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
                 "python2 modify_servernodes.py --config %s --action=remove --seeds=%s" % (nodemgrjson, metaseeds))
+        # Skip if we clean the meta.
+        if len(rnames) > 0 and 'group_seeds' in meta:
+            for cname in rnames:
+                addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
+                    "python2 delete_cluster.py --seeds=%s --cluster_name=%s" % (metaseeds, cname))
 
     # clean the meta nodes
     for node in meta['nodes']:
