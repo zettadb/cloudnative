@@ -193,6 +193,19 @@ def generate_nodemgr_service(args, machines, commandslist, node, idx, filesmap):
     addToCommandsList(commandslist, node['ip'], '.', "sudo cp -f %s /usr/lib/systemd/system/" % fname_to)
     addToCommandsList(commandslist, node['ip'], '.', "sudo systemctl enable %s" % servname)
 
+def generate_hdfs_coresite_xml(args, host, port):
+    url = "hdfs://%s:%d" % (host, port)
+    coref = open('clustermgr/core-site.xml', 'w')
+    coref.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+    coref.write('<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>\n')
+    coref.write('<configuration>\n')
+    coref.write('<property>\n')
+    coref.write('<name>fs.defaultFS</name>\n')
+    coref.write('<value>%s</value>\n' % url)
+    coref.write('</property>\n')
+    coref.write('</configuration>\n')
+    coref.close()
+
 def generate_nodemgr_env(args, machines, node, idx, filesmap):
     mach = machines.get(node['ip'])
     jdk = "jdk1.8.0_131"
@@ -241,13 +254,15 @@ def install_nodemgr_env(comf, mach, machines, args):
     process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
     process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
 
-def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, filesmap, metaseeds):
+def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, filesmap, metaseeds, hasHDFS):
     cmdpat = "bash change_config.sh %s '%s' '%s'\n"
     nodemgrdir = "kunlun-node-manager-%s" % args.product_version
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
     confpath = "%s/conf/node_mgr.cnf" % nodemgrdir
     mach = machines.get(node['ip'])
+    if hasHDFS:
+        addNodeToFilesListMap(filesmap, node, "core-site.xml", '.')
     targetdir = "program_binaries"
     addNodeToFilesListMap(filesmap, node, "%s.tgz" % storagedir, targetdir)
     addNodeToFilesListMap(filesmap, node, "%s.tgz" % serverdir, targetdir)
@@ -268,6 +283,7 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     addNodeToFilesListMap(filesmap, node, "hadoop-3.3.1.tar.gz", targetdir)
     addNodeToFilesListMap(filesmap, node, "jdk-8u131-linux-x64.tar.gz", targetdir)
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf hadoop-3.3.1.tar.gz")
+    addToCommandsList(commandslist, node['ip'], '.', "cp -f ./core-site.xml program_binaries/hadoop-3.3.1/etc/hadoop")
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
     addToCommandsList(commandslist, node['ip'], nodemgrdir, "chmod a+x bin/util/*")
     script_name = "setup_nodemgr_%d.sh" % idx
@@ -375,6 +391,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
     serverdir = "kunlun-server-%s" % args.product_version
     clusters = jscfg['clusters']
     meta_hamode = jscfg['meta']['ha_mode']
+    haproxyips = set()
     
     i = 1
     for cluster in clusters:
@@ -465,7 +482,17 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
             addToDirMap(dirmap, node['ip'], node['datadir'])
             generate_server_startstop(args, machines, node, idx, filesmap)
             idx += 1
+        if 'haproxy' in cluster:
+            node = cluster['haproxy']
+            confname = '%d-haproxy-%d.cfg' % (i, node['port'])
+            targetconfname = 'haproxy-%d.cfg' % node['port']
+            generate_haproxy_config(cluster, machines, confname)
+            addNodeToFilesListMap(filesmap, node, confname, targetconfname)
+            cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f %s >& haproxy-%d.log' % (targetconfname, node['port'])
+            addToCommandsList(commandslist, node['ip'], ".", cmdpat)
+            haproxyips.add(node['ip'])
         i += 1
+        return haproxyips
 
 def start_clusters(clusters, nodemgrmaps, machines, comf):
     commandslist = []
@@ -484,6 +511,11 @@ def start_clusters(clusters, nodemgrmaps, machines, comf):
             if not nodemgrobj['skip']:
                 continue
             addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
+        if 'haproxy' in cluster:
+            node = cluster['haproxy']
+            targetconfname = 'haproxy-%d.cfg' % node['port']
+            cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f %s >& haproxy-%d.log' % (targetconfname, node['port'])
+            addToCommandsList(commandslist, node['ip'], ".", cmdpat)
     process_commandslist_setenv(comf, args, machines, commandslist)
 
 def stop_clusters(clusters, nodemgrmaps, machines, comf):
@@ -503,6 +535,10 @@ def stop_clusters(clusters, nodemgrmaps, machines, comf):
             if not nodemgrobj['skip']:
                 continue
             addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
+        if 'haproxy' in cluster:
+            node = cluster['haproxy']
+            cmdpat="cat haproxy-%d.pid | xargs kill -9" % node['port']
+            addToCommandsList(commandslist, node['ip'], ".", cmdpat)
     process_commandslist_setenv(comf, args, machines, commandslist)
 
 def clean_clusters(args, clusters, nodemgrmaps, machines, comf):
@@ -526,6 +562,10 @@ def clean_clusters(args, clusters, nodemgrmaps, machines, comf):
                 continue
             mach = machines.get(node['ip'])
             addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (node['port'], mach['basedir'], args.product_version))
+        if 'haproxy' in cluster:
+            node = cluster['haproxy']
+            cmdpat="cat haproxy-%d.pid | xargs kill -9" % node['port']
+            addToCommandsList(commandslist, node['ip'], ".", cmdpat)
     process_commandslist_setenv(comf, args, machines, commandslist)
     return names
 
@@ -607,13 +647,22 @@ def install_with_config(jscfg, comf, machines, args):
     json.dump(objs, metaf, indent=4)
     metaf.close()
 
+    hasHDFS = False
+    hdfs = None
+    if 'backup' in jscfg:
+        node = jscfg['backup']
+        if 'hdfs' in node:
+            hasHDFS = True
+            hdfs = node['hdfs']
+            generate_hdfs_coresite_xml(args, hdfs['ip'], hdfs['port'])
+
     i = 0
     nodemgrips = set()
     for node in nodemgr['nodes']:
         nodemgrips.add(node['ip'])
         if node['skip']:
             continue
-        setup_nodemgr_commands(args, i, machines, node, commandslist, dirmap, filesmap, metaseeds)
+        setup_nodemgr_commands(args, i, machines, node, commandslist, dirmap, filesmap, metaseeds, hasHDFS)
         generate_nodemgr_env(args, machines, node, i, filesmap)
         generate_nodemgr_startstop(args, machines, node, i, filesmap)
         if args.autostart:
@@ -663,7 +712,8 @@ def install_with_config(jscfg, comf, machines, args):
         addToDirMap(dirmap, node['ip'], node['log_dir_path'])
         addToDirMap(dirmap, node['ip'], node['innodb_log_dir_path'])
         generate_storage_startstop(args, machines, node, i, filesmap)
-        generate_storage_service(args, machines, commandslist, node, i, filesmap)
+        if args.autostart:
+            generate_storage_service(args, machines, commandslist, node, i, filesmap)
         i+=1
     for item in pries:
         addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
@@ -704,8 +754,12 @@ def install_with_config(jscfg, comf, machines, args):
             addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
             addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
                 "python2 modify_servernodes.py --config %s --action=add --seeds=%s" % (nodemgrjson, metaseeds))
+            if hasHDFS:
+                addNodeToFilesListMap(filesmap, worknode, 'add_hdfs.py', '.')
+                addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
+                    "python2 add_hdfs.py --seeds=%s --hdfsHost=%s --hdfsPort=%d" % (metaseeds, hdfs['ip'], hdfs['port']))
 
-    install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, args)
+    haproxyips = install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, args)
 
     i = 0
     for node in clustermgr['nodes']:
@@ -723,6 +777,7 @@ def install_with_config(jscfg, comf, machines, args):
     workips = set()
     workips.update(nodemgrips)
     workips.update(clustermgrips)
+    workips.update(haproxyips)
     my_print("workips:%s" % str(workips))
     for ip in workips:
         mach = machines.get(ip)
@@ -742,6 +797,9 @@ def install_with_config(jscfg, comf, machines, args):
         process_file(comf, args, machines, ip, 'install/build_driver_formysql.sh', mach['basedir'])
         process_file(comf, args, machines, ip, 'clustermgr/mysql-connector-python-2.1.3.tar.gz', mach['basedir'])
         process_command_noenv(comf, args, machines, ip, mach['basedir'], 'bash ./build_driver_formysql.sh %s' % mach['basedir'])
+        if ip in haproxyips:
+            process_file(comf, args, machines, ip, 'clustermgr/haproxy-2.5.0-bin.tar.gz', mach['basedir'])
+            process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf haproxy-2.5.0-bin.tar.gz')
 
    # setup env for nodemgr
     for ip in nodemgrips:
@@ -812,7 +870,7 @@ def clean_with_config(jscfg, comf, machines, args):
         addNodeToFilesListMap(filesmap, node, 'clear_instance.sh', '.')
         addToCommandsList(commandslist, node['ip'], ".", 'bash ./clear_instances.sh %s %s >& clear.log || true' % (
             mach['basedir'], args.product_version))
-        addToCommandsList(commandslist, node['ip'], "", '%srm -fr %s/%s' % (sudopfx, mach['basedir'], nodemgrdir))
+        addToCommandsList(commandslist, node['ip'], "", 'rm -fr %s/%s' % (mach['basedir'], nodemgrdir))
         if args.autostart:
             servname = 'kunlun-node-manager-%d.service' % node['brpc_http_port']
             generate_systemctl_clean(servname, node['ip'], commandslist)
@@ -821,8 +879,9 @@ def clean_with_config(jscfg, comf, machines, args):
 
     # clean the nodemgr processes
     for node in clustermgr['nodes']:
+        mach = machines.get(node['ip'])
         addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash stop_cluster_mgr.sh")
-        addToCommandsList(commandslist, node['ip'], "", '%srm -fr %s/%s' % (sudopfx, mach['basedir'], clustermgrdir))
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s' % (mach['basedir'], clustermgrdir))
         if args.autostart:
             servname = 'kunlun-cluster-manager-%d.service' % node['brpc_raft_port']
             generate_systemctl_clean(servname, node['ip'], commandslist)
@@ -993,9 +1052,33 @@ def start_with_config(jscfg, comf, machines, args):
     process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
     process_commandslist_setenv(comf, args, machines, commandslist)
 
+def gen_cluster_config(args):
+    if args.cluster_name == '':
+        return
+    if args.outfile == '':
+        return
+    jscfg = get_json_from_file(args.config)
+    machines = {}
+    setup_machines2(jscfg, machines, args)
+    validate_and_set_config2(jscfg, machines, args)
+    comf = open(r'clustermgr/%s' % args.outfile, 'w')
+    resobj = {}
+    resobj['machines'] = jscfg.get('machines',[])
+    targetCluster = None
+    for cluster in jscfg['clusters']:
+        if cluster['name'] == args.cluster_name:
+            targetCluster = cluster
+    if targetCluster is None:
+        raise Exception("Target cluster is not found")
+    targetCluster['meta'] = jscfg['meta']
+    targetCluster['clustermgr'] = jscfg['cluster_manager']
+    resobj['cluster'] = targetCluster
+    json.dump(resobj, comf, indent=4)
+    comf.close()
+
 if  __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Specify the arguments.')
-    actions=["install", "clean", "start", "stop"]
+    actions=["install", "clean", "start", "stop", "gen_cluster_config"]
     parser.add_argument('--config', type=str, help="The config path", required=True)
     parser.add_argument('--action', type=str, help="The action", default='install', choices=actions)
     parser.add_argument('--defuser', type=str, help="the default user", default=getpass.getuser())
@@ -1009,6 +1092,8 @@ if  __name__ == '__main__':
     parser.add_argument('--defbrpc_http_port_clustermgr', type=int, help="default brpc_http_port for cluster_manager", default=58000)
     parser.add_argument('--defbrpc_http_port_nodemgr', type=int, help="default brpc_http_port for node_manager", default=58002)
     parser.add_argument('--deftcp_port_nodemgr', type=int, help="default tcp_port for node_manager", default=58003)
+    parser.add_argument('--outfile', type=str, help="the path for the cluster config", default="cluster.json")
+    parser.add_argument('--cluster_name', type=str, help="the name of the cluster to generate the config file", default="")
 
     args = parser.parse_args()
     if not args.defbase.startswith('/'):
@@ -1026,6 +1111,8 @@ if  __name__ == '__main__':
         start_clustermgr(args)
     elif args.action == 'stop':
         stop_clustermgr(args)
+    elif args.action == 'gen_cluster_config':
+        gen_cluster_config(args)
     else:
         # just defensive, for more more actions later.
         pass

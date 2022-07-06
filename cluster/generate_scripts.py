@@ -105,37 +105,6 @@ def generate_haproxy_service(args, machines, commandslist, node, filesmap):
     addToCommandsList(commandslist, node['ip'], '.', "sudo cp -f %s /usr/lib/systemd/system/" % fname)
     addToCommandsList(commandslist, node['ip'], '.', "sudo systemctl enable %s" % servname)
 
-def generate_haproxy_config(jscfg, machines, confname):
-    cluster = jscfg['cluster']
-    comps = cluster['comp']['nodes']
-    haproxy = cluster['haproxy']
-    mach = machines[haproxy['ip']]
-    maxconn = haproxy.get('maxconn', 10000)
-    conf = open(confname, 'w')
-    conf.write('''# generated automatically
-    global
-        pidfile %s/haproxy.pid
-        maxconn %d
-        daemon
- 
-    defaults
-        log global
-        retries 5
-        timeout connect 5s
-        timeout client 30000s
-        timeout server 30000s
-
-    listen kunlun-cluster
-        bind :%d
-        mode tcp
-        balance roundrobin
-''' % (mach['basedir'], maxconn, haproxy['port']))
-    i = 1
-    for node in comps:
-        conf.write("        server comp%d %s:%d weight 1 check inter 10s\n" % (i, node['ip'], node['port']))
-        i += 1
-    conf.close()
-
 def generate_install_scripts(jscfg, args):
     validate_and_set_config1(jscfg, args)
     machines = {}
@@ -316,7 +285,7 @@ def generate_install_scripts(jscfg, args):
 
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:
-        generate_haproxy_config(jscfg, machines, 'install/haproxy.cfg')
+        generate_haproxy_config(jscfg['cluster'], machines, 'install/haproxy.cfg')
         cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f haproxy.cfg >& haproxy.log'
         addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
         if args.autostart:
