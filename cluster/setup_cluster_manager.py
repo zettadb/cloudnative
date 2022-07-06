@@ -492,7 +492,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
             addToCommandsList(commandslist, node['ip'], ".", cmdpat)
             haproxyips.add(node['ip'])
         i += 1
-        return haproxyips
+    return haproxyips
 
 def start_clusters(clusters, nodemgrmaps, machines, comf):
     commandslist = []
