@@ -283,9 +283,11 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     addNodeToFilesListMap(filesmap, node, "hadoop-3.3.1.tar.gz", targetdir)
     addNodeToFilesListMap(filesmap, node, "jdk-8u131-linux-x64.tar.gz", targetdir)
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf hadoop-3.3.1.tar.gz")
-    addToCommandsList(commandslist, node['ip'], '.', "cp -f ./core-site.xml program_binaries/hadoop-3.3.1/etc/hadoop")
+    if hasHDFS:
+        addToCommandsList(commandslist, node['ip'], '.', "cp -f ./core-site.xml program_binaries/hadoop-3.3.1/etc/hadoop")
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
     addToCommandsList(commandslist, node['ip'], nodemgrdir, "chmod a+x bin/util/*")
+    addToCommandsList(commandslist, node['ip'], '.', 'cp -f env.sh.nodemgr %s/bin/util' % nodemgrdir)
     script_name = "setup_nodemgr_%d.sh" % idx
     scriptf = open('clustermgr/%s' % script_name, 'w')
     scriptf.write("#! /bin/bash\n")
