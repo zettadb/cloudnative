@@ -105,37 +105,6 @@ def generate_haproxy_service(args, machines, commandslist, node, filesmap):
     addToCommandsList(commandslist, node['ip'], '.', "sudo cp -f %s /usr/lib/systemd/system/" % fname)
     addToCommandsList(commandslist, node['ip'], '.', "sudo systemctl enable %s" % servname)
 
-def generate_haproxy_config(jscfg, machines, confname):
-    cluster = jscfg['cluster']
-    comps = cluster['comp']['nodes']
-    haproxy = cluster['haproxy']
-    mach = machines[haproxy['ip']]
-    maxconn = haproxy.get('maxconn', 10000)
-    conf = open(confname, 'w')
-    conf.write('''# generated automatically
-    global
-        pidfile %s/haproxy.pid
-        maxconn %d
-        daemon
- 
-    defaults
-        log global
-        retries 5
-        timeout connect 5s
-        timeout client 30000s
-        timeout server 30000s
-
-    listen kunlun-cluster
-        bind :%d
-        mode tcp
-        balance roundrobin
-''' % (mach['basedir'], maxconn, haproxy['port']))
-    i = 1
-    for node in comps:
-        conf.write("        server comp%d %s:%d weight 1 check inter 10s\n" % (i, node['ip'], node['port']))
-        i += 1
-    conf.close()
-
 def generate_install_scripts(jscfg, args):
     validate_and_set_config1(jscfg, args)
     machines = {}
@@ -291,9 +260,9 @@ def generate_install_scripts(jscfg, args):
     cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql' + meta_extraopt
     addToCommandsList(commandslist, comp1['ip'], targetdir, cmdpat % reg_metaname, "storage")
     cmdpat='python2 create_cluster.py --shards_config=./%s \
---comps_config=./%s  --meta_config=./%s --cluster_name=%s --meta_ha_mode=%s --ha_mode=%s --cluster_owner=abc --cluster_biz=test'
+--comps_config=./%s  --meta_config=./%s --cluster_name=%s --meta_ha_mode=%s --ha_mode=%s --cluster_owner=abc --cluster_biz=%s'
     addToCommandsList(commandslist, comp1['ip'], targetdir,
-        cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta['ha_mode'], cluster['ha_mode']), "all")
+        cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta['ha_mode'], cluster['ha_mode'], cluster_name), "all")
 
     # bash -x bin/cluster_mgr_safe --debug --pidfile=run.pid clustermgr.cnf >& run.log </dev/null &
     clmgrnodes = jscfg['cluster']['clustermgr']['nodes']
@@ -316,7 +285,7 @@ def generate_install_scripts(jscfg, args):
 
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:
-        generate_haproxy_config(jscfg, machines, 'install/haproxy.cfg')
+        generate_haproxy_config(jscfg['cluster'], machines, 'install/haproxy.cfg')
         cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f haproxy.cfg >& haproxy.log'
         addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
         if args.autostart:

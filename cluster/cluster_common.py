@@ -35,56 +35,113 @@ def run_remote_command(machines, ip, progdir, targetdir, command, dryrun):
     tup= (mach['user'], ip, envstr, workdir, command)
     run_command_verbose(cmdstr % tup, dryrun)
 
-def stop_clustermgr_node(machines, progdir, clustermgrobj, idx, dryrun):
+def stop_clustermgr_node(machines, progdir, node, dryrun):
     command = "bash stop_cluster_mgr.sh"
-    node = clustermgrobj['nodes'][idx]
     run_remote_command(machines, node['ip'], progdir, 'bin', command, dryrun)
 
-def start_clustermgr_node(machines, progdir, clustermgrobj, idx, dryrun):
+def stop_clustermgr_node_usingidx(machines, progdir, clustermgrobj, idx, dryrun):
+    node = clustermgrobj['nodes'][idx]
+    stop_clustermgr_node(machines, progdir, node, dryrun)
+
+def start_clustermgr_node(machines, progdir, node, dryrun):
     command = "bash start_cluster_mgr.sh >& run.log"
+    run_remote_command(machines, node['ip'], progdir, 'bin', command, dryrun)
+
+def start_clustermgr_node_usingidx(machines, progdir, clustermgrobj, idx, dryrun):
     node = clustermgrobj['nodes'][idx]
-    run_remote_command(machines, node['ip'], progdir, 'bin', command, dryrun)
+    start_clustermgr_node(machines, progdir, node, dryrun)
 
-def stop_nodemgr_node(machines, progdir, nodemgrobj, idx, dryrun):
+def stop_nodemgr_node(machines, progdir, node, dryrun):
     command = "bash stop_node_mgr.sh"
-    node = nodemgrobj['nodes'][idx]
     run_remote_command(machines, node['ip'], progdir, 'bin', command, dryrun)
 
-def start_nodemgr_node(machines, progdir, nodemgrobj, idx, dryrun):
+def stop_nodemgr_node_usingidx(machines, progdir, nodemgrobj, idx, dryrun):
+    node = nodemgrobj['nodes'][idx]
+    stop_nodemgr_node(machines, progdir, node, dryrun)
+
+def start_nodemgr_node(machines, progdir, node, dryrun):
     command = "bash start_node_mgr.sh >& run.log"
-    node = nodemgrobj['nodes'][idx]
     run_remote_command(machines, node['ip'], progdir, 'bin', command, dryrun)
 
-def start_storage_node(machines, progdir, groupobj, idx, dryrun):
-    node = groupobj['nodes'][idx]
-    command = "bash startmysql.sh %s" % str(node['port'], dryrun)
+def start_nodemgr_node_usingidx(machines, progdir, nodemgrobj, idx, dryrun):
+    node = nodemgrobj['nodes'][idx]
+    start_nodemgr_node(machines, progdir, node, dryrun)
+
+def start_storage_node(machines, progdir, node, dryrun):
+    command = "bash startmysql.sh %s" % str(node['port'])
     run_remote_command(machines, node['ip'], progdir, 'dba_tools', command, dryrun)
 
-def stop_storage_node(machines, progdir, groupobj, idx):
+def start_storage_node_usingidx(machines, progdir, groupobj, idx, dryrun):
     node = groupobj['nodes'][idx]
-    command = "bash stopmysql.sh %s" % str(node['port'], dryrun)
+    start_storage_node(machines, progdir, node, dryrun)
+
+def stop_storage_node(machines, progdir, node, dryrun):
+    command = "bash stopmysql.sh %s" % str(node['port'])
     run_remote_command(machines, node['ip'], progdir, 'dba_tools', command, dryrun)
 
-def kill_storage_node(machines, progdir, groupobj, idx):
+def stop_storage_node_usingidx(machines, progdir, groupobj, idx, dryrun):
     node = groupobj['nodes'][idx]
-    command = "bash killmysql.sh %s" % str(node['port'], dryrun)
+    stop_storage_node(machines, progdir, node, dryrun)
+
+def kill_storage_node(machines, progdir, node, dryrun):
+    command = "bash killmysql.sh %s" % str(node['port'])
     run_remote_command(machines, node['ip'], progdir, 'dba_tools', command, dryrun)
 
-def start_server_node(machines, progdir, compobj, idx):
-    node = compobj['nodes'][idx]
-    command = "python2 start_pg.py --port=%s" % str(node['port'], dryrun)
+def kill_storage_node_usingidx(machines, progdir, groupobj, idx, dryrun):
+    node = groupobj['nodes'][idx]
+    kill_storage_node(machines, progdir, node, dryrun)
+
+def start_server_node(machines, progdir, node, dryrun):
+    command = "python2 start_pg.py --port=%s" % str(node['port'])
     run_remote_command(machines, node['ip'], progdir, 'scripts', command, dryrun)
 
-def stop_server_node(machines, progdir, compobj, idx, dryrun):
+def start_server_node_usingidx(machines, progdir, compobj, idx, dryrun):
     node = compobj['nodes'][idx]
+    start_server_node(machines, progdir, node, dryrun)
+
+def stop_server_node(machines, progdir, node, dryrun):
     command = "pg_ctl -D %s stop -m immediate" % str(node['datadir'])
     run_remote_command(machines, node['ip'], progdir, 'scripts', command, dryrun)
+
+def stop_server_node_usingidx(machines, progdir, compobj, idx, dryrun):
+    node = compobj['nodes'][idx]
+    stop_server_node(machines, progdir, node, dryrun)
 
 def addIpToMachineMap(map, ip, args):
     #my_print("add ip %s" % ip)
     if not ip in map:
         mac={"ip":ip, "user":args.defuser, "basedir":args.defbase}
         map[ip] = mac
+
+def generate_haproxy_config(cluster, machines, confname):
+    comps = cluster['comp']['nodes']
+    haproxy = cluster['haproxy']
+    mach = machines[haproxy['ip']]
+    maxconn = haproxy.get('maxconn', 900)
+    conf = open(confname, 'w')
+    conf.write('''# generated automatically
+    global
+        pidfile %s/haproxy-%d.pid
+        maxconn %d
+        daemon
+
+    defaults
+        log global
+        retries 5
+        timeout connect 5s
+        timeout client 30000s
+        timeout server 30000s
+
+    listen kunlun-cluster
+        bind :%d
+        mode tcp
+        balance roundrobin
+''' % (mach['basedir'], haproxy['port'], maxconn, haproxy['port']))
+    i = 1
+    for node in comps:
+        conf.write("        server comp%d %s:%d weight 1 check inter 10s\n" % (i, node['ip'], node['port']))
+        i += 1
+    conf.close()
 
 def get_json_from_file(filepath):
     jsconf = open(filepath)
@@ -474,6 +531,9 @@ def setup_machines2(jscfg, machines, args):
         for shard in cluster['data']:
             for node in shard['nodes']:
                 addIpToMachineMap(machines, node['ip'], args)
+        if 'haproxy' in cluster:
+            node = cluster['haproxy']
+            addIpToMachineMap(machines, node['ip'], args)
 
 def set_storage_using_nodemgr(machines, item, noden):
     if 'data_dir_path' not in item:
@@ -617,6 +677,11 @@ def validate_and_set_config2(jscfg, machines, args):
     elif nodecnt > 0:
             node['is_primary'] = True
 
+    if 'backup' in jscfg:
+        if 'hdfs' in jscfg['backup']:
+            node = jscfg['backup']['hdfs']
+            addPortToMachine(portmap, node['ip'], node['port'])
+
     for cluster in clusters:
         if 'name' not in cluster:
             cluster['name'] = getuuid()
@@ -658,6 +723,11 @@ def validate_and_set_config2(jscfg, machines, args):
                 if 'election_weight' not in node:
                     node['election_weight'] = 50
                 set_storage_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
+        if 'haproxy' in cluster:
+            node = cluster['haproxy']
+            addPortToMachine(portmap, node['ip'], node['port'])
+            if 'mysql_port' in node:
+                addPortToMachine(portmap, node['ip'], node['mysql_port'])
 
 def get_default_nodemgr(args, machines, ip):
     mach = machines.get(ip)

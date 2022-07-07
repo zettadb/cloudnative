@@ -1,0 +1,138 @@
+{
+    "machines":[
+        {
+        "ip":"192.168.0.110",
+        "basedir":"/home/kunlun/setupbase",
+        "user":"kunlun"
+        },
+        {
+        "ip":"192.168.0.111",
+        "basedir":"/home/kunlun/setupbase",
+        "user":"kunlun"
+        },
+        {
+        "ip":"192.168.0.100",
+        "basedir":"/home/kunlun/setupbase",
+        "user":"kunlun"
+        }
+    ],
+    "meta":{
+	"ha_mode": "mgr",
+	"group_seeds": "192.168.0.110:6001,192.168.0.111:6002,192.168.0.100:6003"
+    },
+    "node_manager": {
+           "nodes": [
+		{
+		"skip": true,
+ 		"ip": "192.168.0.110"
+		},
+		{ 
+		"skip": true,
+ 		"ip": "192.168.0.100"
+		}
+	    ]	
+    },
+    "clusters": [
+	    {
+	    "name": "rbrcluster2",
+	    "ha_mode": "rbr",
+	    "storage_template": "small",
+	    "comp":{
+		    "nodes": [
+			    {
+			    "ip": "192.168.0.110",
+			    "port": 7401,
+			    "mysql_port": 7501,
+			    "user": "abc",
+			    "password": "abc"
+			    },
+			    {
+			    "ip": "192.168.0.111",
+			    "port": 7401,
+			    "mysql_port": 7501,
+			    "user": "abc",
+			    "password": "abc"
+			    }
+		    ]
+	    },
+	    "data": [
+		    {
+		    "nodes":[
+			    {
+			    "ip": "192.168.0.110",
+			    "is_primary": true,
+			    "port": 7301,
+			    "xport": 7311,
+			    "mgr_port": 7321
+			    },
+			    {
+			    "ip": "192.168.0.111",
+			    "is_primary": false,
+			    "port": 7301,
+			    "xport": 7311,
+			    "mgr_port": 7321					    
+			    }
+		    ]
+		    },
+		    {
+		    "nodes":[
+			    {
+			    "ip": "192.168.0.100",
+			    "is_primary": true,
+			    "port": 7302,
+			    "xport": 7312,
+			    "mgr_port": 7322
+			    },
+			    {
+			    "ip": "192.168.0.111",
+			    "is_primary": false,
+			    "port": 7302,
+			    "xport": 7312,
+			    "mgr_port": 7322					    
+			    }
+		    ]
+		    }
+	    ]
+	    },
+	    {
+	    "name": "mgrcluster2",
+	    "ha_mode": "no_rep",
+	    "storage_template": "small",
+	    "comp":{
+		    "nodes": [
+			    {
+			    "ip": "192.168.0.111",
+			    "port": 8401,
+			    "mysql_port": 8501,
+			    "user": "abc",
+			    "password": "abc"
+			    }
+			    ]
+		    },
+	    "data": [
+		    {
+		    "nodes":[
+			    {
+			    "ip": "192.168.0.110",
+			    "is_primary": true,
+			    "port": 8301,
+			    "xport": 8311,
+			    "mgr_port": 8321
+			    }
+		    ]
+		    },
+		    {
+		    "nodes":[
+			    {
+			    "ip": "192.168.0.100",
+			    "is_primary": true,
+			    "port": 8302,
+			    "xport": 8312,
+			    "mgr_port": 8322
+			    }
+		    ]
+		    }
+	    ]
+	    }
+    ]
+}    

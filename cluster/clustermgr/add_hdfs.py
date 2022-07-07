@@ -3,15 +3,8 @@
 # This source code is licensed under Apache 2.0 License,
 # combined with Common Clause Condition 1.0, as detailed in the NOTICE file.
 
-import json
 import argparse
 import mysql.connector
-
-def get_nodemgr_nodes(filepath):
-    f = open(filepath)
-    obj = json.loads(f.read())
-    f.close()
-    return obj
 
 def get_master_conn(args, metaseeds):
     for addr in metaseeds.split(','):
@@ -49,58 +42,26 @@ def get_master_conn(args, metaseeds):
             continue
     return None
 
-def add_nodemgr_nodes(args):
+def add_hdfs_url(args):
     meta_conn = get_master_conn(args, args.seeds)
-    nodes = get_nodemgr_nodes(args.config)
-    meta_cursor = meta_conn.cursor(prepared=True)
+    host = args.hdfsHost
+    port = args.hdfsPort
+    url = "hdfs://%s:%d" % (host, port)
     meta_cursor0 = meta_conn.cursor()
     meta_cursor0.execute("start transaction")
-    stmt = "insert into server_nodes(hostaddr, comp_datadir, datadir, logdir, wal_log_dir) values(%s,%s,%s,%s,%s)"
-    for node in nodes:
-        if node['skip']:
-            continue
-        meta_cursor.execute(stmt, (node['ip'], node['server_datadirs'], node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs']))
+    stmt = "insert into backup_storage(name, stype, conn_str, hostaddr, port) values(%s,%s,%s,%s,%s)"
+    meta_cursor0.execute(stmt, ("hdfs_backup1", "HDFS", url, host, port))
     meta_cursor0.execute("commit")
-    meta_cursor.close()
-    meta_cursor0.close()
-    meta_conn.close()
-
-def remove_nodemgr_nodes(args):
-    meta_conn = get_master_conn(args, args.seeds)
-    if meta_conn is None:
-        return
-    nodes = get_nodemgr_nodes(args.config)
-    meta_cursor = meta_conn.cursor(prepared=True)
-    meta_cursor0 = meta_conn.cursor()
-    meta_cursor0.execute("start transaction")
-    stmt1 = "delete t2 from server_nodes_stats t2 inner join server_nodes t1 using(id) where t1.hostaddr=%s"
-    stmt2 = "delete from server_nodes t1 where t1.hostaddr=%s"
-    for node in nodes:
-        if node['skip']:
-            continue
-        meta_cursor.execute(stmt1, (node['ip'],))
-        meta_cursor.execute(stmt2, (node['ip'],))
-    meta_cursor0.execute("commit")
-    meta_cursor.close()
     meta_cursor0.close()
     meta_conn.close()
 
 if  __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Specify the arguments.')
-    actions=["add","remove"]
-    parser.add_argument('--config', type=str, help="The config path for nodemgr nodes", required=True)
-    parser.add_argument('--action', type=str, help="The action", choices=actions, required=True)
     parser.add_argument('--seeds', type=str, help="The meta seeds", required=True)
     parser.add_argument('--user', type=str, help="The user used to connect meta", default='pgx')
     parser.add_argument('--password', type=str, help="The password used to connect meta", default='pgx_pwd')
+    parser.add_argument('--hdfsHost', type=str, help="The hdfs host", required=True)
+    parser.add_argument('--hdfsPort', type=int, help="The hdfs port", required=True)
 
     args = parser.parse_args()
-
-    if args.action == 'add':
-        add_nodemgr_nodes(args)
-    elif args.action == 'remove':
-        remove_nodemgr_nodes(args)
-    else:
-        # just defensive, for more more actions later.
-        pass
-
+    add_hdfs_url(args)
