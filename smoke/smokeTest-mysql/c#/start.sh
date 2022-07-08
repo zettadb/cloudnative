@@ -7,7 +7,8 @@ mkdir mysql
 cd mysql
 echo -e "\033[32m setting env... \033[0m"
 echo -e "\033[32m dotnet new console \033[0m"
-dotnet new console
+dotnet new console &
+sleep 3
 echo -e "\033[32mdotnet add package MySql.Data \033[0m"
 dotnet add package MySql.Data
 cp ../Program.cs .
