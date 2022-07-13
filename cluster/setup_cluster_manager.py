@@ -488,7 +488,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
             node = cluster['haproxy']
             confname = '%d-haproxy-%d.cfg' % (i, node['port'])
             targetconfname = 'haproxy-%d.cfg' % node['port']
-            generate_haproxy_config(cluster, machines, confname)
+            generate_haproxy_config(cluster, machines, 'clustermgr', confname)
             addNodeToFilesListMap(filesmap, node, confname, targetconfname)
             cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f %s >& haproxy-%d.log' % (targetconfname, node['port'])
             addToCommandsList(commandslist, node['ip'], ".", cmdpat)
@@ -587,13 +587,8 @@ def install_with_config(jscfg, comf, machines, args):
 
     cluster_name = 'meta'
     extraopt = " --ha_mode=%s" % ha_mode
-    meta_addrs = []
-    for node in meta['nodes']:
-        meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
-    metaseeds = meta.get('group_seeds', '')
-    if metaseeds == '':
-        metaseeds=",".join(meta_addrs)
-        my_print('metaseeds:%s' % metaseeds)
+    metaseeds = meta['group_seeds']
+    my_print('metaseeds:%s' % metaseeds)
 
     nodemgrmaps = {}
     for node in nodemgr['nodes']:
@@ -846,12 +841,7 @@ def clean_with_config(jscfg, comf, machines, args):
     commandslist = []
     dirmap = {}
 
-    meta_addrs = []
-    for node in meta['nodes']:
-        meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
-    metaseeds = meta.get('group_seeds', '')
-    if metaseeds == '':
-        metaseeds=",".join(meta_addrs)
+    metaseeds = meta['group_seeds']
 
     nodemgrmaps = {}
     for node in nodemgr['nodes']:
@@ -1056,9 +1046,9 @@ def start_with_config(jscfg, comf, machines, args):
 
 def gen_cluster_config(args):
     if args.cluster_name == '':
-        return
+        raise ValueError('Error: cluster_name must be provided')
     if args.outfile == '':
-        return
+        raise ValueError('Error: outfile must be provided')
     jscfg = get_json_from_file(args.config)
     machines = {}
     setup_machines2(jscfg, machines, args)
@@ -1086,7 +1076,7 @@ if  __name__ == '__main__':
     parser.add_argument('--defuser', type=str, help="the default user", default=getpass.getuser())
     parser.add_argument('--defbase', type=str, help="the default basedir", default='/kunlun')
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
-    parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.2')
+    parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.3')
     parser.add_argument('--localip', type=str, help="The local ip address", default='127.0.0.1')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--autostart', help="whether to start the cluster automaticlly", default=False, action='store_true')

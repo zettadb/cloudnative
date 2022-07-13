@@ -8,7 +8,7 @@ fi
 p="$1"
 cleartype="$2"
 basedir="${3:-`pwd`}"
-version="${4:-0.9.2}"
+version="${4:-0.9.3}"
 #cd $basedir/kunlun-node-manager-$version/bin && \
 #bash stop_node_mgr.sh
 

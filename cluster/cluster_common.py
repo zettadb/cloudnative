@@ -113,12 +113,12 @@ def addIpToMachineMap(map, ip, args):
         mac={"ip":ip, "user":args.defuser, "basedir":args.defbase}
         map[ip] = mac
 
-def generate_haproxy_config(cluster, machines, confname):
+def generate_haproxy_config(cluster, machines, subdir, confname):
     comps = cluster['comp']['nodes']
     haproxy = cluster['haproxy']
     mach = machines[haproxy['ip']]
     maxconn = haproxy.get('maxconn', 900)
-    conf = open(confname, 'w')
+    conf = open("%s/%s" % (subdir, confname), 'w')
     conf.write('''# generated automatically
     global
         pidfile %s/haproxy-%d.pid
@@ -649,7 +649,9 @@ def validate_and_set_config2(jscfg, machines, args):
     elif nodecnt == 1 and ha_mode != 'no_rep':
         raise ValueError('Error: ha_mode is mgr/rbr, but there is only one node in meta shard')
     hasPrimary=False
+    meta_addrs = []
     for node in meta['nodes']:
+        meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
         # These attr should not be set explicitly.
         for attr in ['data_dir_path', 'log_dir_path', 'innodb_log_dir_path']:
             if attr in node:
@@ -676,6 +678,9 @@ def validate_and_set_config2(jscfg, machines, args):
             raise ValueError('Error: No primary found in meta shard, there should be one and only one !')
     elif nodecnt > 0:
             node['is_primary'] = True
+
+    if (len(meta_addrs) > 0):
+        meta['group_seeds'] = ",".join(meta_addrs)
 
     if 'backup' in jscfg:
         if 'hdfs' in jscfg['backup']:

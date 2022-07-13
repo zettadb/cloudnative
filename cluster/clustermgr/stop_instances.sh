@@ -1,7 +1,7 @@
 #! /bin/bash
 
 basedir="${1:-`pwd`}"
-version="${2:-0.9.2}"
+version="${2:-0.9.3}"
 
 #cd $basedir/kunlun-node-manager-$version/bin && \
 #bash stop_node_mgr.sh
