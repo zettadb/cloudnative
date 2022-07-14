@@ -213,14 +213,15 @@ def generate_nodemgr_env(args, machines, node, idx, filesmap):
     fname = '%d-env.sh.%d' % (idx, node['brpc_http_port'])
     fname_to = 'env.sh.nodemgr'
     envf = open('clustermgr/%s' % fname, 'w')
-    envf.write("#! /bin/bash\n")
-    envf.write("JAVA_HOME=%s/program_binaries/%s\n" % (mach['basedir'], jdk))
-    envf.write("PATH=$JAVA_HOME/bin:$PATH\n")
-    envf.write("HADOOP_HOME=%s/program_binaries/%s\n" % (mach['basedir'], hadoop))
-    envf.write("PATH=$HADOOP_HOME/bin:$PATH\n")
-    envf.write("export JAVA_HOME\n")
-    envf.write("export HADOOP_HOME\n")
-    envf.write("export PATH\n")
+    #envf.write("#! /bin/bash\n")
+    envf.write("export KUNLUN_VERSION=%s; #KUNLUN_SET_ENV\n" % args.product_version)
+    envf.write("JAVA_HOME=%s/program_binaries/%s; #KUNLUN_SET_ENV\n" % (mach['basedir'], jdk))
+    envf.write("PATH=$JAVA_HOME/bin:$PATH; #KUNLUN_SET_ENV\n")
+    envf.write("HADOOP_HOME=%s/program_binaries/%s; #KUNLUN_SET_ENV\n" % (mach['basedir'], hadoop))
+    envf.write("PATH=$HADOOP_HOME/bin:$PATH; #KUNLUN_SET_ENV\n")
+    envf.write("export JAVA_HOME; #KUNLUN_SET_ENV\n")
+    envf.write("export HADOOP_HOME; #KUNLUN_SET_ENV\n")
+    envf.write("export PATH; #KUNLUN_SET_ENV\n")
     envf.close()
     addNodeToFilesListMap(filesmap, node, fname, './%s' % fname_to)
 
@@ -287,7 +288,10 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
         addToCommandsList(commandslist, node['ip'], '.', "cp -f ./core-site.xml program_binaries/hadoop-3.3.1/etc/hadoop")
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
     addToCommandsList(commandslist, node['ip'], nodemgrdir, "chmod a+x bin/util/*")
-    addToCommandsList(commandslist, node['ip'], '.', 'cp -f env.sh.nodemgr %s/bin/util' % nodemgrdir)
+    addToCommandsList(commandslist, node['ip'], '.', 'cp -f env.sh.nodemgr %s/bin/extra.env' % nodemgrdir)
+    addToCommandsList(commandslist, node['ip'], '.', 'cp -f env.sh.nodemgr program_binaries/%s/dba_tools/extra.env' % storagedir)
+    if args.setbashenv:
+        addToCommandsList(commandslist, node['ip'], '.', 'cat env.sh.nodemgr >> ~/.bashrc')
     script_name = "setup_nodemgr_%d.sh" % idx
     scriptf = open('clustermgr/%s' % script_name, 'w')
     scriptf.write("#! /bin/bash\n")
@@ -862,7 +866,9 @@ def clean_with_config(jscfg, comf, machines, args):
         addNodeToFilesListMap(filesmap, node, 'clear_instance.sh', '.')
         addToCommandsList(commandslist, node['ip'], ".", 'bash ./clear_instances.sh %s %s >& clear.log || true' % (
             mach['basedir'], args.product_version))
-        addToCommandsList(commandslist, node['ip'], "", 'rm -fr %s/%s' % (mach['basedir'], nodemgrdir))
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s' % (mach['basedir'], nodemgrdir))
+        if args.setbashenv:
+            addToCommandsList(commandslist, node['ip'], ".", "sed -i /KUNLUN_SET_ENV/d  ~/.bashrc")
         if args.autostart:
             servname = 'kunlun-node-manager-%d.service' % node['brpc_http_port']
             generate_systemctl_clean(servname, node['ip'], commandslist)
@@ -1080,6 +1086,7 @@ if  __name__ == '__main__':
     parser.add_argument('--localip', type=str, help="The local ip address", default='127.0.0.1')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--autostart', help="whether to start the cluster automaticlly", default=False, action='store_true')
+    parser.add_argument('--setbashenv', help="whether to set the user bash env", default=False, action='store_true')
     parser.add_argument('--defbrpc_raft_port_clustermgr', type=int, help="default brpc_raft_port for cluster_manager", default=58001)
     parser.add_argument('--defbrpc_http_port_clustermgr', type=int, help="default brpc_http_port for cluster_manager", default=58000)
     parser.add_argument('--defbrpc_http_port_nodemgr', type=int, help="default brpc_http_port for node_manager", default=58002)
