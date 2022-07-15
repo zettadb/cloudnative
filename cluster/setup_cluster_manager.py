@@ -548,26 +548,34 @@ def stop_clusters(clusters, nodemgrmaps, machines, comf):
     process_commandslist_setenv(comf, args, machines, commandslist)
 
 def clean_clusters(args, clusters, nodemgrmaps, machines, comf):
+    storagedir = "kunlun-storage-%s" % args.product_version
+    serverdir = "kunlun-server-%s" % args.product_version
     commandslist = []
     targetdir = '.'
     names = []
     for cluster in clusters:
         names.append(cluster['name'])
-        cmdpat = "bash clear_instance.sh %d storage %s %s"
         for shard in cluster['data']:
             for node in shard['nodes']:
                 nodemgrobj = nodemgrmaps.get(node['ip'])
                 if not nodemgrobj['skip']:
                     continue
-                mach = machines.get(node['ip'])
-                addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (node['port'], mach['basedir'], args.product_version))
-        cmdpat = "bash clear_instance.sh %d server %s %s"
+                cmdpat = r'bash stopmysql.sh %d'
+                targetdir = "%s/%s/dba_tools" % (node['program_dir'], storagedir)
+                addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (node['port']))
+                cmdpat = r'rm -fr %s'
+                addToCommandsList(commandslist, node['ip'], '.', cmdpat % (node['data_dir_path']))
+                addToCommandsList(commandslist, node['ip'], '.', cmdpat % (node['log_dir_path']))
+                addToCommandsList(commandslist, node['ip'], '.', cmdpat % (node['innodb_log_dir_path']))
         for node in cluster['comp']['nodes']:
             nodemgrobj = nodemgrmaps.get(node['ip'])
             if not nodemgrobj['skip']:
                 continue
-            mach = machines.get(node['ip'])
-            addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (node['port'], mach['basedir'], args.product_version))
+            targetdir = "%s/%s/dba_tools" % (node['program_dir'], serverdir)
+            cmdpat = r'python2 stop_pg.py --port=%d'
+            addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (node['port']))
+            cmdpat = r'rm -fr %s'
+            addToCommandsList(commandslist, node['ip'], '.', cmdpat % (node['datadir']))
         if 'haproxy' in cluster:
             node = cluster['haproxy']
             cmdpat="cat haproxy-%d.pid | xargs kill -9" % node['port']
@@ -867,6 +875,10 @@ def clean_with_config(jscfg, comf, machines, args):
         addToCommandsList(commandslist, node['ip'], ".", 'bash ./clear_instances.sh %s %s >& clear.log || true' % (
             mach['basedir'], args.product_version))
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s' % (mach['basedir'], nodemgrdir))
+        for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
+            nodedirs = node[item].strip()
+            for d in nodedirs.split(","):
+                addToCommandsList(commandslist, node['ip'], ".", "rm -fr %s/*" % d)
         if args.setbashenv:
             addToCommandsList(commandslist, node['ip'], ".", "sed -i /KUNLUN_SET_ENV/d  ~/.bashrc")
         if args.autostart:
