@@ -17,7 +17,7 @@
         }
     ],
     "meta":{
-	"ha_mode": "rbr",
+	"ha_mode": "mgr",
         "nodes":[
  		{
  		"is_primary":true,
@@ -51,13 +51,10 @@
     "cluster_manager": {
            "nodes": [
 		{
- 		"ip": "192.168.0.110",
- 		"brpc_raft_port": 35000,
- 		"brpc_http_port": 35001
+ 		"ip": "192.168.0.110"
 		},
 		{ 
- 		"ip": "192.168.0.111",
- 		"brpc_raft_port": 36001
+ 		"ip": "192.168.0.111"
 		},
 		{ 
  		"ip": "192.168.0.100"
@@ -67,15 +64,13 @@
     "node_manager": {
            "nodes": [
 		{
- 		"ip": "192.168.0.110",
- 		"brpc_http_port": 35002
+ 		"ip": "192.168.0.110"
 		},
 		{ 
- 		"ip": "192.168.0.100",
-		"server_datadirs": "/nodemgrdata/server_datadir",
-		"storage_datadirs": "/nodemgrdata/storage_datadir",
-		"storage_logdirs": "/nodemgrdata/storage_logdir",
-		"storage_waldirs": "/nodemgrdata/storage_waldir"
+ 		"ip": "192.168.0.111"
+		},
+		{ 
+ 		"ip": "192.168.0.100"
 		}
 	    ]	
     }
