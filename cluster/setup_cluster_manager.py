@@ -477,7 +477,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         addToCommandsList(commandslist, node['ip'], targetdir,
             cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta_hamode, cluster['ha_mode'], cluster_name), "all")
 
-        cmdpat = r'%spython2 add_comp_self.py  --meta_config=./%s --cluster_name=%s --user=%s --password=%s --port=%d --mysql_port=%d --datadir=%s --install --ha_mode=%s'
+        cmdpat = r'%spython2 add_comp_self.py  --meta_config=./%s --cluster_name=%s --user=%s --password=%s --hostname=%s --port=%d --mysql_port=%d --datadir=%s --install --ha_mode=%s'
         idx=0
         for node in cluster['comp']['nodes']:
             targetdir='%s/%s/scripts' % (node['program_dir'], serverdir)
@@ -486,7 +486,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
             absenvfname = '%s/env.sh.nodemgr' % (mach['basedir'])
             envpfx = "test -f %s && . %s; " % (absenvfname, absenvfname)
             addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (envpfx, reg_metaname, cluster_name,
-                node['user'], node['password'], node['port'], node['mysql_port'], node['datadir'], meta_hamode))
+                node['user'], node['password'], node['ip'], node['port'], node['mysql_port'], node['datadir'], meta_hamode), "parent")
             addToDirMap(dirmap, node['ip'], node['datadir'])
             generate_server_startstop(args, machines, node, idx, filesmap)
             idx += 1
