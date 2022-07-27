@@ -55,11 +55,12 @@ def add_nodemgr_nodes(args):
     meta_cursor = meta_conn.cursor(prepared=True)
     meta_cursor0 = meta_conn.cursor()
     meta_cursor0.execute("start transaction")
-    stmt = "insert into server_nodes(hostaddr, comp_datadir, datadir, logdir, wal_log_dir) values(%s,%s,%s,%s,%s)"
+    stmt = "insert into server_nodes(hostaddr, comp_datadir, datadir, logdir, wal_log_dir, machine_type) values(%s,%s,%s,%s,%s,%s)"
     for node in nodes:
         if node['skip']:
             continue
-        meta_cursor.execute(stmt, (node['ip'], node['server_datadirs'], node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs']))
+        meta_cursor.execute(stmt, (node['ip'], node['server_datadirs'], node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs'], 'storage'))
+        meta_cursor.execute(stmt, (node['ip'], node['server_datadirs'], node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs'], 'computer'))
     meta_cursor0.execute("commit")
     meta_cursor.close()
     meta_cursor0.close()

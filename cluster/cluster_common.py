@@ -107,10 +107,10 @@ def stop_server_node_usingidx(machines, progdir, compobj, idx, dryrun):
     node = compobj['nodes'][idx]
     stop_server_node(machines, progdir, node, dryrun)
 
-def addIpToMachineMap(map, ip, args):
+def addIpToMachineMap(map, ip, args, haspg=False):
     #my_print("add ip %s" % ip)
     if not ip in map:
-        mac={"ip":ip, "user":args.defuser, "basedir":args.defbase}
+        mac={"ip":ip, "user":args.defuser, "basedir":args.defbase, "haspg":haspg}
         map[ip] = mac
 
 def generate_haproxy_config(cluster, machines, subdir, confname):
@@ -354,9 +354,12 @@ def setup_machines1(jscfg, machines, args):
         for node in shard['nodes']:
             addIpToMachineMap(machines, node['ip'], args)
     for node in comp['nodes']:
-        addIpToMachineMap(machines, node['ip'], args)
-    for node in clustermgr['nodes']:
-        addIpToMachineMap(machines, node['ip'], args)
+        addIpToMachineMap(machines, node['ip'], args, True)
+    if 'ip' in clustermgr:
+        addIpToMachineMap(machines, clustermgr['ip'], args)
+    elif 'nodes' in clustermgr:
+        for node in clustermgr['nodes']:
+            addIpToMachineMap(machines, node['ip'], args)
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:
         addIpToMachineMap(machines, haproxy['ip'], args)
@@ -365,7 +368,7 @@ def setup_machines1(jscfg, machines, args):
 # for meta_ha_mode, the check order is: meta['ha_mode'] -> cluster['ha_mode'] -> no_rep(1 node)/mgr(multi nodes)
 # for shard_ha_mode, the check order is: cluster['ha_mode'] -> meta_ha_mode
 # This validates and sets the config object for one-key installation script(binary version)
-def validate_and_set_config1(jscfg, args):
+def validate_and_set_config1(jscfg, machines, args):
     cluster = jscfg['cluster']
     meta = cluster['meta']
     comps = cluster['comp']['nodes']
@@ -426,6 +429,8 @@ def validate_and_set_config1(jscfg, args):
         node['is_primary'] = True
 
     for node in comps:
+        mach = machines.get(node['ip'])
+        mach['haspg'] = True
         addPortToMachine(portmap, node['ip'], node['port'])
         addPortToMachine(portmap, node['ip'], node['mysql_port'])
         addDirToMachine(dirmap, node['ip'], node['datadir'])
@@ -527,7 +532,7 @@ def setup_machines2(jscfg, machines, args):
         addIpToMachineMap(machines, node['ip'], args)
     for cluster in clusters:
         for node in cluster['comp']['nodes']:
-            addIpToMachineMap(machines, node['ip'], args)
+            addIpToMachineMap(machines, node['ip'], args, True)
         for shard in cluster['data']:
             for node in shard['nodes']:
                 addIpToMachineMap(machines, node['ip'], args)
@@ -642,6 +647,7 @@ def validate_and_set_config2(jscfg, machines, args):
             ha_mode = 'mgr'
         else:
             ha_mode = 'no_rep'
+    meta['ha_mode'] = ha_mode
     if nodecnt == 0 and not 'group_seeds' in meta:
         raise ValueError('Error: There must be at least one node in meta shard')
     if nodecnt > 1 and ha_mode == 'no_rep':
@@ -699,6 +705,8 @@ def validate_and_set_config2(jscfg, machines, args):
         comps = cluster['comp']
         datas = cluster['data']
         for node in comps['nodes']:
+            mach = machines.get(node['ip'])
+            mach['haspg'] = True
             addPortToMachine(portmap, node['ip'], node['port'])
             if node['ip'] not in nodemgrips:
                 nodem = get_default_nodemgr(args, machines, node['ip'])

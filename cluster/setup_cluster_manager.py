@@ -276,6 +276,8 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     comstr = "test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0"
     addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, storagedir), comstr)
     addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, serverdir), comstr)
+    addNodeToFilesListMap(filesmap, node, "../install/build_driver_forpg.sh", '.')
+    addToCommandsList(commandslist, node['ip'], "%s/%s/resources" %(targetdir, serverdir), "bash %s/build_driver_forpg.sh %s" % (mach['basedir'], mach['basedir']))
     setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
     for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
         nodedirs = node[item].strip()
@@ -744,41 +746,51 @@ def install_with_config(jscfg, comf, machines, args):
         targetdir='%s/%s/dba_tools' % (firstmeta['program_dir'], storagedir)
         addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (str(firstmeta['port']), xpanel_sqlfile), "storage")
 
+    worknode = None
+    if len(meta['nodes']) > 0:
+        worknode = meta['nodes'][0]
+    elif len(nodemgr['nodes']) > 0:
+        worknode = nodemgr['nodes'][0]
+    else:
+        worknode = clustermgr['nodes'][0]
+
+    if hasHDFS and worknode is not None:
+        addNodeToFilesListMap(filesmap, worknode, 'add_hdfs.py', '.')
+        addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
+            "python2 add_hdfs.py --seeds=%s --hdfsHost=%s --hdfsPort=%d" % (metaseeds, hdfs['ip'], hdfs['port']))
+
     if len(nodemgr['nodes']) > 0:
-        nodemgrjson = "nodemgr.json"
-        nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
-        json.dump(nodemgr['nodes'], nodemgrf, indent=4)
-        nodemgrf.close()
-        worknode = None
-        if len(meta['nodes']) > 0:
-            worknode = meta['nodes'][0]
-        elif len(nodemgr['nodes']) > 0:
-            worknode = nodemgr['nodes'][0]
-        else:
-            worknode = clustermgr['nodes'][0]
-        if worknode is not None:
-            ip = worknode['ip']
-            mach = machines.get(ip)
-            addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
-            addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
-            addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
-                "python2 modify_servernodes.py --config %s --action=add --seeds=%s" % (nodemgrjson, metaseeds))
-            if hasHDFS:
-                addNodeToFilesListMap(filesmap, worknode, 'add_hdfs.py', '.')
-                addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
-                    "python2 add_hdfs.py --seeds=%s --hdfsHost=%s --hdfsPort=%d" % (metaseeds, hdfs['ip'], hdfs['port']))
+        nodes = []
+        for node in nodemgr['nodes']:
+            if node['skip']:
+                continue
+            nodes.append(node)
+        if len(nodes) > 0:
+            nodemgrjson = "nodemgr.json"
+            nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
+            json.dump(nodes, nodemgrf, indent=4)
+            nodemgrf.close()
+            if worknode is not None:
+                mach = machines.get(worknode['ip'])
+                addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
+                addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
+                addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
+                    "python2 modify_servernodes.py --config %s --action=add --seeds=%s" % (nodemgrjson, metaseeds))
 
     haproxyips = install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, args)
 
     i = 0
     for node in clustermgr['nodes']:
-        setup_clustermgr_commands(args, i, machines, node, commandslist, dirmap, filesmap, metaseeds, initmember, ip not in nodemgrips)
+        setup_clustermgr_commands(args, i, machines, node, commandslist, dirmap, filesmap,
+            metaseeds, initmember, node['ip'] not in nodemgrips)
         if args.autostart:
             generate_clustermgr_service(args, machines, commandslist, node, i, filesmap)
         i += 1
 
     # start the nodemgr and clustermgr process finally.
     for node in nodemgr['nodes']:
+        if node['skip']:
+            continue
         addToCommandsList(commandslist, node['ip'], ".", "bash start-nodemgr-%d.sh </dev/null >& run.log &" % node['brpc_http_port'])
     for node in clustermgr['nodes']:
         addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash start_cluster_mgr.sh </dev/null >& start.log &")
