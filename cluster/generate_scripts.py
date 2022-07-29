@@ -106,9 +106,9 @@ def generate_haproxy_service(args, machines, commandslist, node, filesmap):
     addToCommandsList(commandslist, node['ip'], '.', "sudo systemctl enable %s" % servname)
 
 def generate_install_scripts(jscfg, args):
-    validate_and_set_config1(jscfg, args)
     machines = {}
     setup_machines1(jscfg, machines, args)
+    validate_and_set_config1(jscfg, machines, args)
 
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -285,7 +285,7 @@ def generate_install_scripts(jscfg, args):
 
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:
-        generate_haproxy_config(jscfg['cluster'], machines, 'install', haproxy.cfg)
+        generate_haproxy_config(jscfg['cluster'], machines, 'install', 'haproxy.cfg')
         cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f haproxy.cfg >& haproxy.log'
         addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
         if args.autostart:
@@ -375,9 +375,9 @@ def generate_install_scripts(jscfg, args):
 
 # The order is meta shard -> data shards -> cluster_mgr -> comp nodes
 def generate_start_scripts(jscfg, args):
-    validate_and_set_config1(jscfg, args)
     machines = {}
     setup_machines1(jscfg, machines, args)
+    validate_and_set_config1(jscfg, machines, args)
 
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -432,9 +432,9 @@ def generate_start_scripts(jscfg, args):
 
 # The order is: comp-nodes -> cluster_mgr -> data shards -> meta shard
 def generate_stop_scripts(jscfg, args):
-    validate_and_set_config1(jscfg, args)
     machines = {}
     setup_machines1(jscfg, machines, args)
+    validate_and_set_config1(jscfg, machines, args)
 
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -492,9 +492,9 @@ def generate_systemctl_clean(servname, ip, commandslist):
 
 # The order is: comp-nodes -> cluster_mgr -> data shards -> meta shard
 def generate_clean_scripts(jscfg, args):
-    validate_and_set_config1(jscfg, args)
     machines = {}
     setup_machines1(jscfg, machines, args)
+    validate_and_set_config1(jscfg, machines, args)
 
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -586,9 +586,10 @@ def generate_clean_scripts(jscfg, args):
 
 # The order is meta shard -> data shards -> cluster_mgr -> comp nodes
 def generate_check_scripts(jscfg, args):
-    validate_and_set_config1(jscfg, args)
     machines = {}
     setup_machines1(jscfg, machines, args)
+    validate_and_set_config1(jscfg, machines, args)
+
 
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version

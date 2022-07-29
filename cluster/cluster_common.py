@@ -542,11 +542,11 @@ def setup_machines2(jscfg, machines, args):
 
 def set_storage_using_nodemgr(machines, item, noden):
     if 'data_dir_path' not in item:
-        item['data_dir_path'] = "%s/instance_data/data_dir_path/%s" % (noden['storage_datadirs'].split(",")[0], str(item['port']))
+        item['data_dir_path'] = "%s/%s" % (noden['storage_datadirs'].split(",")[0], str(item['port']))
     if 'log_dir_path' not in item:
-        item['log_dir_path'] = "%s/instance_data/log_dir_path/%s" % (noden['storage_logdirs'].split(",")[0], str(item['port']))
+        item['log_dir_path'] = "%s/%s" % (noden['storage_logdirs'].split(",")[0], str(item['port']))
     if 'innodb_log_dir_path' not in item:
-        item['innodb_log_dir_path'] = "%s/instance_data/innodb_log_dir_path/%s" % (noden['storage_waldirs'].split(",")[0], str(item['port']))
+        item['innodb_log_dir_path'] = "%s/%s" % (noden['storage_waldirs'].split(",")[0], str(item['port']))
     mach = machines.get(item['ip'])
     item['program_dir'] = "instance_binaries/storage/%s" % str(item['port'])
     item['user'] = mach['user']
@@ -555,7 +555,7 @@ def set_storage_using_nodemgr(machines, item, noden):
 
 def set_server_using_nodemgr(machines, item, noden):
     if 'datadir' not in item:
-        item['datadir'] = "%s/instance_data/comp_datadir/%s" % (noden['server_datadirs'].split(",")[0], str(item['port']))
+        item['datadir'] = "%s/%s" % (noden['server_datadirs'].split(",")[0], str(item['port']))
     item['program_dir'] = "instance_binaries/computer/%s" % str(item['port'])
 
 # validate and set the configuration object for clustermgr initialization/destroy scripts.
@@ -674,6 +674,8 @@ def validate_and_set_config2(jscfg, machines, args):
             addPortToMachine(portmap, node['ip'], node['xport'])
         if 'mgr_port' in node:
             addPortToMachine(portmap, node['ip'], node['mgr_port'])
+        if 'election_weight' not in node:
+            node['election_weight'] = 50
         if node.get('is_primary', False):
             if hasPrimary:
                 raise ValueError('Error: Two primaries found in meta shard, there should be one and only one Primary specified !')

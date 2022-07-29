@@ -770,7 +770,7 @@ def install_with_config(jscfg, comf, machines, args):
             nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
             json.dump(nodes, nodemgrf, indent=4)
             nodemgrf.close()
-            if worknode is not None:
+            if args.change_server_nodes and worknode is not None:
                 mach = machines.get(worknode['ip'])
                 addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
                 addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
@@ -919,10 +919,11 @@ def clean_with_config(jscfg, comf, machines, args):
     if worknode is not None:
         ip = worknode['ip']
         mach = machines.get(ip)
-        addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
+        if args.change_server_nodes:
+            addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
         addNodeToFilesListMap(filesmap, worknode, 'delete_cluster.py', '.')
         # Skip if we clean the meta.
-        if len(nodemgr['nodes']) > 0 and 'group_seeds' in meta:
+        if args.change_server_nodes and len(nodemgr['nodes']) > 0 and 'group_seeds' in meta:
             nodemgrjson = "nodemgr.json"
             nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
             json.dump(nodemgr['nodes'], nodemgrf, indent=4)
@@ -1117,6 +1118,7 @@ if  __name__ == '__main__':
     parser.add_argument('--deftcp_port_nodemgr', type=int, help="default tcp_port for node_manager", default=58003)
     parser.add_argument('--outfile', type=str, help="the path for the cluster config", default="cluster.json")
     parser.add_argument('--cluster_name', type=str, help="the name of the cluster to generate the config file", default="")
+    parser.add_argument('--change_server_nodes', help="whether to change server_nodes table", default=False, action='store_true')
 
     args = parser.parse_args()
     if not args.defbase.startswith('/'):
