@@ -306,6 +306,8 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     scriptf.write(cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
     scriptf.write(cmdpat % (confpath, 'storage_prog_package_name', storagedir))
     scriptf.write(cmdpat % (confpath, 'computer_prog_package_name', serverdir))
+    if 'prometheus_port_start' in node:
+        scriptf.write(cmdpat % (confpath, 'prometheus_port_start', node['prometheus_port_start']))
     scriptf.close()
     addNodeToFilesListMap(filesmap, node, script_name, '.')
     addNodeToFilesListMap(filesmap, node, 'clear_instances.sh', '.')
@@ -338,6 +340,8 @@ def setup_clustermgr_commands(args, idx, machines, node, commandslist, dirmap, f
     scriptf.write(cmdpat % (confpath, 'local_ip', node['ip']))
     scriptf.write(cmdpat % (confpath, 'raft_group_member_init_config', initmember))
     scriptf.write(cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
+    if 'prometheus_port_start' in node:
+        scriptf.write(cmdpat % (confpath, 'prometheus_port_start', node['prometheus_port_start']))
     scriptf.close()
     addNodeToFilesListMap(filesmap, node, script_name, '.')
     addToCommandsList(commandslist, node['ip'], '.', "bash ./%s" % script_name)
@@ -1114,8 +1118,10 @@ if  __name__ == '__main__':
     parser.add_argument('--setbashenv', help="whether to set the user bash env", default=False, action='store_true')
     parser.add_argument('--defbrpc_raft_port_clustermgr', type=int, help="default brpc_raft_port for cluster_manager", default=58001)
     parser.add_argument('--defbrpc_http_port_clustermgr', type=int, help="default brpc_http_port for cluster_manager", default=58000)
+    parser.add_argument('--defpromethes_port_start_clustermgr', type=int, help="default brpc_raft_port for cluster_manager", default=57010)
     parser.add_argument('--defbrpc_http_port_nodemgr', type=int, help="default brpc_http_port for node_manager", default=58002)
     parser.add_argument('--deftcp_port_nodemgr', type=int, help="default tcp_port for node_manager", default=58003)
+    parser.add_argument('--defprometheus_port_start_nodemgr', type=int, help="default tcp_port for node_manager", default=58010)
     parser.add_argument('--outfile', type=str, help="the path for the cluster config", default="cluster.json")
     parser.add_argument('--cluster_name', type=str, help="the name of the cluster to generate the config file", default="")
     parser.add_argument('--change_server_nodes', help="whether to change server_nodes table", default=False, action='store_true')

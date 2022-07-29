@@ -595,6 +595,11 @@ def validate_and_set_config2(jscfg, machines, args):
         else:
             node['brpc_http_port'] = args.defbrpc_http_port_clustermgr
             addPortToMachine(portmap, node['ip'], args.defbrpc_http_port_clustermgr)
+        if 'prometheus_port_start' in node:
+            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
+        else:
+            node['prometheus_port_start'] = args.defpromethes_port_start_clustermgr
+            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
 
     defpaths = {
             "server_datadirs": "server_datadir",
@@ -622,6 +627,11 @@ def validate_and_set_config2(jscfg, machines, args):
         else:
             node['tcp_port'] = args.deftcp_port_nodemgr
             addPortToMachine(portmap, node['ip'], args.deftcp_port_nodemgr)
+        if 'prometheus_port_start' in node:
+            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
+        else:
+            node['prometheus_port_start'] = args.defprometheus_port_start_nodemgr
+            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
         # The logic is that:
         # - if it is set, check every item is an absolute path.
         # - if it is not set, it is default to $basedir/{server_datadir, storage_datadir, storage_logdir, storage_waldir}
@@ -756,6 +766,7 @@ def get_default_nodemgr(args, machines, ip):
             'ip': ip,
             'brpc_http_port': args.defbrpc_http_port_nodemgr,
             "tcp_port": args.deftcp_port_nodemgr,
+            "prometheus_port_start": args.defprometheus_port_start_nodemgr,
             "skip": True
             }
     for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
