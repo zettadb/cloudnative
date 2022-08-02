@@ -276,8 +276,10 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     comstr = "test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0"
     addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, storagedir), comstr)
     addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, serverdir), comstr)
-    addNodeToFilesListMap(filesmap, node, "../install/build_driver_forpg.sh", '.')
-    addToCommandsList(commandslist, node['ip'], "%s/%s/resources" %(targetdir, serverdir), "bash %s/build_driver_forpg.sh %s" % (mach['basedir'], mach['basedir']))
+    if mach['haspg']:
+         addNodeToFilesListMap(filesmap, node, "../install/build_driver_forpg.sh", '.')
+         addToCommandsList(commandslist, node['ip'], ".", "cp -f %s/%s/resources/psycopg2-2.8.4.tar.gz ." %(targetdir, serverdir))
+         addToCommandsList(commandslist, node['ip'], ".",  "bash %s/build_driver_forpg.sh %s" % (mach['basedir'], mach['basedir']))
     setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
     for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
         nodedirs = node[item].strip()

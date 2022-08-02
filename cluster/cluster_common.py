@@ -150,11 +150,11 @@ def get_json_from_file(filepath):
     jsconf.close()
     return jscfg
 
-def addMachineToMap(map, ip, user, basedir):
+def addMachineToMap(map, ip, user, basedir, haspg=False):
     # We can add logic here to check if the item exsits, new added should be unique to existing.
     if ip in map:
         return
-    mac={"ip":ip, "user":user, "basedir":basedir}
+    mac={"ip":ip, "user":user, "basedir":basedir, "haspg": haspg}
     map[ip] = mac
 
 def gethostip():
