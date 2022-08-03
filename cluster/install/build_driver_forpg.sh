@@ -10,7 +10,7 @@ setenv="${2:-1}"
 
 mkdir -p $prefix/lib/python2.7/site-packages/
 mkdir -p $prefix/lib64/python2.7/site-packages/
-if test "$setenv" = "1":
+if test "$setenv" = "1"; then
 	export PATH="`pwd`/../bin:$PATH"
 	export LD_LIBRARY_PATH="`pwd`/../lib:$LD_LIBRARY_PATH"
 fi
