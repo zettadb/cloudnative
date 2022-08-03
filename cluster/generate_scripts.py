@@ -345,7 +345,7 @@ def generate_install_scripts(jscfg, args):
             process_file(comf, args, machines, ip, 'install/haproxy.cfg', mach['basedir'])
 
 	# Set up the env.sh, this must be before 'process_command_setenv'
-        process_file(comf, args, machines, ip, 'env.sh.template', mach['basedir'])
+        process_file(comf, args, machines, ip, 'install/env.sh.template', mach['basedir'])
         extstr = "sed -s 's#KUNLUN_BASEDIR#%s#g' env.sh.template > env.sh" % mach['basedir']
         process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
         extstr = "sed -i 's#KUNLUN_VERSION#%s#g' env.sh" % args.product_version

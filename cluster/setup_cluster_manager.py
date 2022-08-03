@@ -279,7 +279,7 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     if mach['haspg']:
          addNodeToFilesListMap(filesmap, node, "../install/build_driver_forpg.sh", '.')
          addToCommandsList(commandslist, node['ip'], ".", "cp -f %s/%s/resources/psycopg2-2.8.4.tar.gz ." %(targetdir, serverdir))
-         addToCommandsList(commandslist, node['ip'], ".",  "bash %s/build_driver_forpg.sh %s" % (mach['basedir'], mach['basedir']))
+         addToCommandsList(commandslist, node['ip'], ".",  "bash %s/build_driver_forpg.sh %s 0" % (mach['basedir'], mach['basedir']), "computing")
     setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
     for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
         nodedirs = node[item].strip()
@@ -481,7 +481,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         cmdpat='python2 create_cluster.py --shards_config=./%s \
 --comps_config=./%s  --meta_config=./%s --cluster_name=%s --meta_ha_mode=%s --ha_mode=%s --cluster_owner=abc --cluster_biz=%s'
         addToCommandsList(commandslist, node['ip'], targetdir,
-            cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta_hamode, cluster['ha_mode'], cluster_name), "all")
+            cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta_hamode, cluster['ha_mode'], cluster_name), "parent")
 
         cmdpat = r'%spython2 add_comp_self.py  --meta_config=./%s --cluster_name=%s --user=%s --password=%s --hostname=%s --port=%d --mysql_port=%d --datadir=%s --install --ha_mode=%s'
         idx=0
@@ -814,7 +814,7 @@ def install_with_config(jscfg, comf, machines, args):
                     mach['user'], mach['user'], mach['basedir']))
         else:
             process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
-        process_file(comf, args, machines, ip, 'env.sh.template', mach['basedir'])
+        process_file(comf, args, machines, ip, 'clustermgr/env.sh.template', mach['basedir'])
         extstr = "sed -s 's#KUNLUN_BASEDIR#%s#g' env.sh.template > env.sh" % mach['basedir']
         process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
         extstr = "sed -i 's#KUNLUN_VERSION#%s#g' env.sh" % args.product_version
