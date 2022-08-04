@@ -11,10 +11,9 @@ def readJsonFile():
     ReadCluster=json.loads(OpenCluster.read())
 
     CompTotal=ReadCluster['cluster']['comp']['nodes']
-    if types == 'cluster_mgr':
-        global insBin, serDat
-        insBin = ReadCluster['instance_binaries']
-        serDat = ReadCluster['server_datadir']
+    global insBin, serDat
+    insBin = ReadCluster['instance_binaries']
+    serDat = ReadCluster['server_datadir']
         
 
     # get cluster info
@@ -33,9 +32,6 @@ def readJsonFile():
         CompPort.append(port)
         #CompDir.append(datadir)
         CompUser.append(user)
-        if types == 'one_click':
-            datadir=i['datadir']
-            CompDir.append(datadir)
 
     try:
         OpenConf=open(config,encoding='utf-8') # get computing conf info
@@ -136,25 +132,13 @@ def configs():
         for a in range(0, CompNum):
             if Compvalues[a] :
                 SCompkeys = ''.join(Compkeys[a])
-                if types == 'one_click':
-                    SCompDir = ''.join(CompDir[CIPN])
                 SCompvalues = str(Compvalues[a])
                 SCompIp = ''.join(CompIp[CIPN])
                 SCompPort = str(CompPort[CIPN])
                 
                 num = 0
-                if types == 'one_click':
-                    BashStmt = "ssh %s@%s \'echo %s = %s >> %s/postgresql.conf\'" % (defuser, SCompIp, SCompkeys, SCompvalues, SCompDir)
-                    print(BashStmt)
-                    
-                elif types == 'xpenal':
-                    #/home/kunlun/testmgr0.9.2/server_datadir/instance_data/comp_datadir/57030/postgresql.conf
-                    BashStmt = "ssh %s@%s \'echo %s = %s >> %s/server_datadir/instance_data/comp_datadir/%s/postgresql.conf\'" % (defuser, SCompIp, SCompkeys, SCompvalues, defbase, SCompPort)
-                    num = num + 1
-                
-                elif types == 'cluster_mgr':
-                    BashStmt = "ssh %s@%s \'echo %s = %s >> %s/%s/postgresql.conf\'" % (defuser, SCompIp, SCompkeys, SCompvalues, serDat, SCompPort)
-                    num = num + 1
+                BashStmt = "ssh %s@%s \'echo %s = %s >> %s/%s/postgresql.conf\'" % (defuser, SCompIp, SCompkeys, SCompvalues, serDat, SCompPort)
+                num = num + 1
 
                 WFile(BashStmt, 'y')
                 WFile(BashStmt, 'n')
@@ -163,15 +147,7 @@ def configs():
                 err = 'Computing node' + SCompIp + ':' + SCompPort + 'parameter :"' + SCompkeys + '" values is null'
                 print(err)
 
-        if types == 'one_click':
-            stmt = "ssh %s@%s \'%s/kunlun-server-0.9.2/bin/pg_ctl reload -D %s\'" % (defuser, SCompIp, defbase, SCompDir)
-        
-        elif types == 'xpenal':
-            #/home/kunlun/testmgr0.9.2/instance_binaries/computer/57030/kunlun-server-0.9.2/bin/pg_ctl
-            stmt = "ssh %s@%s \'%s/instance_binaries/computer/%s/kunlun-server-0.9.2/bin/pg_ctl reload -D %s/server_datadir/instance_data/comp_datadir/%s\'" % (defuser, SCompIp, defbase, SCompPort, defbase, SCompPort) 
-
-        elif types == 'cluster_mgr':
-            stmt = "ssh %s@%s \'%s/%s/kunlun-server-0.9.2/bin/pg_ctl reload -D %s/%s\'" % (defuser, SCompIp, insBin, SCompPort, serDat, SCompPort)
+        stmt = "ssh %s@%s \'%s/%s/kunlun-server-%s/bin/pg_ctl reload -D %s/%s\'" % (defuser, SCompIp, insBin, SCompPort, version, serDat, SCompPort)
 
         WFile(stmt, 'y')
         WFile(stmt, 'n')
@@ -227,19 +203,17 @@ def configs():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Configure')
-    parser.add_argument('--defuser', type=str, default='kunlun', help='User')
-    parser.add_argument('--defbase', type=str, default='/kunlun', help='basedir, 如果是通过cluster_mgr直接安装的则不用传该参数')
-    parser.add_argument('--install', type=str, default='./install.json', help='The original configuration file for the Kunlun_cluster')
-    parser.add_argument('--config', type=str, default='./configure.json', help='the configuration file')
-    parser.add_argument('--type', type = str, default='one_click', help = 'can be "one_click" or "cluster_mgr" or "xpenal", "one_click" 是用的一键脚本安装的集群，"cluster_mgr"是用的cluster_mgr安装的集群,"xpenal"就是通过xpenal安装的集群')
+    parser.add_argument('--defuser', type = str, default = 'kunlun', help = 'User')
+    parser.add_argument('--version', type = str, default = '0.9.3', help = 'Version of computer node')
+    parser.add_argument('--install', type = str, default = './install.json', help = 'The original configuration file for the Kunlun_cluster')
+    parser.add_argument('--config', type = str, default = './configure.json', help = 'the configuration file')
     args = parser.parse_args()
     print (args)
 
     defuser = args.defuser
-    defbase = args.defbase
     install = args.install
     config = args.config
-    types = args.type
+    version = args.version
     readJsonFile()
     configs()
 
