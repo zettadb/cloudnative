@@ -163,7 +163,7 @@ def generate_install_scripts(jscfg, args):
             process_file(comf, args, machines, ip, 'install/%s' % fpair[0], "%s/%s" % (mach['basedir'], fpair[1]))
 
 	# Set up the env.sh, this must be before 'process_command_setenv'
-        process_file(comf, args, machines, ip, 'env.sh.template', mach['basedir'])
+        process_file(comf, args, machines, ip, 'install/env.sh.template', mach['basedir'])
         extstr = "sed -s 's#KUNLUN_BASEDIR#%s#g' env.sh.template > env.sh" % mach['basedir']
         process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
         extstr = "sed -i 's#KUNLUN_VERSION#%s#g' env.sh" % args.product_version
@@ -331,7 +331,7 @@ if  __name__ == '__main__':
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--localip', type=str, help="The local ip address", default=gethostip())
-    parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.3')
+    parser.add_argument('--product_version', type=str, help="kunlun version", default='1.0.1')
     parser.add_argument('--valgrind', help="whether to use valgrind", default=False, action='store_true')
 
     args = parser.parse_args()

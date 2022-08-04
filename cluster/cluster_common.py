@@ -150,11 +150,11 @@ def get_json_from_file(filepath):
     jsconf.close()
     return jscfg
 
-def addMachineToMap(map, ip, user, basedir):
+def addMachineToMap(map, ip, user, basedir, haspg=False):
     # We can add logic here to check if the item exsits, new added should be unique to existing.
     if ip in map:
         return
-    mac={"ip":ip, "user":user, "basedir":basedir}
+    mac={"ip":ip, "user":user, "basedir":basedir, "haspg": haspg}
     map[ip] = mac
 
 def gethostip():
@@ -542,11 +542,11 @@ def setup_machines2(jscfg, machines, args):
 
 def set_storage_using_nodemgr(machines, item, noden):
     if 'data_dir_path' not in item:
-        item['data_dir_path'] = "%s/instance_data/data_dir_path/%s" % (noden['storage_datadirs'].split(",")[0], str(item['port']))
+        item['data_dir_path'] = "%s/%s" % (noden['storage_datadirs'].split(",")[0], str(item['port']))
     if 'log_dir_path' not in item:
-        item['log_dir_path'] = "%s/instance_data/log_dir_path/%s" % (noden['storage_logdirs'].split(",")[0], str(item['port']))
+        item['log_dir_path'] = "%s/%s" % (noden['storage_logdirs'].split(",")[0], str(item['port']))
     if 'innodb_log_dir_path' not in item:
-        item['innodb_log_dir_path'] = "%s/instance_data/innodb_log_dir_path/%s" % (noden['storage_waldirs'].split(",")[0], str(item['port']))
+        item['innodb_log_dir_path'] = "%s/%s" % (noden['storage_waldirs'].split(",")[0], str(item['port']))
     mach = machines.get(item['ip'])
     item['program_dir'] = "instance_binaries/storage/%s" % str(item['port'])
     item['user'] = mach['user']
@@ -555,7 +555,7 @@ def set_storage_using_nodemgr(machines, item, noden):
 
 def set_server_using_nodemgr(machines, item, noden):
     if 'datadir' not in item:
-        item['datadir'] = "%s/instance_data/comp_datadir/%s" % (noden['server_datadirs'].split(",")[0], str(item['port']))
+        item['datadir'] = "%s/%s" % (noden['server_datadirs'].split(",")[0], str(item['port']))
     item['program_dir'] = "instance_binaries/computer/%s" % str(item['port'])
 
 # validate and set the configuration object for clustermgr initialization/destroy scripts.
@@ -595,6 +595,11 @@ def validate_and_set_config2(jscfg, machines, args):
         else:
             node['brpc_http_port'] = args.defbrpc_http_port_clustermgr
             addPortToMachine(portmap, node['ip'], args.defbrpc_http_port_clustermgr)
+        if 'prometheus_port_start' in node:
+            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
+        else:
+            node['prometheus_port_start'] = args.defpromethes_port_start_clustermgr
+            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
 
     defpaths = {
             "server_datadirs": "server_datadir",
@@ -622,6 +627,11 @@ def validate_and_set_config2(jscfg, machines, args):
         else:
             node['tcp_port'] = args.deftcp_port_nodemgr
             addPortToMachine(portmap, node['ip'], args.deftcp_port_nodemgr)
+        if 'prometheus_port_start' in node:
+            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
+        else:
+            node['prometheus_port_start'] = args.defprometheus_port_start_nodemgr
+            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
         # The logic is that:
         # - if it is set, check every item is an absolute path.
         # - if it is not set, it is default to $basedir/{server_datadir, storage_datadir, storage_logdir, storage_waldir}
@@ -674,6 +684,8 @@ def validate_and_set_config2(jscfg, machines, args):
             addPortToMachine(portmap, node['ip'], node['xport'])
         if 'mgr_port' in node:
             addPortToMachine(portmap, node['ip'], node['mgr_port'])
+        if 'election_weight' not in node:
+            node['election_weight'] = 50
         if node.get('is_primary', False):
             if hasPrimary:
                 raise ValueError('Error: Two primaries found in meta shard, there should be one and only one Primary specified !')
@@ -754,6 +766,7 @@ def get_default_nodemgr(args, machines, ip):
             'ip': ip,
             'brpc_http_port': args.defbrpc_http_port_nodemgr,
             "tcp_port": args.deftcp_port_nodemgr,
+            "prometheus_port_start": args.defprometheus_port_start_nodemgr,
             "skip": True
             }
     for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:

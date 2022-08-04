@@ -69,10 +69,11 @@ $sql = "update t1 set wt = 12 where id = 1;";
 $ret = pg_query($db, $sql);
 checkret($db, $sql, $ret);
 
-$sql = "select * from t1;";
+$sql = "select info from t1;";
 $ret = pg_query($db, $sql);
-echo("$sql: $ret\n");
-showresults($ret);
+if ($ret) {
+	showresults($ret);
+}
 
 $sql = 'select * from t1 where id=$1';
 $ret = pg_prepare($db, "prep", $sql);
@@ -96,8 +97,9 @@ checkret($db, "prep2:{Rec2,3,2}", $ret);
 
 $sql = "select * from t1;";
 $ret = pg_query($db, $sql);
-echo("$sql: $ret\n");
-showresults($ret);
+if ($ret) {
+	showresults($ret);
+}
 
 $sql = "delete from t1 where id = 1;";
 $ret = pg_query($db, $sql);
@@ -105,8 +107,9 @@ checkret($db, $sql, $ret);
 
 $sql = "select * from t1;";
 $ret = pg_query($db, $sql);
-echo("$sql: $ret\n");
-showresults($ret);
+if ($ret) {
+	showresults($ret);
+}
 
 pg_close($db)
 ?>

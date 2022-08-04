@@ -106,9 +106,9 @@ def generate_haproxy_service(args, machines, commandslist, node, filesmap):
     addToCommandsList(commandslist, node['ip'], '.', "sudo systemctl enable %s" % servname)
 
 def generate_install_scripts(jscfg, args):
-    validate_and_set_config1(jscfg, args)
     machines = {}
     setup_machines1(jscfg, machines, args)
+    validate_and_set_config1(jscfg, machines, args)
 
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -285,7 +285,7 @@ def generate_install_scripts(jscfg, args):
 
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:
-        generate_haproxy_config(jscfg['cluster'], machines, 'install', haproxy.cfg)
+        generate_haproxy_config(jscfg['cluster'], machines, 'install', 'haproxy.cfg')
         cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f haproxy.cfg >& haproxy.log'
         addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
         if args.autostart:
@@ -345,7 +345,7 @@ def generate_install_scripts(jscfg, args):
             process_file(comf, args, machines, ip, 'install/haproxy.cfg', mach['basedir'])
 
 	# Set up the env.sh, this must be before 'process_command_setenv'
-        process_file(comf, args, machines, ip, 'env.sh.template', mach['basedir'])
+        process_file(comf, args, machines, ip, 'install/env.sh.template', mach['basedir'])
         extstr = "sed -s 's#KUNLUN_BASEDIR#%s#g' env.sh.template > env.sh" % mach['basedir']
         process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
         extstr = "sed -i 's#KUNLUN_VERSION#%s#g' env.sh" % args.product_version
@@ -375,9 +375,9 @@ def generate_install_scripts(jscfg, args):
 
 # The order is meta shard -> data shards -> cluster_mgr -> comp nodes
 def generate_start_scripts(jscfg, args):
-    validate_and_set_config1(jscfg, args)
     machines = {}
     setup_machines1(jscfg, machines, args)
+    validate_and_set_config1(jscfg, machines, args)
 
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -432,9 +432,9 @@ def generate_start_scripts(jscfg, args):
 
 # The order is: comp-nodes -> cluster_mgr -> data shards -> meta shard
 def generate_stop_scripts(jscfg, args):
-    validate_and_set_config1(jscfg, args)
     machines = {}
     setup_machines1(jscfg, machines, args)
+    validate_and_set_config1(jscfg, machines, args)
 
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -492,9 +492,9 @@ def generate_systemctl_clean(servname, ip, commandslist):
 
 # The order is: comp-nodes -> cluster_mgr -> data shards -> meta shard
 def generate_clean_scripts(jscfg, args):
-    validate_and_set_config1(jscfg, args)
     machines = {}
     setup_machines1(jscfg, machines, args)
+    validate_and_set_config1(jscfg, machines, args)
 
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -586,9 +586,10 @@ def generate_clean_scripts(jscfg, args):
 
 # The order is meta shard -> data shards -> cluster_mgr -> comp nodes
 def generate_check_scripts(jscfg, args):
-    validate_and_set_config1(jscfg, args)
     machines = {}
     setup_machines1(jscfg, machines, args)
+    validate_and_set_config1(jscfg, machines, args)
+
 
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
@@ -656,7 +657,7 @@ if  __name__ == '__main__':
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
     parser.add_argument('--autostart', help="whether to start the cluster automaticlly", default=False, action='store_true')
     parser.add_argument('--localip', type=str, help="The local ip address", default=gethostip())
-    parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.3')
+    parser.add_argument('--product_version', type=str, help="kunlun version", default='1.0.1')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--valgrind', help="whether to use valgrind", default=False, action='store_true')
     parser.add_argument('--defbrpc_raft_port', type=int, help="default brpc_raft_port for cluster_manager", default=58000)

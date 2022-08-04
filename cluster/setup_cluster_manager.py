@@ -276,8 +276,10 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     comstr = "test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0"
     addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, storagedir), comstr)
     addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, serverdir), comstr)
-    addNodeToFilesListMap(filesmap, node, "../install/build_driver_forpg.sh", '.')
-    addToCommandsList(commandslist, node['ip'], "%s/%s/resources" %(targetdir, serverdir), "bash %s/build_driver_forpg.sh %s" % (mach['basedir'], mach['basedir']))
+    if mach['haspg']:
+         addNodeToFilesListMap(filesmap, node, "../install/build_driver_forpg.sh", '.')
+         addToCommandsList(commandslist, node['ip'], ".", "cp -f %s/%s/resources/psycopg2-2.8.4.tar.gz ." %(targetdir, serverdir))
+         addToCommandsList(commandslist, node['ip'], ".",  "bash %s/build_driver_forpg.sh %s 0" % (mach['basedir'], mach['basedir']), "computing")
     setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
     for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
         nodedirs = node[item].strip()
@@ -306,6 +308,8 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     scriptf.write(cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
     scriptf.write(cmdpat % (confpath, 'storage_prog_package_name', storagedir))
     scriptf.write(cmdpat % (confpath, 'computer_prog_package_name', serverdir))
+    if 'prometheus_port_start' in node:
+        scriptf.write(cmdpat % (confpath, 'prometheus_port_start', node['prometheus_port_start']))
     scriptf.close()
     addNodeToFilesListMap(filesmap, node, script_name, '.')
     addNodeToFilesListMap(filesmap, node, 'clear_instances.sh', '.')
@@ -338,6 +342,8 @@ def setup_clustermgr_commands(args, idx, machines, node, commandslist, dirmap, f
     scriptf.write(cmdpat % (confpath, 'local_ip', node['ip']))
     scriptf.write(cmdpat % (confpath, 'raft_group_member_init_config', initmember))
     scriptf.write(cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
+    if 'prometheus_port_start' in node:
+        scriptf.write(cmdpat % (confpath, 'prometheus_port_start', node['prometheus_port_start']))
     scriptf.close()
     addNodeToFilesListMap(filesmap, node, script_name, '.')
     addToCommandsList(commandslist, node['ip'], '.', "bash ./%s" % script_name)
@@ -475,7 +481,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         cmdpat='python2 create_cluster.py --shards_config=./%s \
 --comps_config=./%s  --meta_config=./%s --cluster_name=%s --meta_ha_mode=%s --ha_mode=%s --cluster_owner=abc --cluster_biz=%s'
         addToCommandsList(commandslist, node['ip'], targetdir,
-            cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta_hamode, cluster['ha_mode'], cluster_name), "all")
+            cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta_hamode, cluster['ha_mode'], cluster_name), "parent")
 
         cmdpat = r'%spython2 add_comp_self.py  --meta_config=./%s --cluster_name=%s --user=%s --password=%s --hostname=%s --port=%d --mysql_port=%d --datadir=%s --install --ha_mode=%s'
         idx=0
@@ -770,7 +776,7 @@ def install_with_config(jscfg, comf, machines, args):
             nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
             json.dump(nodes, nodemgrf, indent=4)
             nodemgrf.close()
-            if worknode is not None:
+            if args.change_server_nodes and worknode is not None:
                 mach = machines.get(worknode['ip'])
                 addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
                 addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
@@ -808,7 +814,7 @@ def install_with_config(jscfg, comf, machines, args):
                     mach['user'], mach['user'], mach['basedir']))
         else:
             process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
-        process_file(comf, args, machines, ip, 'env.sh.template', mach['basedir'])
+        process_file(comf, args, machines, ip, 'clustermgr/env.sh.template', mach['basedir'])
         extstr = "sed -s 's#KUNLUN_BASEDIR#%s#g' env.sh.template > env.sh" % mach['basedir']
         process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
         extstr = "sed -i 's#KUNLUN_VERSION#%s#g' env.sh" % args.product_version
@@ -919,10 +925,11 @@ def clean_with_config(jscfg, comf, machines, args):
     if worknode is not None:
         ip = worknode['ip']
         mach = machines.get(ip)
-        addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
+        if args.change_server_nodes:
+            addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
         addNodeToFilesListMap(filesmap, worknode, 'delete_cluster.py', '.')
         # Skip if we clean the meta.
-        if len(nodemgr['nodes']) > 0 and 'group_seeds' in meta:
+        if args.change_server_nodes and len(nodemgr['nodes']) > 0 and 'group_seeds' in meta:
             nodemgrjson = "nodemgr.json"
             nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
             json.dump(nodemgr['nodes'], nodemgrf, indent=4)
@@ -1106,17 +1113,20 @@ if  __name__ == '__main__':
     parser.add_argument('--defuser', type=str, help="the default user", default=getpass.getuser())
     parser.add_argument('--defbase', type=str, help="the default basedir", default='/kunlun')
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
-    parser.add_argument('--product_version', type=str, help="kunlun version", default='0.9.3')
+    parser.add_argument('--product_version', type=str, help="kunlun version", default='1.0.1')
     parser.add_argument('--localip', type=str, help="The local ip address", default='127.0.0.1')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--autostart', help="whether to start the cluster automaticlly", default=False, action='store_true')
     parser.add_argument('--setbashenv', help="whether to set the user bash env", default=False, action='store_true')
     parser.add_argument('--defbrpc_raft_port_clustermgr', type=int, help="default brpc_raft_port for cluster_manager", default=58001)
     parser.add_argument('--defbrpc_http_port_clustermgr', type=int, help="default brpc_http_port for cluster_manager", default=58000)
+    parser.add_argument('--defpromethes_port_start_clustermgr', type=int, help="default prometheus starting port for cluster_manager", default=57010)
     parser.add_argument('--defbrpc_http_port_nodemgr', type=int, help="default brpc_http_port for node_manager", default=58002)
     parser.add_argument('--deftcp_port_nodemgr', type=int, help="default tcp_port for node_manager", default=58003)
+    parser.add_argument('--defprometheus_port_start_nodemgr', type=int, help="default prometheus starting port for node_manager", default=58010)
     parser.add_argument('--outfile', type=str, help="the path for the cluster config", default="cluster.json")
     parser.add_argument('--cluster_name', type=str, help="the name of the cluster to generate the config file", default="")
+    parser.add_argument('--change_server_nodes', help="whether to change server_nodes table", default=False, action='store_true')
 
     args = parser.parse_args()
     if not args.defbase.startswith('/'):

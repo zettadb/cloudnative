@@ -8,7 +8,7 @@ fi
 p="$1"
 cleartype="$2"
 basedir="${3:-`pwd`}"
-version="${4:-0.9.3}"
+version="${4:-1.0.1}"
 #cd $basedir/kunlun-node-manager-$version/bin && \
 #bash stop_node_mgr.sh
 
@@ -23,9 +23,9 @@ if test "$cleartype" = "storage"; then
 	bash stopmysql.sh $p
 	mycnf=`cat ../etc/instances_list.txt | sed '/^$/d' | sed 's/.*==>//g'`
 	test "$mycnf" = "" && exit 0
-	datadir_path=`dirname $mycnf`
-	logdir_path=`cat $mycnf| grep '#log dir is=' | sed  's/#log dir is=//' | sed 's#/dblogs$##'`
-	waldir_path=`cat $mycnf| grep 'innodb_log_group_home_dir.*=' | sed -e 's/innodb_log_group_home_dir.*= *//' -e 's#/arch$##'`
+	datadir_path=`cat $mycnf| grep -v 'rootdatadir' | grep 'datadir.*=' | sed -e 's/datadir.*= *//'`
+	logdir_path=`cat $mycnf| grep '#log dir is=' | sed  's/#log dir is=//'`
+	waldir_path=`cat $mycnf| grep 'innodb_log_group_home_dir.*=' | sed -e 's/innodb_log_group_home_dir.*= *//' -e 's#/redolog$##'`
 	#echo "$p-datadir: $datadir_path"
 	#echo "$p-logdir: $logdir_path"
 	#echo "$p-waldir: $waldir_path"
