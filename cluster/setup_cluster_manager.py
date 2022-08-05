@@ -467,6 +467,10 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
                 n = {'user':'pgx', 'password':'pgx_pwd'}
                 n['ip'] = node['ip']
                 n['port'] = node['port']
+                if 'ro_weight' in node:
+                    n['ro_weight'] = node['ro_weight']
+                if 'master_priority' in node:
+                    n['master_priority'] = node['master_priority']
                 nodes.append(n)
             obj['shard_nodes'] = nodes
             shards.append(obj)
@@ -645,6 +649,8 @@ def install_with_config(jscfg, comf, machines, args):
             obj['port'] = node['port']
             obj['user'] = "pgx"
             obj['password'] = "pgx_pwd"
+            if 'master_priority' in node:
+                obj['master_priority'] = node['master_priority']
             objs.append(obj)
     elif not metaseeds == '': # For case just providing the seeds.
         for addr in metaseeds.split(','):

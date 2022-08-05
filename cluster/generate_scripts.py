@@ -231,6 +231,8 @@ def generate_install_scripts(jscfg, args):
         obj['port'] = node['port']
         obj['user'] = "pgx"
         obj['password'] = "pgx_pwd"
+        if 'master_priority' in node:
+            obj['master_priority'] = node['master_priority']
         objs.append(obj)
     json.dump(objs, metaf, indent=4)
     metaf.close()
@@ -248,6 +250,10 @@ def generate_install_scripts(jscfg, args):
             n={'user':'pgx', 'password':'pgx_pwd'}
             n['ip'] = node['ip']
             n['port'] = node['port']
+            if 'ro_weight' in node:
+                n['ro_weight'] = node['ro_weight']
+            if 'master_priority' in node:
+                n['master_priority'] = node['master_priority']
             nodes.append(n)
         obj['shard_nodes'] = nodes
         shards.append(obj)
