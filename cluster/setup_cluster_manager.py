@@ -388,6 +388,16 @@ def clean_clustermgr(args):
     clean_with_config(jscfg, comf, machines, args)
     comf.close()
 
+def service_clustermgr(args):
+    jscfg = get_json_from_file(args.config)
+    machines = {}
+    setup_machines2(jscfg, machines, args)
+    validate_and_set_config2(jscfg, machines, args)
+    comf = open(r'clustermgr/service.sh', 'w')
+    comf.write('#! /bin/bash\n')
+    service_with_config(jscfg, comf, machines, args)
+    comf.close()
+
 def setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir):
     mach = machines.get(node['ip'])
     addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
@@ -1081,6 +1091,46 @@ def start_with_config(jscfg, comf, machines, args):
     process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
     process_commandslist_setenv(comf, args, machines, commandslist)
 
+def service_with_config(jscfg, comf, machines, args):
+    meta = jscfg['meta']
+    clustermgr = jscfg['cluster_manager']
+    nodemgr = jscfg['node_manager']
+
+    filesmap = {}
+    commandslist = []
+
+    nodemgrmaps = {}
+    for node in nodemgr['nodes']:
+        nodemgrmaps[node['ip']] = node
+
+    clustermgrips = set()
+    for node in clustermgr['nodes']:
+        clustermgrips.add(node['ip'])
+
+    i = 0
+    nodemgrips = set()
+    for node in nodemgr['nodes']:
+        nodemgrips.add(node['ip'])
+        if node['skip']:
+            continue
+        generate_nodemgr_service(args, machines, commandslist, node, i, filesmap)
+        i += 1
+
+    i = 0
+    for node in meta['nodes']:
+        node['nodemgr'] = nodemgrmaps.get(node['ip'])
+        generate_storage_service(args, machines, commandslist, node, i, filesmap)
+        i+=1
+
+    i = 0
+    for node in clustermgr['nodes']:
+        generate_clustermgr_service(args, machines, commandslist, node, i, filesmap)
+        i += 1
+
+    process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
+    # The reason for not using commands map is that, we need to keep the order for the commands.
+    process_commandslist_setenv(comf, args, machines, commandslist)
+
 def gen_cluster_config(args):
     if args.cluster_name == '':
         raise ValueError('Error: cluster_name must be provided')
@@ -1107,7 +1157,7 @@ def gen_cluster_config(args):
 
 if  __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Specify the arguments.')
-    actions=["install", "clean", "start", "stop", "gen_cluster_config"]
+    actions=["install", "clean", "start", "stop", "service", "gen_cluster_config"]
     parser.add_argument('--config', type=str, help="The config path", required=True)
     parser.add_argument('--action', type=str, help="The action", default='install', choices=actions)
     parser.add_argument('--defuser', type=str, help="the default user", default=getpass.getuser())
@@ -1144,6 +1194,8 @@ if  __name__ == '__main__':
         start_clustermgr(args)
     elif args.action == 'stop':
         stop_clustermgr(args)
+    elif args.action == 'service':
+        service_clustermgr(args)
     elif args.action == 'gen_cluster_config':
         gen_cluster_config(args)
     else:
