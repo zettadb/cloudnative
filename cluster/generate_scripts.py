@@ -451,7 +451,7 @@ def generate_stop_scripts(jscfg, args):
 
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:
-        cmdpat="cat haproxy.pid | xargs kill -9"
+        cmdpat="cat haproxy-%d.pid | xargs kill -9" % haproxy['port']
         addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
 
     # pg_ctl -D %s stop"
@@ -517,9 +517,9 @@ def generate_clean_scripts(jscfg, args):
 
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:
-        cmdpat="cat haproxy.pid | xargs kill -9"
+        cmdpat="cat haproxy-%d.pid | xargs kill -9" % haproxy['port']
         addToCommandsList(noenv_cmdlist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
-        cmdpat="rm -f haproxy.pid"
+        cmdpat="rm -f haproxy-%d.pid"  % haproxy['port']
         addToCommandsList(noenv_cmdlist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
         if args.autostart:
             servname = 'kunlun-haproxy-%d.service' % haproxy['port']
