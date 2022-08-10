@@ -403,6 +403,8 @@ def setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, 
     addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
     addToDirMap(dirmap, node['ip'], "%s/%s/util" % (mach['basedir'], targetdir))
     addToDirMap(dirmap, node['ip'], "%s/instance_binaries" % mach['basedir'])
+    addToDirMap(dirmap, node['ip'], "%s/instance_binaries/storage" % mach['basedir'])
+    addToDirMap(dirmap, node['ip'], "%s/instance_binaries/computer" % mach['basedir'])
     addNodeToFilesListMap(filesmap, node, "prometheus.tgz", targetdir)
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf prometheus.tgz")
     #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % storagedir)
@@ -956,6 +958,9 @@ def clean_with_config(jscfg, comf, machines, args):
     # clean the meta nodes
     for node in meta['nodes']:
         nodemgrobj = nodemgrmaps.get(node['ip'])
+        if args.autostart:
+            servname = 'kunlun-storage-%d.service' % node['port']
+            generate_systemctl_clean(servname, node['ip'], commandslist)
         # skip it if it is processed by nodemgr clean routine.
         if not nodemgrobj['skip']:
             continue
@@ -967,9 +972,6 @@ def clean_with_config(jscfg, comf, machines, args):
         addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['data_dir_path']))
         addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['innodb_log_dir_path']))
         addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['program_dir']))
-        if args.autostart:
-            servname = 'kunlun-storage-%d.service' % node['port']
-            generate_systemctl_clean(servname, node['ip'], commandslist)
 
     process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
     process_commandslist_setenv(comf, args, machines, commandslist)
