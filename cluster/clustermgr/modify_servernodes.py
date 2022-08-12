@@ -49,24 +49,42 @@ def get_master_conn(args, metaseeds):
             continue
     return None
 
-def add_nodemgr_nodes(args):
+def install_nodemgr_nodes(args):
     meta_conn = get_master_conn(args, args.seeds)
     nodes = get_nodemgr_nodes(args.config)
     meta_cursor = meta_conn.cursor(prepared=True)
     meta_cursor0 = meta_conn.cursor()
     meta_cursor0.execute("start transaction")
-    stmt = "insert into server_nodes(hostaddr, comp_datadir, datadir, logdir, wal_log_dir, machine_type) values(%s,%s,%s,%s,%s,%s)"
+    stmt = "insert into server_nodes(hostaddr, total_mem, total_cpu_cores, comp_datadir, \
+            datadir, logdir, wal_log_dir, machine_type, nodemgr_prometheus_port, port_range, used_port, \
+            current_port_pos) values(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
     for node in nodes:
-        if node['skip']:
+        if node['skip'] or node['nodetype'] == 'none':
             continue
-        meta_cursor.execute(stmt, (node['ip'], node['server_datadirs'], node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs'], 'storage'))
-        meta_cursor.execute(stmt, (node['ip'], node['server_datadirs'], node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs'], 'computer'))
+        if node['nodetype'] == 'both' or node['nodetype'] == 'storage':
+            meta_cursor.execute(stmt, (node['ip'], node['total_mem'], node['total_cpu_cores'], node['server_datadirs'], 
+                node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs'], 'storage', 
+                node['prometheus_port_start'], node['storage_portrange'], ",".join(node['storage_usedports']) + ",", node['storage_curport']))
+        if node['nodetype'] == 'both' or node['nodetype'] == 'server':
+            meta_cursor.execute(stmt, (node['ip'], node['total_mem'], node['total_cpu_cores'], node['server_datadirs'], 
+                node['storage_datadirs'], node['storage_logdirs'], node['storage_waldirs'], 'computer', 
+                node['prometheus_port_start'], node['server_portrange'], ",".join(node['server_usedports']) + ",", node['server_curport']))
+
+    stmt = "update server_nodes set current_port_pos=%s, used_port=concat(used_port, ',', %s) where hostaddr=%s and machine_type=%s"
+    for node in nodes:
+        if node['nodetype'] == 'none' or not node['skip']:
+            continue
+        if len(node['storage_usedports']) > 0:
+            meta_cursor.execute(stmt, (node['storage_curport'], ",".join(node['storage_usedports']) + ",", node['ip'], 'storage'))
+        if len(node['server_usedports']) > 0:
+            meta_cursor.execute(stmt, (node['server_curport'], ",".join(node['server_usedports']) + ",", node['ip'], 'computer'))
+
     meta_cursor0.execute("commit")
     meta_cursor.close()
     meta_cursor0.close()
     meta_conn.close()
 
-def remove_nodemgr_nodes(args):
+def clean_nodemgr_nodes(args):
     meta_conn = get_master_conn(args, args.seeds)
     if meta_conn is None:
         return
@@ -88,7 +106,7 @@ def remove_nodemgr_nodes(args):
 
 if  __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Specify the arguments.')
-    actions=["add","remove"]
+    actions=["install", "clean"]
     parser.add_argument('--config', type=str, help="The config path for nodemgr nodes", required=True)
     parser.add_argument('--action', type=str, help="The action", choices=actions, required=True)
     parser.add_argument('--seeds', type=str, help="The meta seeds", required=True)
@@ -97,10 +115,10 @@ if  __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.action == 'add':
-        add_nodemgr_nodes(args)
-    elif args.action == 'remove':
-        remove_nodemgr_nodes(args)
+    if args.action == 'install':
+        install_nodemgr_nodes(args)
+    elif args.action == 'clean':
+        clean_nodemgr_nodes(args)
     else:
         # just defensive, for more more actions later.
         pass

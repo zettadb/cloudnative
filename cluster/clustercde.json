@@ -22,27 +22,18 @@
  		{
  		"is_primary":true,
  		"ip":"192.168.0.110",
- 		"port":6001,
- 		"xport":60010,
- 		"mgr_port":60011,
  		"innodb_buffer_pool_size":"64MB",
  		"election_weight":50
                 },
                 {
  		"is_primary":false,
  		"ip":"192.168.0.111",
- 		"port":6002,
- 		"xport":60020,
- 		"mgr_port":60021,
  		"innodb_buffer_pool_size":"64MB",
  		"election_weight":50
                 },
                 {
  		"is_primary":false,
  		"ip":"192.168.0.100",
- 		"port":6003,
- 		"xport":60030,
- 		"mgr_port":60031,
  		"innodb_buffer_pool_size":"64MB",
  		"election_weight":50
                 }
@@ -64,13 +55,19 @@
     "node_manager": {
            "nodes": [
 		{
- 		"ip": "192.168.0.110"
+ 		"ip": "192.168.0.110",
+		"total_cpu_cores": 3,
+		"total_mem": 8192
 		},
 		{ 
- 		"ip": "192.168.0.100"
+ 		"ip": "192.168.0.100",
+		"total_cpu_cores": 3,
+		"total_mem": 8192
 		},
 		{ 
- 		"ip": "192.168.0.111"
+ 		"ip": "192.168.0.111",
+		"total_cpu_cores": 3,
+		"total_mem": 8192
 		}
 	    ]	
     },
@@ -83,15 +80,11 @@
 		    "nodes": [
 			    {
 			    "ip": "192.168.0.110",
-			    "port": 5401,
-			    "mysql_port": 5501,
 			    "user": "abc",
 			    "password": "abc"
 			    },
 			    {
 			    "ip": "192.168.0.111",
-			    "port": 5401,
-			    "mysql_port": 5501,
 			    "user": "abc",
 			    "password": "abc"
 			    }
@@ -102,18 +95,15 @@
 		    "nodes":[
 			    {
 			    "ip": "192.168.0.110",
-			    "is_primary": true,
-			    "port": 5301
+			    "is_primary": true
 			    },
 			    {
 			    "ip": "192.168.0.111",
-			    "is_primary": false,
-			    "port": 5301
+			    "is_primary": false
 			    },
 			    {
 			    "ip": "192.168.0.100",
-			    "is_primary": false,
-			    "port": 5301
+			    "is_primary": false
 			    }
 		    ]
 		    },
@@ -121,18 +111,15 @@
 		    "nodes":[
 			    {
 			    "ip": "192.168.0.100",
-			    "is_primary": true,
-			    "port": 5302
+			    "is_primary": true
 			    },
 			    {
 			    "ip": "192.168.0.111",
-			    "is_primary": false,
-			    "port": 5302
+			    "is_primary": false
 			    },
 			    {
 			    "ip": "192.168.0.110",
-			    "is_primary": false,
-			    "port": 5302
+			    "is_primary": false
 			    }
 		    ]
 		    }
@@ -146,15 +133,11 @@
 		    "nodes": [
 			    {
 			    "ip": "192.168.0.111",
-			    "port": 6401,
-			    "mysql_port": 6501,
 			    "user": "abc",
 			    "password": "abc"
 			    },
 			    {
 			    "ip": "192.168.0.100",
-			    "port": 6401,
-			    "mysql_port": 6501,
 			    "user": "abc",
 			    "password": "abc"
 			    }
@@ -165,24 +148,15 @@
 		    "nodes":[
 			    {
 			    "ip": "192.168.0.110",
-			    "is_primary": true,
-			    "port": 6301,
-			    "xport": 6311,
-			    "mgr_port": 6321
+			    "is_primary": true
 			    },
 			    {
 			    "ip": "192.168.0.111",
-			    "is_primary": false,
-			    "port": 6301,
-			    "xport": 6311,
-			    "mgr_port": 6321					    
+			    "is_primary": false
 			    },
 			    {
 			    "ip": "192.168.0.100",
-			    "is_primary": false,
-			    "port": 6301,
-			    "xport": 6311,
-			    "mgr_port": 6321
+			    "is_primary": false
 			    }
 		    ]
 		    },
@@ -190,24 +164,15 @@
 		    "nodes":[
 			    {
 			    "ip": "192.168.0.100",
-			    "is_primary": true,
-			    "port": 6302,
-			    "xport": 6312,
-			    "mgr_port": 6322
+			    "is_primary": true
 			    },
 			    {
 			    "ip": "192.168.0.111",
-			    "is_primary": false,
-			    "port": 6302,
-			    "xport": 6312,
-			    "mgr_port": 6322					    
+			    "is_primary": false
 			    },
 			    {
 			    "ip": "192.168.0.110",
-			    "is_primary": false,
-			    "port": 6302,
-			    "xport": 6312,
-			    "mgr_port": 6322
+			    "is_primary": false
 			    }
 		    ]
 		    }

@@ -7,6 +7,7 @@ import sys
 import json
 import getpass
 import argparse
+import mysql.connector
 from cluster_common import *
 
 def generate_server_startstop(args, machines, node, idx, filesmap):
@@ -403,6 +404,8 @@ def setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, 
     addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
     addToDirMap(dirmap, node['ip'], "%s/%s/util" % (mach['basedir'], targetdir))
     addToDirMap(dirmap, node['ip'], "%s/instance_binaries" % mach['basedir'])
+    addToDirMap(dirmap, node['ip'], "%s/instance_binaries/storage" % mach['basedir'])
+    addToDirMap(dirmap, node['ip'], "%s/instance_binaries/computer" % mach['basedir'])
     addNodeToFilesListMap(filesmap, node, "prometheus.tgz", targetdir)
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf prometheus.tgz")
     #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % storagedir)
@@ -782,22 +785,16 @@ def install_with_config(jscfg, comf, machines, args):
             "python2 add_hdfs.py --seeds=%s --hdfsHost=%s --hdfsPort=%d" % (metaseeds, hdfs['ip'], hdfs['port']))
 
     if len(nodemgr['nodes']) > 0:
-        nodes = []
-        for node in nodemgr['nodes']:
-            if node['skip']:
-                continue
-            nodes.append(node)
-        if len(nodes) > 0:
-            nodemgrjson = "nodemgr.json"
-            nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
-            json.dump(nodes, nodemgrf, indent=4)
-            nodemgrf.close()
-            if args.change_server_nodes and worknode is not None:
-                mach = machines.get(worknode['ip'])
-                addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
-                addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
-                addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
-                    "python2 modify_servernodes.py --config %s --action=add --seeds=%s" % (nodemgrjson, metaseeds))
+        nodemgrjson = "nodemgr.json"
+        nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
+        json.dump(nodemgr['nodes'], nodemgrf, indent=4)
+        nodemgrf.close()
+        if args.change_server_nodes and worknode is not None:
+            mach = machines.get(worknode['ip'])
+            addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
+            addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
+            addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
+                "python2 modify_servernodes.py --config %s --action=install --seeds=%s" % (nodemgrjson, metaseeds))
 
     haproxyips = install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, args)
 
@@ -908,7 +905,18 @@ def clean_with_config(jscfg, comf, machines, args):
         addNodeToFilesListMap(filesmap, node, 'clear_instance.sh', '.')
         addToCommandsList(commandslist, node['ip'], ".", 'bash ./clear_instances.sh %s %s >& clear.log || true' % (
             mach['basedir'], args.product_version))
-        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s' % (mach['basedir'], nodemgrdir))
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s*' % (mach['basedir'], nodemgrdir))
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/program_binaries' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/instance_binaries' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-node-manager*.service' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/setup_nodemgr*.sh' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/start-nodemgr*.sh' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/stop-nodemgr*.sh' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun_install*.log' % mach['basedir'])
+        # meta related is also cleared here.
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-storage*.service' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/start-storage*.sh' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/stop-storage*.sh' % mach['basedir'])
         for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
             nodedirs = node[item].strip()
             for d in nodedirs.split(","):
@@ -925,7 +933,11 @@ def clean_with_config(jscfg, comf, machines, args):
     for node in clustermgr['nodes']:
         mach = machines.get(node['ip'])
         addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash stop_cluster_mgr.sh")
-        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s' % (mach['basedir'], clustermgrdir))
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s*' % (mach['basedir'], clustermgrdir))
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/program_binaries' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/instance_binaries' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-cluster-manager*.service' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/setup_clustermgr*.sh' % mach['basedir'])
         if args.autostart:
             servname = 'kunlun-cluster-manager-%d.service' % node['brpc_raft_port']
             generate_systemctl_clean(servname, node['ip'], commandslist)
@@ -952,7 +964,7 @@ def clean_with_config(jscfg, comf, machines, args):
             nodemgrf.close()
             addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
             addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
-                "python2 modify_servernodes.py --config %s --action=remove --seeds=%s" % (nodemgrjson, metaseeds))
+                "python2 modify_servernodes.py --config %s --action=clean --seeds=%s" % (nodemgrjson, metaseeds))
         # Skip if we clean the meta.
         if len(rnames) > 0 and 'group_seeds' in meta:
             for cname in rnames:
@@ -962,6 +974,9 @@ def clean_with_config(jscfg, comf, machines, args):
     # clean the meta nodes
     for node in meta['nodes']:
         nodemgrobj = nodemgrmaps.get(node['ip'])
+        if args.autostart:
+            servname = 'kunlun-storage-%d.service' % node['port']
+            generate_systemctl_clean(servname, node['ip'], commandslist)
         # skip it if it is processed by nodemgr clean routine.
         if not nodemgrobj['skip']:
             continue
@@ -973,9 +988,9 @@ def clean_with_config(jscfg, comf, machines, args):
         addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['data_dir_path']))
         addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['innodb_log_dir_path']))
         addToCommandsList(commandslist, node['ip'], ".", cmdpat % (sudopfx, node['program_dir']))
-        if args.autostart:
-            servname = 'kunlun-storage-%d.service' % node['port']
-            generate_systemctl_clean(servname, node['ip'], commandslist)
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-storage*.service' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/start-storage*.sh' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/stop-storage*.sh' % mach['basedir'])
 
     process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
     process_commandslist_setenv(comf, args, machines, commandslist)
@@ -1176,9 +1191,11 @@ if  __name__ == '__main__':
     parser.add_argument('--setbashenv', help="whether to set the user bash env", default=False, action='store_true')
     parser.add_argument('--defbrpc_raft_port_clustermgr', type=int, help="default brpc_raft_port for cluster_manager", default=58001)
     parser.add_argument('--defbrpc_http_port_clustermgr', type=int, help="default brpc_http_port for cluster_manager", default=58000)
-    parser.add_argument('--defpromethes_port_start_clustermgr', type=int, help="default prometheus starting port for cluster_manager", default=57010)
+    parser.add_argument('--defpromethes_port_start_clustermgr', type=int, help="default prometheus starting port for cluster_manager", default=59010)
     parser.add_argument('--defbrpc_http_port_nodemgr', type=int, help="default brpc_http_port for node_manager", default=58002)
     parser.add_argument('--deftcp_port_nodemgr', type=int, help="default tcp_port for node_manager", default=58003)
+    parser.add_argument('--defstorage_portrange_nodemgr', type=str, help="default port-range for storage nodes", default="57000-58000")
+    parser.add_argument('--defserver_portrange_nodemgr', type=str, help="default port-range for server nodes", default="47000-48000")
     parser.add_argument('--defprometheus_port_start_nodemgr', type=int, help="default prometheus starting port for node_manager", default=58010)
     parser.add_argument('--outfile', type=str, help="the path for the cluster config", default="cluster.json")
     parser.add_argument('--cluster_name', type=str, help="the name of the cluster to generate the config file", default="")

@@ -18,17 +18,27 @@
     ],
     "meta":{
 	"ha_mode": "mgr",
-	"group_seeds": "192.168.0.110:6001,192.168.0.111:6002,192.168.0.100:6003"
+	"group_seeds": "192.168.0.110:57000,192.168.0.111:57000,192.168.0.100:57000"
     },
     "node_manager": {
            "nodes": [
 		{
 		"skip": true,
- 		"ip": "192.168.0.110"
+ 		"ip": "192.168.0.110",
+		"storage_curport": 57016,
+		"server_curport": 47004
 		},
 		{ 
 		"skip": true,
- 		"ip": "192.168.0.100"
+ 		"ip": "192.168.0.111",
+		"storage_curport": 57016,
+		"server_curport": 47008
+		},
+		{
+		"skip": true,
+		"ip": "192.168.0.100",
+		"storage_curport": 57016,
+		"server_curport": 47004
 		}
 	    ]	
     },
@@ -41,15 +51,11 @@
 		    "nodes": [
 			    {
 			    "ip": "192.168.0.110",
-			    "port": 7401,
-			    "mysql_port": 7501,
 			    "user": "abc",
 			    "password": "abc"
 			    },
 			    {
 			    "ip": "192.168.0.111",
-			    "port": 7401,
-			    "mysql_port": 7501,
 			    "user": "abc",
 			    "password": "abc"
 			    }
@@ -60,17 +66,11 @@
 		    "nodes":[
 			    {
 			    "ip": "192.168.0.110",
-			    "is_primary": true,
-			    "port": 7301,
-			    "xport": 7311,
-			    "mgr_port": 7321
+			    "is_primary": true
 			    },
 			    {
 			    "ip": "192.168.0.111",
-			    "is_primary": false,
-			    "port": 7301,
-			    "xport": 7311,
-			    "mgr_port": 7321					    
+			    "is_primary": false
 			    }
 		    ]
 		    },
@@ -78,17 +78,11 @@
 		    "nodes":[
 			    {
 			    "ip": "192.168.0.100",
-			    "is_primary": true,
-			    "port": 7302,
-			    "xport": 7312,
-			    "mgr_port": 7322
+			    "is_primary": true
 			    },
 			    {
 			    "ip": "192.168.0.111",
-			    "is_primary": false,
-			    "port": 7302,
-			    "xport": 7312,
-			    "mgr_port": 7322					    
+			    "is_primary": false
 			    }
 		    ]
 		    }
@@ -102,8 +96,6 @@
 		    "nodes": [
 			    {
 			    "ip": "192.168.0.111",
-			    "port": 8401,
-			    "mysql_port": 8501,
 			    "user": "abc",
 			    "password": "abc"
 			    }
@@ -114,10 +106,7 @@
 		    "nodes":[
 			    {
 			    "ip": "192.168.0.110",
-			    "is_primary": true,
-			    "port": 8301,
-			    "xport": 8311,
-			    "mgr_port": 8321
+			    "is_primary": true
 			    }
 		    ]
 		    },
@@ -125,10 +114,7 @@
 		    "nodes":[
 			    {
 			    "ip": "192.168.0.100",
-			    "is_primary": true,
-			    "port": 8302,
-			    "xport": 8312,
-			    "mgr_port": 8322
+			    "is_primary": true
 			    }
 		    ]
 		    }

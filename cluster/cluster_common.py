@@ -584,6 +584,8 @@ def validate_and_set_config2(jscfg, machines, args):
     for node in clustermgr['nodes']:
         if node['ip'] in clustermgrips:
             raise ValueError('Error: %s exists, only one cluster_mgr can be run on a machine!' % node['ip'])
+        if 'valgrind' not in node:
+            node['valgrind'] = False
         clustermgrips.add(node['ip'])
         if 'brpc_raft_port' in node:
             addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
@@ -610,8 +612,29 @@ def validate_and_set_config2(jscfg, machines, args):
     nodemgrips = set()
     nodemgrmaps = {}
     for node in nodemgr['nodes']:
+        node['storage_usedports'] = []
+        node['server_usedports'] = []
+        if 'valgrind' not in node:
+            node['valgrind'] = False
         if 'skip' not in node:
             node['skip'] = False
+        if 'nodetype' not in node:
+            node['nodetype'] = 'none'
+        if args.change_server_nodes and 'total_cpu_cores' not in node and not node['skip']:
+            raise ValueError('Error: total_cpu_cores must be set for %s' % node['ip'])
+        if args.change_server_nodes and 'total_mem' not in node and not node['skip']:
+            raise ValueError('Error: total_mem must be set for %s' % node['ip'])
+        if 'storage_portrange' not in node:
+            node['storage_portrange'] = args.defstorage_portrange_nodemgr
+        if 'server_portrange' not in node:
+            node['server_portrange'] = args.defserver_portrange_nodemgr
+        # validate other configurations
+        if 'storage_curport' not in node:
+            range1 = node['storage_portrange'].split('-')
+            node['storage_curport'] = int(range1[0]) + 1
+        if 'server_curport' not in node:
+            range2 = node['server_portrange'].split('-')
+            node['server_curport'] = int(range2[0]) + 1
         mach = machines.get(node['ip'])
         if node['ip'] in nodemgrips:
             raise ValueError('Error: %s exists, only one node_mgr can be run on a machine!' % node['ip'])
@@ -667,23 +690,33 @@ def validate_and_set_config2(jscfg, machines, args):
     hasPrimary=False
     meta_addrs = []
     for node in meta['nodes']:
-        meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
         # These attr should not be set explicitly.
         for attr in ['data_dir_path', 'log_dir_path', 'innodb_log_dir_path']:
             if attr in node:
-                raise ValueError('%s can not be set explicitly for meta node %s:%d' % (attr, node['ip'], node['port']))
-        addPortToMachine(portmap, node['ip'], node['port'])
+                raise ValueError('%s can not be set explicitly for meta node %s' % (attr, node['ip']))
         if node['ip'] not in nodemgrips:
             nodem = get_default_nodemgr(args, machines, node['ip'])
             nodemgr['nodes'].append(nodem)
             nodemgrmaps[node['ip']] = nodem
             nodemgrips.add(node['ip'])
         # node['nodemgr'] = nodemgrmaps.get(node['ip'])
-        set_storage_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
-        if 'xport' in node:
+        nodemgrobj = nodemgrmaps.get(node['ip'])
+        fix_nodemgr_nodetype(args, nodemgrobj, 'storage')
+        if 'port' not in node:
+            node['port'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 2)
+        addPortToMachine(portmap, node['ip'], node['port'])
+        addto_usedports(args, nodemgrobj, 'storage', node['port'])
+        set_storage_using_nodemgr(machines, node, nodemgrobj)
+        meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
+        if meta['ha_mode'] == 'mgr':
+            if 'xport' not in node:
+                node['xport'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 1)
             addPortToMachine(portmap, node['ip'], node['xport'])
-        if 'mgr_port' in node:
+            addto_usedports(args, nodemgrobj, 'storage', node['xport'])
+            if 'mgr_port' not in node:
+                node['mgr_port'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 1)
             addPortToMachine(portmap, node['ip'], node['mgr_port'])
+            addto_usedports(args, nodemgrobj, 'storage', node['mgr_port'])
         if 'election_weight' not in node:
             node['election_weight'] = 50
         if node.get('is_primary', False):
@@ -719,13 +752,22 @@ def validate_and_set_config2(jscfg, machines, args):
         for node in comps['nodes']:
             mach = machines.get(node['ip'])
             mach['haspg'] = True
-            addPortToMachine(portmap, node['ip'], node['port'])
             if node['ip'] not in nodemgrips:
                 nodem = get_default_nodemgr(args, machines, node['ip'])
                 nodemgr['nodes'].append(nodem)
                 nodemgrmaps[node['ip']] = nodem
                 nodemgrips.add(node['ip'])
-            set_server_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
+            nodemgrobj = nodemgrmaps.get(node['ip'])
+            fix_nodemgr_nodetype(args, nodemgrobj, 'server')
+            if 'port' not in node:
+                node['port'] = get_nodemgr_nextport(args, nodemgrobj, "server", 2)
+            addPortToMachine(portmap, node['ip'], node['port'])
+            addto_usedports(args, nodemgrobj, 'server', node['port'])
+            if 'mysql_port' not in node:
+                node['mysql_port'] = get_nodemgr_nextport(args, nodemgrobj, "server", 2)
+            addPortToMachine(portmap, node['ip'], node['mysql_port'])
+            addto_usedports(args, nodemgrobj, 'server', node['mysql_port'])
+            set_server_using_nodemgr(machines, node, nodemgrobj)
         for shard in datas:
             nodecnt = len(shard['nodes'])
             if nodecnt == 0:
@@ -735,26 +777,39 @@ def validate_and_set_config2(jscfg, machines, args):
             elif nodecnt == 1 and ha_mode != 'no_rep':
                 raise ValueError('Error: ha_mode is mgr/rbr, but there is only one node in the shard')
             for node in shard['nodes']:
-                addPortToMachine(portmap, node['ip'], node['port'])
                 if node['ip'] not in nodemgrips:
                     nodem = get_default_nodemgr(args, machines, node['ip'])
                     nodemgr['nodes'].append(nodem)
                     nodemgrmaps[node['ip']] = nodem
                     nodemgrips.add(node['ip'])
-                if 'xport' in node:
+                nodemgrobj = nodemgrmaps.get(node['ip'])
+                fix_nodemgr_nodetype(args, nodemgrobj, 'storage')
+                if 'port' not in node:
+                    node['port'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 2)
+                addPortToMachine(portmap, node['ip'], node['port'])
+                addto_usedports(args, nodemgrobj, 'storage', node['port'])
+                set_storage_using_nodemgr(machines, node, nodemgrobj)
+                if ha_mode == 'mgr':
+                    if 'xport' not in node:
+                        node['xport'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 1)
                     addPortToMachine(portmap, node['ip'], node['xport'])
-                if 'mgr_port' in node:
+                    addto_usedports(args, nodemgrobj, 'storage', node['xport'])
+                    if 'mgr_port' not in node:
+                        node['mgr_port'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 1)
                     addPortToMachine(portmap, node['ip'], node['mgr_port'])
+                    addto_usedports(args, nodemgrobj, 'storage', node['mgr_port'])
                 if 'election_weight' not in node:
                     node['election_weight'] = 50
-                set_storage_using_nodemgr(machines, node, nodemgrmaps.get(node['ip']))
         if 'haproxy' in cluster:
             node = cluster['haproxy']
             addPortToMachine(portmap, node['ip'], node['port'])
             if 'mysql_port' in node:
                 addPortToMachine(portmap, node['ip'], node['mysql_port'])
+    for node in nodemgr['nodes']:
+        my_print(str(node))
 
-def get_default_nodemgr(args, machines, ip):
+
+def get_default_nodemgr(args, machines, ip, nodetype):
     mach = machines.get(ip)
     defpaths = {
             "server_datadirs": "server_datadir",
@@ -767,8 +822,85 @@ def get_default_nodemgr(args, machines, ip):
             'brpc_http_port': args.defbrpc_http_port_nodemgr,
             "tcp_port": args.deftcp_port_nodemgr,
             "prometheus_port_start": args.defprometheus_port_start_nodemgr,
+            'total_cpu_cores': 0,
+            'total_mem': 0,
+            'nodetype': 'none',
+            'storage_portrange': args.defstorage_portrange_nodemgr,
+            'server_portrange': args.defserver_portrange_nodemgr,
+            'storage_curport': int(args.defstorage_portrange_nodemgr.split('-')[0]) + 1,
+            'server_curport': int(args.defserver_portrange_nodemgr.split('-')[0]) + 1,
+            'storage_usedports': [],
+            'server_usedports': [],
+            'valgrind': False,
             "skip": True
             }
     for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
         node[item] = "%s/%s" % (mach['basedir'], defpaths[item])
     return node
+
+def get_nodemgr_nextport(args, nodemgrobj, nodetype, incr=1):
+    if nodetype == 'storage':
+        port = nodemgrobj['storage_curport']
+        nodemgrobj['storage_curport'] += incr
+        return port
+    else:
+        port = nodemgrobj['server_curport']
+        nodemgrobj['server_curport'] += incr
+        return port
+
+def fix_nodemgr_nodetype(args, nodemgrobj, addtype):
+    if nodemgrobj['nodetype'] == 'both' or nodemgrobj['nodetype'] == addtype:
+        pass
+    elif nodemgrobj['nodetype'] == 'none':
+        nodemgrobj['nodetype'] = addtype
+    else:
+        nodemgrobj['nodetype'] = 'both'
+
+def addto_usedports(args, nodemgrobj, addtype, port):
+    if addtype == 'storage':
+        nodemgrobj['storage_usedports'].append(str(port))
+    else:
+        nodemgrobj['server_usedports'].append(str(port))
+
+def get_servernodes_from_meta(args, metaseeds):
+    conn = get_master_conn(args, metaseeds)
+    cur = con.cursor()
+    cur.close()
+    conn.close()
+
+def get_master_conn(args, metaseeds):
+    mc = __import__('mysql.connector', globals(), locals(), [], -1)
+    for addr in metaseeds.split(','):
+        parts = addr.split(':')
+        host = parts[0]
+        port = 3306
+        if len(parts) > 1:
+            port = int(parts[1])
+        mysql_conn_params = {}
+        mysql_conn_params['host'] = host
+        mysql_conn_params['port'] = port
+        mysql_conn_params['user'] = args.user
+        mysql_conn_params['password'] = args.password
+        mysql_conn_params['database'] = 'Kunlun_Metadata_DB'
+        conn = None
+        csr = None
+        try:
+            conn = mc.connect(**mysql_conn_params)
+            csr = conn.cursor()
+            csr.execute("select @@super_read_only")
+            row = csr.fetchone()
+            if row is None or row[0] == '1':
+                csr.close()
+                csr = None
+                conn.close()
+                conn = None
+                continue
+            else:
+                print "%s:%s is master" % (host, str(port))
+                csr.close()
+                return conn
+        except mc.errors.InterfaceError as err:
+            if conn is not None:
+                conn.close()
+            continue
+    return None

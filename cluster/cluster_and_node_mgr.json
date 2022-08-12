@@ -24,27 +24,23 @@
  		"ip":"192.168.0.110",
  		"port":6001,
  		"xport":60010,
- 		"mgr_port":60011,
- 		"innodb_buffer_pool_size":"64MB",
- 		"election_weight":50
+ 		"mgr_port":60011
                 },
                 {
  		"is_primary":false,
  		"ip":"192.168.0.111",
- 		"port":6002,
- 		"xport":60020,
- 		"mgr_port":60021,
- 		"innodb_buffer_pool_size":"64MB",
- 		"election_weight":50
+ 		"port":6001,
+ 		"xport":60010,
+		"master_priority": 30,
+ 		"mgr_port":60011
                 },
                 {
  		"is_primary":false,
  		"ip":"192.168.0.100",
- 		"port":6003,
- 		"xport":60030,
- 		"mgr_port":60031,
- 		"innodb_buffer_pool_size":"64MB",
- 		"election_weight":50
+ 		"port":6001,
+ 		"xport":60010,
+		"master_priority": 30,
+ 		"mgr_port":60011
                 }
         ]
     },
@@ -53,10 +49,10 @@
 		{
  		"ip": "192.168.0.110"
 		},
-		{ 
+		{
  		"ip": "192.168.0.111"
 		},
-		{ 
+		{
  		"ip": "192.168.0.100"
 		}
 	    ]	
@@ -64,13 +60,22 @@
     "node_manager": {
            "nodes": [
 		{
- 		"ip": "192.168.0.110"
+ 		"ip": "192.168.0.110",
+		"total_cpu_cores": 3,
+		"total_mem": 8192,
+		"nodetype": "both"
+		},
+		{
+ 		"ip": "192.168.0.111",
+		"total_cpu_cores": 3,
+		"total_mem": 8192,
+		"nodetype": "both"
 		},
 		{ 
- 		"ip": "192.168.0.111"
-		},
-		{ 
- 		"ip": "192.168.0.100"
+ 		"ip": "192.168.0.100",
+		"total_cpu_cores": 3,
+		"total_mem": 8192,
+		"nodetype": "both"
 		}
 	    ]	
     }
