@@ -21,26 +21,15 @@
         "nodes":[
  		{
  		"is_primary":true,
- 		"ip":"192.168.0.110",
- 		"port":6001,
- 		"xport":60010,
- 		"mgr_port":60011
+ 		"ip":"192.168.0.110"
                 },
                 {
  		"is_primary":false,
- 		"ip":"192.168.0.111",
- 		"port":6001,
- 		"xport":60010,
-		"master_priority": 30,
- 		"mgr_port":60011
+ 		"ip":"192.168.0.111"
                 },
                 {
  		"is_primary":false,
- 		"ip":"192.168.0.100",
- 		"port":6001,
- 		"xport":60010,
-		"master_priority": 30,
- 		"mgr_port":60011
+ 		"ip":"192.168.0.100"
                 }
         ]
     },

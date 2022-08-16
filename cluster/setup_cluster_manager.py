@@ -789,7 +789,7 @@ def install_with_config(jscfg, comf, machines, args):
         nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
         json.dump(nodemgr['nodes'], nodemgrf, indent=4)
         nodemgrf.close()
-        if args.change_server_nodes and worknode is not None:
+        if worknode is not None:
             mach = machines.get(worknode['ip'])
             addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
             addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
@@ -953,11 +953,10 @@ def clean_with_config(jscfg, comf, machines, args):
     if worknode is not None:
         ip = worknode['ip']
         mach = machines.get(ip)
-        if args.change_server_nodes:
-            addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
+        addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
         addNodeToFilesListMap(filesmap, worknode, 'delete_cluster.py', '.')
         # Skip if we clean the meta.
-        if args.change_server_nodes and len(nodemgr['nodes']) > 0 and 'group_seeds' in meta:
+        if len(nodemgr['nodes']) > 0 and 'group_seeds' in meta:
             nodemgrjson = "nodemgr.json"
             nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
             json.dump(nodemgr['nodes'], nodemgrf, indent=4)
@@ -1184,6 +1183,7 @@ if  __name__ == '__main__':
     parser.add_argument('--defuser', type=str, help="the default user", default=getpass.getuser())
     parser.add_argument('--defbase', type=str, help="the default basedir", default='/kunlun')
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
+    parser.add_argument('--verbose', help="verbose mode, to show more information", default=False, action='store_true')
     parser.add_argument('--product_version', type=str, help="kunlun version", default='1.0.1')
     parser.add_argument('--localip', type=str, help="The local ip address", default='127.0.0.1')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
@@ -1199,7 +1199,6 @@ if  __name__ == '__main__':
     parser.add_argument('--defprometheus_port_start_nodemgr', type=int, help="default prometheus starting port for node_manager", default=58010)
     parser.add_argument('--outfile', type=str, help="the path for the cluster config", default="cluster.json")
     parser.add_argument('--cluster_name', type=str, help="the name of the cluster to generate the config file", default="")
-    parser.add_argument('--change_server_nodes', help="whether to change server_nodes table", default=False, action='store_true')
 
     args = parser.parse_args()
     if not args.defbase.startswith('/'):

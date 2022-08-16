@@ -620,9 +620,9 @@ def validate_and_set_config2(jscfg, machines, args):
             node['skip'] = False
         if 'nodetype' not in node:
             node['nodetype'] = 'none'
-        if args.change_server_nodes and 'total_cpu_cores' not in node and not node['skip']:
+        if 'total_cpu_cores' not in node and not node['skip']:
             raise ValueError('Error: total_cpu_cores must be set for %s' % node['ip'])
-        if args.change_server_nodes and 'total_mem' not in node and not node['skip']:
+        if 'total_mem' not in node and not node['skip']:
             raise ValueError('Error: total_mem must be set for %s' % node['ip'])
         if 'storage_portrange' not in node:
             node['storage_portrange'] = args.defstorage_portrange_nodemgr
@@ -695,7 +695,7 @@ def validate_and_set_config2(jscfg, machines, args):
             if attr in node:
                 raise ValueError('%s can not be set explicitly for meta node %s' % (attr, node['ip']))
         if node['ip'] not in nodemgrips:
-            nodem = get_default_nodemgr(args, machines, node['ip'])
+            nodem = get_default_nodemgr(args, machines, node['ip'], "storage")
             nodemgr['nodes'].append(nodem)
             nodemgrmaps[node['ip']] = nodem
             nodemgrips.add(node['ip'])
@@ -753,7 +753,7 @@ def validate_and_set_config2(jscfg, machines, args):
             mach = machines.get(node['ip'])
             mach['haspg'] = True
             if node['ip'] not in nodemgrips:
-                nodem = get_default_nodemgr(args, machines, node['ip'])
+                nodem = get_default_nodemgr(args, machines, node['ip'], "server")
                 nodemgr['nodes'].append(nodem)
                 nodemgrmaps[node['ip']] = nodem
                 nodemgrips.add(node['ip'])
@@ -778,7 +778,7 @@ def validate_and_set_config2(jscfg, machines, args):
                 raise ValueError('Error: ha_mode is mgr/rbr, but there is only one node in the shard')
             for node in shard['nodes']:
                 if node['ip'] not in nodemgrips:
-                    nodem = get_default_nodemgr(args, machines, node['ip'])
+                    nodem = get_default_nodemgr(args, machines, node['ip'], "storage")
                     nodemgr['nodes'].append(nodem)
                     nodemgrmaps[node['ip']] = nodem
                     nodemgrips.add(node['ip'])
@@ -805,9 +805,9 @@ def validate_and_set_config2(jscfg, machines, args):
             addPortToMachine(portmap, node['ip'], node['port'])
             if 'mysql_port' in node:
                 addPortToMachine(portmap, node['ip'], node['mysql_port'])
-    for node in nodemgr['nodes']:
-        my_print(str(node))
-
+    if args.verbose:
+        for node in nodemgr['nodes']:
+            my_print(str(node))
 
 def get_default_nodemgr(args, machines, ip, nodetype):
     mach = machines.get(ip)
