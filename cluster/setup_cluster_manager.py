@@ -413,7 +413,7 @@ def setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, 
     #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
     #addToCommandsList(commandslist, node['ip'], targetdir, "tar -czf %s.tgz %s" % (serverdir, serverdir))
 
-def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, args):
+def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, args):
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
     clusters = jscfg['clusters']
@@ -432,6 +432,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         j = 1
         pries = []
         secs = []
+        pairs = []
         for shard in cluster['data']:
             if not 'group_uuid' in shard:
                 shard['group_uuid'] = getuuid()
@@ -443,6 +444,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
             k = 0
             for node in shard['nodes']:
                 targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
+                addNodeToFilesListMap(filesmap, node, 'add_cluster.py', targetdir)
                 addNodeToFilesListMap(filesmap, node, my_shardname, targetdir)
                 mach = machines.get(node['ip'])
                 absenvfname = '%s/env.sh.nodemgr' % (mach['basedir'])
@@ -450,6 +452,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
                 cmd = cmdpat % (envpfx, my_shardname, k, cluster_name, shard_id, k+1)
                 generate_storage_startstop(args, machines, node, k, filesmap)
                 if node.get('is_primary', False):
+                    pairs.append({"node":node, "cfg": my_shardname})
                     pries.append([node['ip'], targetdir, cmd])
                 else:
                     secs.append([node['ip'], targetdir, cmd])
@@ -499,6 +502,14 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
 --comps_config=./%s  --meta_config=./%s --cluster_name=%s --meta_ha_mode=%s --ha_mode=%s --cluster_owner=abc --cluster_biz=%s'
         addToCommandsList(commandslist, node['ip'], targetdir,
             cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta_hamode, cluster['ha_mode'], cluster_name), "parent")
+
+        if cluster['ha_mode'] == 'rbr':
+            cmdpat = r'python2 add_cluster.py --seeds=%s --type=data --shardscfg=%s'
+            for pair in pairs:
+                node = pair['node']
+                cfg = pair['cfg']
+                targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
+                addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (metaseeds, cfg), 'storage')
 
         cmdpat = r'%spython2 add_comp_self.py  --meta_config=./%s --cluster_name=%s --user=%s --password=%s --hostname=%s --port=%d --mysql_port=%d --datadir=%s --install --ha_mode=%s'
         idx=0
@@ -612,7 +623,7 @@ def install_with_config(jscfg, comf, machines, args):
     meta = jscfg['meta']
     clustermgr = jscfg['cluster_manager']
     nodemgr = jscfg['node_manager']
-    ha_mode = meta.get('ha_mode', '')
+    meta_hamode = meta.get('ha_mode', '')
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
     clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
@@ -623,7 +634,7 @@ def install_with_config(jscfg, comf, machines, args):
     dirmap = {}
 
     cluster_name = 'meta'
-    extraopt = " --ha_mode=%s" % ha_mode
+    extraopt = " --ha_mode=%s" % meta_hamode
     metaseeds = meta['group_seeds']
     my_print('metaseeds:%s' % metaseeds)
 
@@ -738,6 +749,7 @@ def install_with_config(jscfg, comf, machines, args):
         envpfx = "test -f %s && . %s; " % (absenvfname, absenvfname)
         addNodeToFilesListMap(filesmap, node, reg_metaname, "%s/%s/scripts" % (node['program_dir'], serverdir))
         addNodeToFilesListMap(filesmap, node, my_metaname, targetdir)
+        addNodeToFilesListMap(filesmap, node, 'add_cluster.py', targetdir)
         addNodeToFilesListMap(filesmap, node, xpanel_sqlfile, targetdir)
         cmd = cmdpat % (envpfx, my_metaname, i, cluster_name, shard_id, i+1)
         if node.get('is_primary', False):
@@ -767,9 +779,12 @@ def install_with_config(jscfg, comf, machines, args):
         targetdir='%s/%s/scripts' % (firstmeta['program_dir'], serverdir)
         cmdpat=r'python2 bootstrap.py --config=./%s --bootstrap_sql=./meta_inuse.sql' + extraopt
         addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % reg_metaname, "computing")
-        cmdpat=r'bash imysql.sh %s < %s'
         targetdir='%s/%s/dba_tools' % (firstmeta['program_dir'], storagedir)
+        cmdpat=r'bash imysql.sh %s < %s'
         addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (str(firstmeta['port']), xpanel_sqlfile), "storage")
+        if meta_hamode == 'rbr':
+            cmdpat=r'python2 add_cluster.py --seeds=%s --type=meta --shardscfg=%s'
+            addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (metaseeds, my_metaname), "storage")
 
     worknode = None
     if len(meta['nodes']) > 0:
@@ -796,7 +811,7 @@ def install_with_config(jscfg, comf, machines, args):
             addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
                 "python2 modify_servernodes.py --config %s --action=install --seeds=%s" % (nodemgrjson, metaseeds))
 
-    haproxyips = install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, args)
+    haproxyips = install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, args)
 
     i = 0
     for node in clustermgr['nodes']:

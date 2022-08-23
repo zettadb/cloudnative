@@ -17,7 +17,7 @@
         }
     ],
     "meta":{
-	"ha_mode": "mgr",
+	"ha_mode": "rbr",
         "nodes":[
  		{
  		"is_primary":true,

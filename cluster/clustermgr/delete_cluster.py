@@ -64,6 +64,8 @@ def delete_cluster(args):
     meta_cursor0.execute(stmt, (cluster_id,))
     stmt = "delete from shards where db_cluster_id=%s"
     meta_cursor0.execute(stmt, (cluster_id,))
+    stmt = "delete from node_map_master where cluster_id=%s"
+    meta_cursor0.execute(stmt, (cluster_id,))
     stmt = "delete from db_clusters where id=%s"
     meta_cursor0.execute(stmt, (cluster_id,))
     meta_cursor0.execute("commit")
