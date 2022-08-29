@@ -1,0 +1,136 @@
+{
+    "machines":[
+        {
+            "ip":"192.168.0.110",
+            "basedir":"/home/kunlun/norepbase",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.111",
+	    "basedir":"/home/kunlun/norepbase",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.100",
+            "basedir":"/home/kunlun/norepbase",
+            "user":"kunlun"
+        }
+    ],
+    "meta":{
+	"ha_mode": "mgr",
+        "nodes":[
+ 		{
+ 		"is_primary":true,
+ 		"ip":"192.168.0.110",
+		"port": 6001
+                },
+                {
+ 		"is_primary":false,
+ 		"ip":"192.168.0.111",
+		"port": 6001
+                },
+                {
+ 		"is_primary":false,
+ 		"ip":"192.168.0.100",
+		"port": 6001
+                }
+        ]
+    },
+    "cluster_manager": {
+           "nodes": [
+		{
+ 		"ip": "192.168.0.110"
+		},
+		{
+ 		"ip": "192.168.0.111"
+		},
+		{
+ 		"ip": "192.168.0.100"
+		}
+	    ]	
+    },
+    "node_manager": {
+           "nodes": [
+		{
+ 		"ip": "192.168.0.110",
+		"total_cpu_cores": 3,
+		"total_mem": 8192,
+		"nodetype": "both"
+		},
+		{
+ 		"ip": "192.168.0.111",
+		"total_cpu_cores": 3,
+		"total_mem": 8192,
+		"nodetype": "both"
+		},
+		{ 
+ 		"ip": "192.168.0.100",
+		"total_cpu_cores": 3,
+		"total_mem": 8192,
+		"nodetype": "both"
+		}
+	    ]	
+    },
+    "clusters": [
+	    {
+		    "name": "norepcluster1",
+		    "ha_mode": "no_rep",
+		    "storage_template": "small",
+		    "comp": {
+			    "nodes": [
+				    {
+					    "ip": "192.168.0.110",
+					    "port": 5401,
+					    "user": "abc",
+					    "password": "abc",
+					    "mysql_port": 5501
+				    },
+				    {
+					    "ip": "192.168.0.111",
+					    "port": 5401,
+					    "user": "abc",
+					    "password": "abc",
+					    "mysql_port": 5501
+				    },
+				    {
+					    "ip": "192.168.0.100",
+					    "port": 5401,
+					    "user": "abc",
+					    "password": "abc",
+					    "mysql_port": 5501
+				    }
+			    ]
+		    },
+		    "data":[
+			    {
+				    "nodes":[
+					    {
+						    "ip": "192.168.0.110",
+						    "port": 16001,
+						    "is_primary": true
+					    }
+				    ]
+			    },
+			    {
+				     "nodes":[
+					    {
+						    "ip": "192.168.0.111",
+						    "port": 16001,
+						    "is_primary": true
+					    }
+				    ]
+			    },
+			    {
+				     "nodes":[
+					    {
+						    "ip": "192.168.0.100",
+						    "port": 16001,
+						    "is_primary": true
+					    }
+				    ]
+			    }
+		    ]
+	}
+
+    ]
+}    

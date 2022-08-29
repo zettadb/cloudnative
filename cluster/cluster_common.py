@@ -768,6 +768,7 @@ def validate_and_set_config2(jscfg, machines, args):
             addPortToMachine(portmap, node['ip'], node['mysql_port'])
             addto_usedports(args, nodemgrobj, 'server', node['mysql_port'])
             set_server_using_nodemgr(machines, node, nodemgrobj)
+        i = 1
         for shard in datas:
             nodecnt = len(shard['nodes'])
             if nodecnt == 0:
@@ -776,6 +777,7 @@ def validate_and_set_config2(jscfg, machines, args):
                 raise ValueError('Error: ha_mode is no_rep, but there are multiple nodes in the shard')
             elif nodecnt == 1 and ha_mode != 'no_rep':
                 raise ValueError('Error: ha_mode is mgr/rbr, but there is only one node in the shard')
+            hasPrimary = False
             for node in shard['nodes']:
                 if node['ip'] not in nodemgrips:
                     nodem = get_default_nodemgr(args, machines, node['ip'], "storage")
@@ -800,6 +802,18 @@ def validate_and_set_config2(jscfg, machines, args):
                     addto_usedports(args, nodemgrobj, 'storage', node['mgr_port'])
                 if 'election_weight' not in node:
                     node['election_weight'] = 50
+                if node.get('is_primary', False):
+                    if hasPrimary:
+                        raise ValueError('Error: Two primaries found in %s-shard%d, there should be one and only one Primary specified !' % (cluster['name'], i))
+                    else:
+                        hasPrimary = True
+            if nodecnt > 1:
+                if not hasPrimary:
+                    raise ValueError('Error: No primary found in %s-shard%d, there should be one and only one !', (cluster['name'], i))
+            elif nodecnt > 0:
+                node['is_primary'] = True
+            i += 1
+
         if 'haproxy' in cluster:
             node = cluster['haproxy']
             addPortToMachine(portmap, node['ip'], node['port'])

@@ -7,7 +7,6 @@ import sys
 import json
 import getpass
 import argparse
-import mysql.connector
 from cluster_common import *
 
 def generate_server_startstop(args, machines, node, idx, filesmap):
