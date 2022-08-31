@@ -231,6 +231,8 @@ def generate_install_scripts(jscfg, args):
         obj['port'] = node['port']
         obj['user'] = "pgx"
         obj['password'] = "pgx_pwd"
+        if 'master_priority' in node:
+            obj['master_priority'] = node['master_priority']
         objs.append(obj)
     json.dump(objs, metaf, indent=4)
     metaf.close()
@@ -248,6 +250,10 @@ def generate_install_scripts(jscfg, args):
             n={'user':'pgx', 'password':'pgx_pwd'}
             n['ip'] = node['ip']
             n['port'] = node['port']
+            if 'ro_weight' in node:
+                n['ro_weight'] = node['ro_weight']
+            if 'master_priority' in node:
+                n['master_priority'] = node['master_priority']
             nodes.append(n)
         obj['shard_nodes'] = nodes
         shards.append(obj)
@@ -445,7 +451,7 @@ def generate_stop_scripts(jscfg, args):
 
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:
-        cmdpat="cat haproxy.pid | xargs kill -9"
+        cmdpat="cat haproxy-%d.pid | xargs kill -9" % haproxy['port']
         addToCommandsList(commandslist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
 
     # pg_ctl -D %s stop"
@@ -511,9 +517,9 @@ def generate_clean_scripts(jscfg, args):
 
     haproxy = cluster.get("haproxy", None)
     if haproxy is not None:
-        cmdpat="cat haproxy.pid | xargs kill -9"
+        cmdpat="cat haproxy-%d.pid | xargs kill -9" % haproxy['port']
         addToCommandsList(noenv_cmdlist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
-        cmdpat="rm -f haproxy.pid"
+        cmdpat="rm -f haproxy-%d.pid"  % haproxy['port']
         addToCommandsList(noenv_cmdlist, haproxy['ip'], machines[haproxy['ip']]['basedir'], cmdpat)
         if args.autostart:
             servname = 'kunlun-haproxy-%d.service' % haproxy['port']
