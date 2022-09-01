@@ -230,6 +230,10 @@ def generate_install_scripts(jscfg, args):
     shard_ha_mode = cluster['ha_mode']
     network = jscfg.get('network', 'klnet')
     defbufstr='1024MB'
+    if args.imageInFiles:
+        dockercmd = "sudo docker run -itd "
+    else:
+        dockercmd = "sudo docker run --pull always -itd "
 
     # Meta nodes
     metanodes = []
@@ -248,18 +252,18 @@ def generate_install_scripts(jscfg, args):
 	addIpToMachineMap(machines, node['ip'], args)
 	i+=1
     iplist=",".join(metalist)
-    # For mgr: docker run -itd --network klnet --name mgr1a -h mgr1a [-v path_host:path_container] kunlun-storage /bin/bash start_storage.sh \
+    # For mgr: $dockercmd --network klnet --name mgr1a -h mgr1a [-v path_host:path_container] kunlun-storage /bin/bash start_storage.sh \
     # 237d8a1c-39ec-11eb-92aa-7364f9a0e147 mgr1a mgr1a,mgr1b,mgr1c 1 true 0 0
-    # For no_rep: docker run -itd --network klnet --name mgr1a -h mgr1a [-v path_host:path_container] kunlun-storage /bin/bash start_storage.sh \
+    # For no_rep: $dockercmd --network klnet --name mgr1a -h mgr1a [-v path_host:path_container] kunlun-storage /bin/bash start_storage.sh \
     #  no_rep <innodb_buffer_pool_size> <server-id> <cluster-id> <shard-id>
     
     if meta_ha_mode == 'mgr':
-        cmdpat= "sudo docker run --pull always %s -itd --network %s --name %s -h %s %s %s /bin/bash start_storage_mgr.sh %s %s %s %d %s %s %s %s"
+        cmdpat= dockercmd + " %s --network %s --name %s -h %s %s %s /bin/bash start_storage_mgr.sh %s %s %s %d %s %s %s %s"
     elif meta_ha_mode == 'rbr':
-        cmdpat= "sudo docker run --pull always %s -itd --network %s --name %s -h %s %s %s /bin/bash start_storage_rbr.sh %s %s %d %s %s %s"
+        cmdpat= dockercmd + " %s --network %s --name %s -h %s %s %s /bin/bash start_storage_rbr.sh %s %s %d %s %s %s"
     else:
         # no_rep
-        cmdpat= "sudo docker run --pull always %s -itd --network %s --name %s -h %s %s %s /bin/bash start_storage_norep.sh %s %d %s %s"
+        cmdpat= dockercmd + " %s --network %s --name %s -h %s %s %s /bin/bash start_storage_norep.sh %s %d %s %s"
     if args.small:
         cmdpat += ' small'
 
@@ -325,12 +329,12 @@ def generate_install_scripts(jscfg, args):
     metaf.close()
 
     if shard_ha_mode == 'mgr':
-        cmdpat= "sudo docker run --pull always %s -itd --network %s --name %s -h %s %s %s /bin/bash start_storage_mgr.sh %s %s %s %d %s %s %s %s"
+        cmdpat= dockercmd + " %s --network %s --name %s -h %s %s %s /bin/bash start_storage_mgr.sh %s %s %s %d %s %s %s %s"
     elif shard_ha_mode == 'rbr':
-        cmdpat= "sudo docker run --pull always %s -itd --network %s --name %s -h %s %s %s /bin/bash start_storage_rbr.sh %s %s %d %s %s %s"
+        cmdpat= dockercmd + " %s --network %s --name %s -h %s %s %s /bin/bash start_storage_rbr.sh %s %s %d %s %s %s"
     else:
         # no_rep
-        cmdpat= "sudo docker run --pull always %s -itd --network %s --name %s -h %s %s %s /bin/bash start_storage_norep.sh %s %d %s %s"
+        cmdpat= dockercmd + " %s --network %s --name %s -h %s %s %s /bin/bash start_storage_norep.sh %s %d %s %s"
     if args.small:
         cmdpat += ' small'
     # Data nodes
@@ -422,8 +426,8 @@ def generate_install_scripts(jscfg, args):
     # Comp nodes
     comps = cluster['comp']['nodes']
     compnodes=[]
-    # sudo docker run -itd --network klnet --name comp1 -h comp1 -p 6401:5432 [-v path_host:path_container] kunlun-server /bin/bash start_server.sh <user> <pass> <comp-id>
-    cmdpat=r'sudo docker run --pull always %s -itd --network %s --name %s -h %s -p %d:5432 %s %s /bin/bash start_server.sh %s "%s" %d'
+    # $dockercmd --network klnet --name comp1 -h comp1 -p 6401:5432 [-v path_host:path_container] kunlun-server /bin/bash start_server.sh <user> <pass> <comp-id>
+    cmdpat= dockercmd + r' %s --network %s --name %s -h %s -p %d:5432 %s %s /bin/bash start_server.sh %s "%s" %d'
     waitcmdpat="sudo docker exec %s /bin/bash /kunlun/wait_server_up.sh"
     waitlist=[]
     i=1
@@ -475,7 +479,7 @@ def generate_install_scripts(jscfg, args):
     name="%s.clustermgr" % namespace
     addIpToMachineMap(machines, cluster['clustermgr']['ip'], args)
     dockeropts = cluster['clustermgr'].get('dockeropts', args.default_dockeropts)
-    cmdpat="sudo docker run --pull always %s -itd --network %s --name %s -h %s %s /bin/bash /kunlun/start_cluster_manager.sh %s"
+    cmdpat= dockercmd + " %s --network %s --name %s -h %s %s /bin/bash /kunlun/start_cluster_manager.sh %s"
     addToCommandsList(commandslist, cluster['clustermgr']['ip'], targetdir,
 	    cmdpat % (dockeropts, network, name, name, clustermgrurl, ",".join(meta_addrs)))
 
@@ -833,6 +837,7 @@ if  __name__ == '__main__':
     parser.add_argument('--defbase', type=str, help="the command", default='/kunlun')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--namespace', type=str, help="the default namespace", default='kunlun')
+    parser.add_argument('--product_version', type=str, help="kunlun version", default='1.0.1')
     parser.add_argument('--default_dockeropts', type=str, help="the default docker options", default="")
     parser.add_argument('--imageInFiles', help="whether to use image in files", default=False, action='store_true')
 

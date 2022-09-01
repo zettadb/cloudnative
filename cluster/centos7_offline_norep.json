@@ -1,0 +1,98 @@
+{
+    "network": "kunlunbase",
+    "machines":[
+        {
+            "ip":"192.168.0.117",
+            "basedir":"/kunlun_docker",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.143",
+            "basedir":"/kunlun_docker",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.151",
+            "basedir":"/kunlun_docker",
+            "user":"kunlun"
+        }
+    ],
+    "cluster":{
+	"name" : "centos7_norep_cluster1",
+	"namespace": "centos7_norep",
+        "meta":{
+            "nodes":[
+                {
+                    "is_primary":true,
+                    "ip":"192.168.0.117",
+		    "data_dir_path": "/docker_meta/data",
+		    "log_dir_path": "/docker_meta/log",
+		    "innodb_log_dir_path": "/docker_meta/innolog"
+                }
+            ]
+        },
+        "comp":{
+            "nodes":[
+                {
+                    "ip":"192.168.0.117",
+                    "port":5401,
+		    "user": "kunlun",
+		    "password": "Tx1Df2Mn#",
+		    "datadir": "/docker_pgdatadir"
+                },
+                {
+                    "ip":"192.168.0.143",
+                    "port":5401,
+		    "user": "kunlun",
+		    "password": "Tx1Df2Mn#",
+		    "datadir": "/docker_pgdatadir"
+                },
+                {
+                    "ip":"192.168.0.151",
+                    "port":5401,
+		    "user": "kunlun",
+		    "password": "Tx1Df2Mn#",
+		    "datadir": "/docker_pgdatadir"
+                }
+            ]
+        },
+        "data":[
+            {
+                "nodes":[
+                    {
+                        "is_primary":true,
+                        "ip":"192.168.0.117",
+			"data_dir_path": "/docker_shard1/data",
+			"log_dir_path": "/docker_shard1/log",
+			"innodb_log_dir_path": "/docker_shard1/innolog"
+                    }
+                ]
+            },
+            {
+                "nodes":[
+                    {
+                        "is_primary":true,
+                        "ip":"192.168.0.143",
+			"data_dir_path": "/docker_shard2/data",
+			"log_dir_path": "/docker_shard2/log",
+			"innodb_log_dir_path": "/docker_shard2/innolog"
+                    }
+                ]
+            },
+            {
+                "nodes":[
+                    {
+                        "is_primary":true,
+                        "ip":"192.168.0.151",
+			"data_dir_path": "/docker_shard3/data",
+			"log_dir_path": "/docker_shard3/log",
+			"innodb_log_dir_path": "/docker_shard3/innolog"
+                    }
+                ]
+            }
+        ],
+        "clustermgr":{
+            "ip":"192.168.0.117"
+        }
+    }
+}

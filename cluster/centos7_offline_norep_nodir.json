@@ -1,0 +1,83 @@
+{
+    "network": "kunlunbase",
+    "machines":[
+        {
+            "ip":"192.168.0.117",
+            "basedir":"/kunlun_docker",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.143",
+            "basedir":"/kunlun_docker",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.151",
+            "basedir":"/kunlun_docker",
+            "user":"kunlun"
+        }
+    ],
+    "cluster":{
+	"name" : "centos7_norep_cluster1",
+	"namespace": "centos7_norep",
+        "meta":{
+            "nodes":[
+                {
+                    "is_primary":true,
+                    "ip":"192.168.0.117"
+                }
+            ]
+        },
+        "comp":{
+            "nodes":[
+                {
+                    "ip":"192.168.0.117",
+                    "port":5401,
+		    "user": "kunlun",
+		    "password": "Tx1Df2Mn#"
+                },
+                {
+                    "ip":"192.168.0.143",
+                    "port":5401,
+		    "user": "kunlun",
+		    "password": "Tx1Df2Mn#"
+                },
+                {
+                    "ip":"192.168.0.151",
+                    "port":5401,
+		    "user": "kunlun",
+		    "password": "Tx1Df2Mn#"
+                }
+            ]
+        },
+        "data":[
+            {
+                "nodes":[
+                    {
+                        "is_primary":true,
+                        "ip":"192.168.0.117"
+                    }
+                ]
+            },
+            {
+                "nodes":[
+                    {
+                        "is_primary":true,
+                        "ip":"192.168.0.143"
+                    }
+                ]
+            },
+            {
+                "nodes":[
+                    {
+                        "is_primary":true,
+                        "ip":"192.168.0.151"
+                    }
+                ]
+            }
+        ],
+        "clustermgr":{
+            "ip":"192.168.0.117"
+        }
+    }
+}
