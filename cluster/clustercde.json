@@ -21,21 +21,15 @@
         "nodes":[
  		{
  		"is_primary":true,
- 		"ip":"192.168.0.110",
- 		"innodb_buffer_pool_size":"64MB",
- 		"election_weight":50
+ 		"ip":"192.168.0.110"
                 },
                 {
  		"is_primary":false,
- 		"ip":"192.168.0.111",
- 		"innodb_buffer_pool_size":"64MB",
- 		"election_weight":50
+ 		"ip":"192.168.0.111"
                 },
                 {
  		"is_primary":false,
- 		"ip":"192.168.0.100",
- 		"innodb_buffer_pool_size":"64MB",
- 		"election_weight":50
+ 		"ip":"192.168.0.100"
                 }
         ]
     },
@@ -75,7 +69,6 @@
 	    {
 	    "name": "rbrcluster1",
 	    "ha_mode": "rbr",
-	    "storage_template": "small",
 	    "comp":{
 		    "nodes": [
 			    {
@@ -128,7 +121,6 @@
 	    {
 	    "name": "mgrcluster1",
 	    "ha_mode": "mgr",
-	    "storage_template": "small",
 	    "comp":{
 		    "nodes": [
 			    {

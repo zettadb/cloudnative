@@ -46,7 +46,6 @@
 	    {
 	    "name": "rbrcluster2",
 	    "ha_mode": "rbr",
-	    "storage_template": "small",
 	    "comp":{
 		    "nodes": [
 			    {
@@ -91,7 +90,6 @@
 	    {
 	    "name": "mgrcluster2",
 	    "ha_mode": "no_rep",
-	    "storage_template": "small",
 	    "comp":{
 		    "nodes": [
 			    {
