@@ -23,6 +23,9 @@ clear=true
 sleep=0
 iteration=1000
 tty=false
+# connectionTimeout for scp/ssh
+contimeout=15
+sshport=22
 
 while test "$isarg" = "1"; do
 	isarg=1
@@ -38,6 +41,8 @@ while test "$isarg" = "1"; do
 		--noclear*) clear=false;;
 		--sleep=*) sleep=`get_option_value "$1" "--sleep="` ;;
 		--iteration=*) iteration=`get_option_value "$1" "--iteration="` ;;
+		--sshport=*) sshport=`get_option_value "$1" "--sshport="` ;;
+		--connectionTimeout=*) contimeout=`get_option_value "$1" "--connectionTimeout="` ;;
 		--tty*) tty=true;;
 		* ) isarg=0;;
 	esac
@@ -48,7 +53,7 @@ while test "$isarg" = "1"; do
 		break
 	fi
 done
-
+sshopt="-o ConnectTimeout=$contimeout"
 test "$REMOTE_USER" = "" && REMOTE_USER="$LOGNAME"
 test "$REMOTE_USER" = "" && REMOTE_USER="$USER"
 

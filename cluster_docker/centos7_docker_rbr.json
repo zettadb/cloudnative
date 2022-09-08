@@ -1,0 +1,121 @@
+{
+    "network": "kunlunbase",
+    "machines":[
+        {
+            "ip":"192.168.0.117",
+            "basedir":"/docker_rbr",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.143",
+            "basedir":"/docker_rbr",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.151",
+            "basedir":"/docker_rbr",
+            "user":"kunlun"
+        }
+    ],
+    "cluster":{
+	"name" : "centos7_rbr_cluster1",
+	"namespace": "centos7_rbr",
+	"ha_mode": "rbr",
+	"images": {
+		"kunlun-storage": "192.168.0.104:15000/kunlun-storage",
+		"kunlun-server": "192.168.0.104:15000/kunlun-server",
+		"kunlun-cluster-manager": "192.168.0.104:15000/kunlun-cluster-manager"
+	},
+        "meta":{
+            "nodes":[
+                {
+                    "is_primary":true,
+                    "ip":"192.168.0.117"
+                },
+                {
+                    "is_primary":false,
+                    "ip":"192.168.0.143"
+                },
+                {
+                    "is_primary":false,
+                    "ip":"192.168.0.151"
+                }
+            ]
+        },
+        "comp":{
+            "nodes":[
+                {
+                    "ip":"192.168.0.117",
+                    "port":5401,
+		    "user": "kunlun",
+		    "password": "Tx1Df2Mn#"
+                },
+                {
+                    "ip":"192.168.0.143",
+                    "port":5401,
+		    "user": "kunlun",
+		    "password": "Tx1Df2Mn#"
+                },
+                {
+                    "ip":"192.168.0.151",
+                    "port":5401,
+		    "user": "kunlun",
+		    "password": "Tx1Df2Mn#"
+                }
+            ]
+        },
+        "data":[
+            {
+                "nodes":[
+                    {
+                        "is_primary":true,
+                        "ip":"192.168.0.117"
+                    },
+                    {
+                        "is_primary":false,
+                        "ip":"192.168.0.143"
+                    },
+                    {
+                        "is_primary":false,
+                        "ip":"192.168.0.151"
+                    }
+                ]
+            },
+            {
+                "nodes":[
+                   {
+                        "is_primary":true,
+                        "ip":"192.168.0.143"
+                    },
+                    {
+                        "is_primary":false,
+                        "ip":"192.168.0.117"
+                    },
+                    {
+                        "is_primary":false,
+                        "ip":"192.168.0.151"
+                    }
+                ]
+            },
+            {
+                "nodes":[
+                    {
+                        "is_primary":true,
+                        "ip":"192.168.0.151"
+                    },
+                    {
+                        "is_primary":false,
+                        "ip":"192.168.0.117"
+                    },
+                    {
+                        "is_primary":false,
+                        "ip":"192.168.0.143"
+                    }
+                ]
+            }
+        ],
+        "clustermgr":{
+            "ip":"192.168.0.117"
+        }
+    }
+}
