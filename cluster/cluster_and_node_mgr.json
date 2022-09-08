@@ -20,15 +20,12 @@
 	"ha_mode": "mgr",
         "nodes":[
  		{
- 		"is_primary":true,
  		"ip":"192.168.0.110"
                 },
                 {
- 		"is_primary":false,
  		"ip":"192.168.0.111"
                 },
                 {
- 		"is_primary":false,
  		"ip":"192.168.0.100"
                 }
         ]
@@ -49,23 +46,18 @@
     "node_manager": {
            "nodes": [
 		{
- 		"ip": "192.168.0.110",
-		"total_cpu_cores": 3,
-		"total_mem": 8192,
-		"nodetype": "both"
+ 		"ip": "192.168.0.110"
 		},
 		{
- 		"ip": "192.168.0.111",
-		"total_cpu_cores": 3,
-		"total_mem": 8192,
-		"nodetype": "both"
+ 		"ip": "192.168.0.111"
 		},
 		{ 
- 		"ip": "192.168.0.100",
-		"total_cpu_cores": 3,
-		"total_mem": 8192,
-		"nodetype": "both"
+ 		"ip": "192.168.0.100"
 		}
 	    ]	
+    },
+    "xpanel": {
+	"ip": "192.168.0.110",
+	"image": "registry.cn-hangzhou.aliyuncs.com/kunlundb/kunlun-xpanel:1.1.1"
     }
 }    

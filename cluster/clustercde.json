@@ -20,15 +20,12 @@
 	"ha_mode": "rbr",
         "nodes":[
  		{
- 		"is_primary":true,
  		"ip":"192.168.0.110"
                 },
                 {
- 		"is_primary":false,
  		"ip":"192.168.0.111"
                 },
                 {
- 		"is_primary":false,
  		"ip":"192.168.0.100"
                 }
         ]
@@ -49,26 +46,25 @@
     "node_manager": {
            "nodes": [
 		{
- 		"ip": "192.168.0.110",
-		"total_cpu_cores": 3,
-		"total_mem": 8192
+ 		"ip": "192.168.0.110"
 		},
 		{ 
- 		"ip": "192.168.0.100",
-		"total_cpu_cores": 3,
-		"total_mem": 8192
+ 		"ip": "192.168.0.100"
 		},
 		{ 
- 		"ip": "192.168.0.111",
-		"total_cpu_cores": 3,
-		"total_mem": 8192
+ 		"ip": "192.168.0.111"
 		}
 	    ]	
+    },
+    "xpanel": {
+	"ip": "192.168.0.110",
+	"image": "192.168.0.104:15000/kunlun-xpanel:1.1.1"
     },
     "clusters": [
 	    {
 	    "name": "rbrcluster1",
 	    "ha_mode": "rbr",
+	    "storage_template": "small",
 	    "comp":{
 		    "nodes": [
 			    {
@@ -87,32 +83,26 @@
 		    {
 		    "nodes":[
 			    {
-			    "ip": "192.168.0.110",
-			    "is_primary": true
+			    "ip": "192.168.0.110"
 			    },
 			    {
-			    "ip": "192.168.0.111",
-			    "is_primary": false
+			    "ip": "192.168.0.111"
 			    },
 			    {
-			    "ip": "192.168.0.100",
-			    "is_primary": false
+			    "ip": "192.168.0.100"
 			    }
 		    ]
 		    },
 		    {
 		    "nodes":[
 			    {
-			    "ip": "192.168.0.100",
-			    "is_primary": true
+			    "ip": "192.168.0.100"
 			    },
 			    {
-			    "ip": "192.168.0.111",
-			    "is_primary": false
+			    "ip": "192.168.0.111"
 			    },
 			    {
-			    "ip": "192.168.0.110",
-			    "is_primary": false
+			    "ip": "192.168.0.110"
 			    }
 		    ]
 		    }
@@ -121,6 +111,7 @@
 	    {
 	    "name": "mgrcluster1",
 	    "ha_mode": "mgr",
+	    "storage_template": "small",
 	    "comp":{
 		    "nodes": [
 			    {
@@ -139,32 +130,26 @@
 		    {
 		    "nodes":[
 			    {
-			    "ip": "192.168.0.110",
-			    "is_primary": true
+			    "ip": "192.168.0.110"
 			    },
 			    {
-			    "ip": "192.168.0.111",
-			    "is_primary": false
+			    "ip": "192.168.0.111"
 			    },
 			    {
-			    "ip": "192.168.0.100",
-			    "is_primary": false
+			    "ip": "192.168.0.100"
 			    }
 		    ]
 		    },
 		    {
 		    "nodes":[
 			    {
-			    "ip": "192.168.0.100",
-			    "is_primary": true
+			    "ip": "192.168.0.100"
 			    },
 			    {
-			    "ip": "192.168.0.111",
-			    "is_primary": false
+			    "ip": "192.168.0.111"
 			    },
 			    {
-			    "ip": "192.168.0.110",
-			    "is_primary": false
+			    "ip": "192.168.0.110"
 			    }
 		    ]
 		    }

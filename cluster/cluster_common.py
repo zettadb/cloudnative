@@ -22,6 +22,7 @@ def run_command_verbose(command, dryrun):
 
 def run_remote_command(machines, ip, progdir, targetdir, command, dryrun):
     mach = machines.get(ip)
+    sshport = mach.get('sshport', 22)
     if progdir.startswith('/'):
         realdir = progdir
     else:
@@ -31,8 +32,8 @@ def run_remote_command(machines, ip, progdir, targetdir, command, dryrun):
     else:
         workdir = "%s/%s" % (realdir, targetdir)
     envstr = "export PATH=%s/bin:$PATH; export LD_LIBRARY_PATH=%s/lib:%s/lib64:$LD_LIBRARY_PATH" % (realdir, realdir, realdir)
-    cmdstr='''bash remote_run.sh --user=%s %s '%s; cd %s || exit 1; %s' '''
-    tup= (mach['user'], ip, envstr, workdir, command)
+    cmdstr='''bash remote_run.sh --sshport=%d --user=%s %s '%s; cd %s || exit 1; %s' '''
+    tup= (sshport, mach['user'], ip, envstr, workdir, command)
     run_command_verbose(cmdstr % tup, dryrun)
 
 def stop_clustermgr_node(machines, progdir, node, dryrun):
@@ -225,13 +226,14 @@ def process_filelist(comf, args, machines, filelist):
     for filetup in filelist:
         ip = filetup[0]
         mach = machines[ip]
+        sshport = mach.get('sshport', 22)
         if islocal(args, ip, mach['user']):
             # For local, we do not consider the user.
-            mkstr = '''/bin/bash -xc $"cp -f %s %s" '''
+            mkstr = '''/bin/bash -xc $"cp -f %s %s" >& lastlog '''
             tup= (filetup[1], filetup[2])
         else:
-            mkstr = '''bash dist.sh --hosts=%s --user=%s %s %s '''
-            tup= (ip, mach['user'], filetup[1], filetup[2])
+            mkstr = '''bash dist.sh --sshport=%d --hosts=%s --user=%s %s %s >& lastlog '''
+            tup= (sshport, ip, mach['user'], filetup[1], filetup[2])
         comf.write(mkstr % tup)
         comf.write("\n")
 
@@ -242,16 +244,17 @@ def process_commandslist_noenv(comf, args, machines, commandslist):
     for cmd in commandslist:
         ip=cmd[0]
         mach = machines[ip]
+        sshport = mach.get('sshport', 22)
         if islocal(args, ip, mach['user']):
             # For local, we do not consider the user.
-            mkstr = '''/bin/bash -xc $"cd %s || exit 1; %s" '''
+            mkstr = '''/bin/bash -xc $"cd %s || exit 1; %s" >& lastlog '''
             tup= (cmd[1], cmd[2])
         else:
             ttyopt=""
             if cmd[2].find("sudo ") >= 0:
                 ttyopt="--tty"
-            mkstr = '''bash remote_run.sh %s --user=%s %s $"cd %s || exit 1; %s" '''
-            tup= (ttyopt, mach['user'], ip, cmd[1], cmd[2])
+            mkstr = '''bash remote_run.sh --sshport=%d %s --user=%s %s $"cd %s || exit 1; %s" >& lastlog '''
+            tup= (sshport, ttyopt, mach['user'], ip, cmd[1], cmd[2])
         comf.write(mkstr % tup)
         comf.write("\n")
 
@@ -262,16 +265,17 @@ def process_commandslist_setenv(comf, args, machines, commandslist):
     for cmd in commandslist:
         ip=cmd[0]
         mach = machines[ip]
+        sshport = mach.get('sshport', 22)
         if islocal(args, ip, mach['user']):
             # For local, we do not consider the user.
-            mkstr = '''/bin/bash -c $"cd %s && cd %s || exit 1; envtype=%s && source %s/env.sh; %s" '''
+            mkstr = '''/bin/bash -c $"cd %s && cd %s || exit 1; envtype=%s && source %s/env.sh; %s" >& lastlog '''
             tup= (mach['basedir'], cmd[1], cmd[3], mach['basedir'], cmd[2])
         else:
             ttyopt=""
             if cmd[2].find("sudo ") >= 0:
                 ttyopt="--tty"
-            mkstr = '''bash remote_run.sh %s --user=%s %s $"cd %s && cd %s || exit 1; envtype=%s && source %s/env.sh; %s" '''
-            tup= (ttyopt, mach['user'], ip, mach['basedir'], cmd[1], cmd[3], mach['basedir'], cmd[2])
+            mkstr = '''bash remote_run.sh --sshport=%d %s --user=%s %s $"cd %s && cd %s || exit 1; envtype=%s && source %s/env.sh; %s" >& lastlog '''
+            tup= (sshport, ttyopt, mach['user'], ip, mach['basedir'], cmd[1], cmd[3], mach['basedir'], cmd[2])
         comf.write(mkstr % tup)
         comf.write("\n")
 
@@ -530,6 +534,8 @@ def setup_machines2(jscfg, machines, args):
         addIpToMachineMap(machines, node['ip'], args)
     for node in clustermgrnodes:
         addIpToMachineMap(machines, node['ip'], args)
+    if 'xpanel' in jscfg:
+        addIpToMachineMap(machines, jscfg['xpanel']['ip'], args)
     for cluster in clusters:
         for node in cluster['comp']['nodes']:
             addIpToMachineMap(machines, node['ip'], args, True)
@@ -540,7 +546,7 @@ def setup_machines2(jscfg, machines, args):
             node = cluster['haproxy']
             addIpToMachineMap(machines, node['ip'], args)
 
-def set_storage_using_nodemgr(machines, item, noden):
+def set_storage_using_nodemgr(machines, item, noden, innodb_buf="128MB"):
     if 'data_dir_path' not in item:
         item['data_dir_path'] = "%s/%s" % (noden['storage_datadirs'].split(",")[0], str(item['port']))
     if 'log_dir_path' not in item:
@@ -551,7 +557,7 @@ def set_storage_using_nodemgr(machines, item, noden):
     item['program_dir'] = "instance_binaries/storage/%s" % str(item['port'])
     item['user'] = mach['user']
     if 'innodb_buffer_pool_size' not in item:
-        item['innodb_buffer_pool_size'] = "128MB"
+        item['innodb_buffer_pool_size'] = innodb_buf
 
 def set_server_using_nodemgr(machines, item, noden):
     if 'datadir' not in item:
@@ -614,16 +620,20 @@ def validate_and_set_config2(jscfg, machines, args):
     for node in nodemgr['nodes']:
         node['storage_usedports'] = []
         node['server_usedports'] = []
+        if 'nodetype' not in node:
+            node['nodetype'] = 'both'
         if 'valgrind' not in node:
             node['valgrind'] = False
         if 'skip' not in node:
             node['skip'] = False
         if 'nodetype' not in node:
             node['nodetype'] = 'none'
-        if 'total_cpu_cores' not in node and not node['skip']:
-            raise ValueError('Error: total_cpu_cores must be set for %s' % node['ip'])
-        if 'total_mem' not in node and not node['skip']:
-            raise ValueError('Error: total_mem must be set for %s' % node['ip'])
+        # default 8 cpus
+        if 'total_cpu_cores' not in node:
+            node['total_cpu_cores'] = 8
+        # default 16GB memory.
+        if 'total_mem' not in node:
+            node['total_mem'] = 16384
         if 'storage_portrange' not in node:
             node['storage_portrange'] = args.defstorage_portrange_nodemgr
         if 'server_portrange' not in node:
@@ -706,7 +716,7 @@ def validate_and_set_config2(jscfg, machines, args):
             node['port'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 2)
         addPortToMachine(portmap, node['ip'], node['port'])
         addto_usedports(args, nodemgrobj, 'storage', node['port'])
-        set_storage_using_nodemgr(machines, node, nodemgrobj)
+        set_storage_using_nodemgr(machines, node, nodemgrobj, "128MB")
         meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
         if meta['ha_mode'] == 'mgr':
             if 'xport' not in node:
@@ -719,16 +729,16 @@ def validate_and_set_config2(jscfg, machines, args):
             addto_usedports(args, nodemgrobj, 'storage', node['mgr_port'])
         if 'election_weight' not in node:
             node['election_weight'] = 50
-        if node.get('is_primary', False):
+        if 'is_primary' not in node:
+            node['is_primary'] = False
+        if node['is_primary']:
             if hasPrimary:
                 raise ValueError('Error: Two primaries found in meta shard, there should be one and only one Primary specified !')
             else:
                 hasPrimary = True
     if nodecnt > 1:
         if not hasPrimary:
-            raise ValueError('Error: No primary found in meta shard, there should be one and only one !')
-    elif nodecnt > 0:
-            node['is_primary'] = True
+            meta['nodes'][0]['is_primary'] = True
 
     if (len(meta_addrs) > 0):
         meta['group_seeds'] = ",".join(meta_addrs)
@@ -737,6 +747,17 @@ def validate_and_set_config2(jscfg, machines, args):
         if 'hdfs' in jscfg['backup']:
             node = jscfg['backup']['hdfs']
             addPortToMachine(portmap, node['ip'], node['port'])
+
+    if 'xpanel' in jscfg:
+        node = jscfg['xpanel']
+        if 'port' not in node:
+            node['port'] = 18080
+        if 'name' not in node:
+            node['name'] = 'xpanel_%d' % node['port']
+        if 'imageType' not in node:
+            node['imageType'] = 'url'
+        if 'imageFile' not in node:
+            node['imageFile'] = 'kunlun-xpanel-%s.tar.gz' % args.product_version
 
     for cluster in clusters:
         if 'name' not in cluster:
@@ -802,16 +823,16 @@ def validate_and_set_config2(jscfg, machines, args):
                     addto_usedports(args, nodemgrobj, 'storage', node['mgr_port'])
                 if 'election_weight' not in node:
                     node['election_weight'] = 50
-                if node.get('is_primary', False):
+                if 'is_primary' not in node:
+                    node['is_primary'] = False
+                if node['is_primary']:
                     if hasPrimary:
                         raise ValueError('Error: Two primaries found in %s-shard%d, there should be one and only one Primary specified !' % (cluster['name'], i))
                     else:
                         hasPrimary = True
             if nodecnt > 1:
                 if not hasPrimary:
-                    raise ValueError('Error: No primary found in %s-shard%d, there should be one and only one !', (cluster['name'], i))
-            elif nodecnt > 0:
-                node['is_primary'] = True
+                    shard['nodes'][0]['is_primary'] = True
             i += 1
 
         if 'haproxy' in cluster:

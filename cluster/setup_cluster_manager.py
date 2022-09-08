@@ -9,6 +9,19 @@ import getpass
 import argparse
 from cluster_common import *
 
+def purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist):
+    process_dirmap(comf, dirmap, machines, args)
+    process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
+    process_commandslist_setenv(comf, args, machines, commandslist)
+    dirmap.clear()
+    filesmap.clear()
+    del commandslist[:]
+
+def output_info(comf, str):
+    comf.write("cat <<EOF\n")
+    comf.write("%s\n" % str)
+    comf.write("EOF\n")
+
 def generate_server_startstop(args, machines, node, idx, filesmap):
     mach = machines.get(node['ip'])
     serverdir = "kunlun-server-%s" % args.product_version
@@ -355,7 +368,12 @@ def install_clustermgr(args):
     validate_and_set_config2(jscfg, machines, args)
     comf = open(r'clustermgr/install.sh', 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
+    comf.write("trap 'cat lastlog; exit 1' ERR\n")
     install_with_config(jscfg, comf, machines, args)
+    output_info(comf, "Installation completed !")
     comf.close()
 
 def stop_clustermgr(args):
@@ -365,7 +383,11 @@ def stop_clustermgr(args):
     validate_and_set_config2(jscfg, machines, args)
     comf = open(r'clustermgr/stop.sh', 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
     stop_with_config(jscfg, comf, machines, args)
+    output_info(comf, "Start action completed !")
     comf.close()
 
 def start_clustermgr(args):
@@ -375,7 +397,11 @@ def start_clustermgr(args):
     validate_and_set_config2(jscfg, machines, args)
     comf = open(r'clustermgr/start.sh', 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
     start_with_config(jscfg, comf, machines, args)
+    output_info(comf, "Stop action completed !")
     comf.close()
 
 def clean_clustermgr(args):
@@ -385,7 +411,11 @@ def clean_clustermgr(args):
     validate_and_set_config2(jscfg, machines, args)
     comf = open(r'clustermgr/clean.sh', 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
     clean_with_config(jscfg, comf, machines, args)
+    output_info(comf, "Clean action completed !")
     comf.close()
 
 def service_clustermgr(args):
@@ -395,7 +425,11 @@ def service_clustermgr(args):
     validate_and_set_config2(jscfg, machines, args)
     comf = open(r'clustermgr/service.sh', 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
     service_with_config(jscfg, comf, machines, args)
+    output_info(comf, "Service action completed !")
     comf.close()
 
 def setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir):
@@ -412,17 +446,82 @@ def setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, 
     #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
     #addToCommandsList(commandslist, node['ip'], targetdir, "tar -czf %s.tgz %s" % (serverdir, serverdir))
 
-def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, args):
+def get_haproxy_ips(jscfg):
+    haproxyips = set()
+    if 'cluster' not in jscfg:
+        return haproxyips
+    for cluster in clusters:
+        if 'haproxy' in cluster:
+            haproxyips.add(cluster['haproxy']['ip'])
+    return haproxyips
+
+def get_xpanel_ips(jscfg):
+    xpanelips = set()
+    if 'xpanel' not in jscfg:
+        return xpanelips
+    xpanelips.add(jscfg['xpanel']['ip'])
+    return xpanelips
+
+def install_xpanel(jscfg, machines, dirmap, filesmap, commandslist, metaseeds, comf, args):
+    if 'xpanel' not in jscfg:
+        return
+    node = jscfg['xpanel']
+    mach = machines.get(node['ip'])
+    output_info(comf, "setup xpanel on %s ..." % node['ip'])
+    if node['imageType'] == 'file':
+        process_command_noenv(comf, args, machines, node['ip'], '/', 'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
+            mach['user'], mach['user'], mach['basedir']))
+        process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % node['imageFile'], mach['basedir'])
+        cmdpat = "sudo docker inspect %s >& /dev/null || ( gzip -cd %s | sudo docker load )"
+        process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (node['image'], node['imageFile']))
+    cmdpat = "sudo docker run -itd --env METASEEDS=%s --name %s -p %d:80 %s bash -c '/bin/bash /kunlun/start.sh'"
+    process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % (metaseeds, node['name'], node['port'], node['image']))
+
+def stop_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args):
+    if 'xpanel' not in jscfg:
+        return
+    node = jscfg['xpanel']
+    output_info(comf, "Stopping xpanel on %s ..." % node['ip'])
+    cmdpat = "sudo docker container stop -f %s"
+    process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['name'])
+
+def start_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args):
+    if 'xpanel' not in jscfg:
+        return
+    node = jscfg['xpanel']
+    output_info(comf, "Starting xpanel on %s ..." % node['ip'])
+    cmdpat = "sudo docker container start %s"
+    process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['name'])
+
+def clean_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args):
+    if 'xpanel' not in jscfg:
+        return
+    node = jscfg['xpanel']
+    output_info(comf, "Cleaning xpanel on %s ..." % node['ip'])
+    cmdpat = "sudo docker container rm -f %s"
+    process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['name'])
+    cmdpat = "sudo docker image rm -f %s"
+    process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['image'])
+    if node['imageType'] == 'file':
+        mach = machines.get(node['ip'])
+        process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], 'rm -f %s' % node['imageFile'])
+
+def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, comf, args):
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
     clusters = jscfg['clusters']
     meta_hamode = jscfg['meta']['ha_mode']
-    haproxyips = set()
     
     i = 1
     for cluster in clusters:
         cluster_name = cluster['name']
-        
+        output_info(comf, "installing cluster %s ..." % cluster_name)
+        for shard in cluster['data']:
+            for node in shard['nodes']:
+                setup_storage_env(node, machines, dirmap, commandslist, args)
+        for node in cluster['comp']['nodes']:
+            setup_server_env(node, machines, dirmap, commandslist, args)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         # Storage nodes
         cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d'
         if cluster['storage_template'] == 'small':
@@ -531,9 +630,8 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
             addNodeToFilesListMap(filesmap, node, confname, targetconfname)
             cmdpat = r'haproxy-2.5.0-bin/sbin/haproxy -f %s >& haproxy-%d.log' % (targetconfname, node['port'])
             addToCommandsList(commandslist, node['ip'], ".", cmdpat)
-            haproxyips.add(node['ip'])
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         i += 1
-    return haproxyips
 
 def start_clusters(clusters, nodemgrmaps, machines, comf):
     commandslist = []
@@ -628,18 +726,16 @@ def install_with_config(jscfg, comf, machines, args):
     clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
     nodemgrdir = "kunlun-node-manager-%s" % args.product_version
 
-    filesmap = {}
-    commandslist = []
-    dirmap = {}
-
     cluster_name = 'meta'
     extraopt = " --ha_mode=%s" % meta_hamode
     metaseeds = meta['group_seeds']
     my_print('metaseeds:%s' % metaseeds)
 
     nodemgrmaps = {}
+    nodemgrips = set()
     for node in nodemgr['nodes']:
         nodemgrmaps[node['ip']] = node
+        nodemgrips.add(node['ip'])
 
     clustermgrips = set()
     members=[]
@@ -649,6 +745,39 @@ def install_with_config(jscfg, comf, machines, args):
     initmember = clustermgr.get('raft_group_member_init_config', '')
     if initmember == '':
         initmember = "%s," % ",".join(members)
+
+    haproxyips = get_haproxy_ips(jscfg)
+    workips = set()
+    workips.update(nodemgrips)
+    workips.update(clustermgrips)
+    workips.update(haproxyips)
+    # my_print("workips:%s" % str(workips))
+    output_info(comf, "initializing all working nodes ...")
+    for ip in workips:
+        mach = machines.get(ip)
+        if args.sudo:
+            process_command_noenv(comf, args, machines, ip, '/',
+                'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
+                    mach['user'], mach['user'], mach['basedir']))
+        else:
+            process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
+        process_file(comf, args, machines, ip, 'clustermgr/env.sh.template', mach['basedir'])
+        extstr = "sed -s 's#KUNLUN_BASEDIR#%s#g' env.sh.template > env.sh" % mach['basedir']
+        process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
+        extstr = "sed -i 's#KUNLUN_VERSION#%s#g' env.sh" % args.product_version
+        process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
+        process_file(comf, args, machines, ip, 'install/process_deps.sh', mach['basedir'])
+        process_file(comf, args, machines, ip, 'install/change_config.sh', mach['basedir'])
+        process_file(comf, args, machines, ip, 'install/build_driver_formysql.sh', mach['basedir'])
+        process_file(comf, args, machines, ip, 'clustermgr/mysql-connector-python-2.1.3.tar.gz', mach['basedir'])
+        process_command_noenv(comf, args, machines, ip, mach['basedir'], 'bash ./build_driver_formysql.sh %s' % mach['basedir'])
+        if ip in haproxyips:
+            process_file(comf, args, machines, ip, 'clustermgr/haproxy-2.5.0-bin.tar.gz', mach['basedir'])
+            process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf haproxy-2.5.0-bin.tar.gz')
+
+    dirmap = {}
+    filesmap = {}
+    commandslist = []
 
     # used for install storage nodes
     my_metaname = 'mysql_meta.json'
@@ -703,34 +832,20 @@ def install_with_config(jscfg, comf, machines, args):
             generate_hdfs_coresite_xml(args, hdfs['ip'], hdfs['port'])
 
     i = 0
-    nodemgrips = set()
     for node in nodemgr['nodes']:
-        nodemgrips.add(node['ip'])
         if node['skip']:
             continue
+        mach = machines.get(node['ip'])
+        output_info(comf, "setup node_mgr on %s ..." % node['ip'])
+        install_nodemgr_env(comf, mach, machines, args)
         setup_nodemgr_commands(args, i, machines, node, commandslist, dirmap, filesmap, metaseeds, hasHDFS)
         generate_nodemgr_env(args, machines, node, i, filesmap)
         generate_nodemgr_startstop(args, machines, node, i, filesmap)
         if args.autostart:
             generate_nodemgr_service(args, machines, commandslist, node, i, filesmap)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         i += 1
 
-   # setup env for meta
-    for node in meta['nodes']:
-        setup_meta_env(node, machines, dirmap, commandslist, args)
-
-    # setup for init clusters
-    for cluster in jscfg['clusters']:
-        for shard in cluster['data']:
-            for node in shard['nodes']:
-                setup_storage_env(node, machines, dirmap, commandslist, args)
-        for node in cluster['comp']['nodes']:
-            setup_server_env(node, machines, dirmap, commandslist, args)
-
-    prefilesmap = filesmap
-    filesmap = {}
-    precommandslist = commandslist
-    commandslist = []
     cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d'
     if args.small:
         cmdpat += ' --dbcfg=./template-small.cnf'
@@ -740,7 +855,11 @@ def install_with_config(jscfg, comf, machines, args):
     pries = []
     secs = []
     i = 0
+    if len(meta['nodes']):
+        output_info(comf, "setup meta nodes ...")
     for node in meta['nodes']:
+        setup_meta_env(node, machines, dirmap, commandslist, args)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
         node['nodemgr'] = nodemgrmaps.get(node['ip'])
         mach = machines.get(node['ip'])
@@ -766,11 +885,13 @@ def install_with_config(jscfg, comf, machines, args):
         addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
     for item in secs:
         addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
+    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # bootstrap the cluster
     if len(meta['nodes']) > 0:
         #firstmeta = meta['nodes'][0]
         firstmeta = None
+        output_info(comf, "setup system tables ...")
         for node in meta['nodes']:
             if node.get('is_primary', False):
                 firstmeta = node
@@ -784,6 +905,7 @@ def install_with_config(jscfg, comf, machines, args):
         if meta_hamode == 'rbr':
             cmdpat=r'python2 add_cluster.py --seeds=%s --type=meta --shardscfg=%s'
             addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (metaseeds, my_metaname), "storage")
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     worknode = None
     if len(meta['nodes']) > 0:
@@ -810,70 +932,35 @@ def install_with_config(jscfg, comf, machines, args):
             addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
                 "python2 modify_servernodes.py --config %s --action=install --seeds=%s" % (nodemgrjson, metaseeds))
 
-    haproxyips = install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, args)
+    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
+    install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, comf, args)
 
     i = 0
     for node in clustermgr['nodes']:
+        output_info(comf, "setup cluster_mgr on %s ..." % node['ip'])
+        mach = machines.get(node['ip'])
+        install_clustermgr_env(comf, mach, machines, args)
         setup_clustermgr_commands(args, i, machines, node, commandslist, dirmap, filesmap,
             metaseeds, initmember, node['ip'] not in nodemgrips)
         if args.autostart:
             generate_clustermgr_service(args, machines, commandslist, node, i, filesmap)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         i += 1
 
     # start the nodemgr and clustermgr process finally.
+    output_info(comf, "starting node_mgr nodes ...")
     for node in nodemgr['nodes']:
         if node['skip']:
             continue
         addToCommandsList(commandslist, node['ip'], ".", "bash start-nodemgr-%d.sh </dev/null >& run.log &" % node['brpc_http_port'])
+    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
+    output_info(comf, "starting cluster_mgr nodes ...")
     for node in clustermgr['nodes']:
         addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash start_cluster_mgr.sh </dev/null >& start.log &")
+    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
-    workips = set()
-    workips.update(nodemgrips)
-    workips.update(clustermgrips)
-    workips.update(haproxyips)
-    my_print("workips:%s" % str(workips))
-    for ip in workips:
-        mach = machines.get(ip)
-        if args.sudo:
-            process_command_noenv(comf, args, machines, ip, '/',
-                'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
-                    mach['user'], mach['user'], mach['basedir']))
-        else:
-            process_command_noenv(comf, args, machines, ip, '/', 'mkdir -p %s' % mach['basedir'])
-        process_file(comf, args, machines, ip, 'clustermgr/env.sh.template', mach['basedir'])
-        extstr = "sed -s 's#KUNLUN_BASEDIR#%s#g' env.sh.template > env.sh" % mach['basedir']
-        process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
-        extstr = "sed -i 's#KUNLUN_VERSION#%s#g' env.sh" % args.product_version
-        process_command_noenv(comf, args, machines, ip, mach['basedir'], extstr)
-        process_file(comf, args, machines, ip, 'install/process_deps.sh', mach['basedir'])
-        process_file(comf, args, machines, ip, 'install/change_config.sh', mach['basedir'])
-        process_file(comf, args, machines, ip, 'install/build_driver_formysql.sh', mach['basedir'])
-        process_file(comf, args, machines, ip, 'clustermgr/mysql-connector-python-2.1.3.tar.gz', mach['basedir'])
-        process_command_noenv(comf, args, machines, ip, mach['basedir'], 'bash ./build_driver_formysql.sh %s' % mach['basedir'])
-        if ip in haproxyips:
-            process_file(comf, args, machines, ip, 'clustermgr/haproxy-2.5.0-bin.tar.gz', mach['basedir'])
-            process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf haproxy-2.5.0-bin.tar.gz')
-
-   # setup env for nodemgr
-    for ip in nodemgrips:
-        nodemgrobj = nodemgrmaps.get(ip)
-        if nodemgrobj['skip']:
-            continue
-        mach = machines.get(ip)
-        install_nodemgr_env(comf, mach, machines, args)
-
-   # setup env for nodemgr
-    for ip in clustermgrips:
-        mach = machines.get(ip)
-        install_clustermgr_env(comf, mach, machines, args)
-
-    process_dirmap(comf, dirmap, machines, args)
-    process_fileslistmap(comf, prefilesmap, machines, 'clustermgr', args)
-    process_commandslist_setenv(comf, args, machines, precommandslist)
-    process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
-    # The reason for not using commands map is that, we need to keep the order for the commands.
-    process_commandslist_setenv(comf, args, machines, commandslist)
+    # install xpanel
+    install_xpanel(jscfg, machines, dirmap, filesmap, commandslist, metaseeds, comf, args)
 
 def generate_systemctl_clean(servname, ip, commandslist):
     syscmdpat1 = "sudo systemctl stop %s"
@@ -894,9 +981,9 @@ def clean_with_config(jscfg, comf, machines, args):
     if args.sudo:
         sudopfx="sudo "
 
+    dirmap = {}
     filesmap = {}
     commandslist = []
-    dirmap = {}
 
     metaseeds = meta['group_seeds']
 
@@ -909,6 +996,7 @@ def clean_with_config(jscfg, comf, machines, args):
         if node['skip']:
             continue
         mach = machines.get(node['ip'])
+        output_info(comf, "Cleaning node_mgr and its managed instances on %s ..." % node['ip'])
         addToCommandsList(commandslist, node['ip'], "%s/bin" % nodemgrdir, "bash stop_node_mgr.sh")
         #for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
         #    nodedirs = node[item].strip()
@@ -940,12 +1028,17 @@ def clean_with_config(jscfg, comf, machines, args):
         if args.autostart:
             servname = 'kunlun-node-manager-%d.service' % node['brpc_http_port']
             generate_systemctl_clean(servname, node['ip'], commandslist)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
+    if 'clusters' in jscfg and len(jscfg['clusters']) > 0:
+        output_info(comf, "Cleaning all clusters specified in the configuration file ...")
     rnames = clean_clusters(args, jscfg['clusters'], nodemgrmaps, machines, comf)
+    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # clean the nodemgr processes
     for node in clustermgr['nodes']:
         mach = machines.get(node['ip'])
+        output_info(comf, "Cleaning cluster_mgr on %s ..." % node['ip'])
         addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash stop_cluster_mgr.sh")
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s*' % (mach['basedir'], clustermgrdir))
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/program_binaries' % mach['basedir'])
@@ -955,6 +1048,7 @@ def clean_with_config(jscfg, comf, machines, args):
         if args.autostart:
             servname = 'kunlun-cluster-manager-%d.service' % node['brpc_raft_port']
             generate_systemctl_clean(servname, node['ip'], commandslist)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     worknode = None
     if len(meta['nodes']) > 0:
@@ -983,6 +1077,7 @@ def clean_with_config(jscfg, comf, machines, args):
             for cname in rnames:
                 addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
                     "python2 delete_cluster.py --seeds=%s --cluster_name=%s" % (metaseeds, cname))
+    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # clean the meta nodes
     for node in meta['nodes']:
@@ -993,6 +1088,7 @@ def clean_with_config(jscfg, comf, machines, args):
         # skip it if it is processed by nodemgr clean routine.
         if not nodemgrobj['skip']:
             continue
+        output_info(comf, "Cleaning meta node on %s ..." % node['ip'])
         targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
         cmdpat = r'bash stopmysql.sh %d'
         addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'], "storage")
@@ -1004,9 +1100,10 @@ def clean_with_config(jscfg, comf, machines, args):
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-storage*.service' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/start-storage*.sh' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/stop-storage*.sh' % mach['basedir'])
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
-    process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
-    process_commandslist_setenv(comf, args, machines, commandslist)
+    # clean xpanel
+    clean_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args)
 
 def generate_systemctl_stop(servname, ip, commandslist):
     syscmdpat1 = "sudo systemctl stop %s"
@@ -1020,6 +1117,7 @@ def stop_with_config(jscfg, comf, machines, args):
     clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
     nodemgrdir = "kunlun-node-manager-%s" % args.product_version
 
+    dirmap = {}
     filesmap = {}
     commandslist = []
 
@@ -1031,6 +1129,7 @@ def stop_with_config(jscfg, comf, machines, args):
     for node in nodemgr['nodes']:
         if node['skip']:
             continue
+        output_info(comf, "Stopping node_mgr and its managed instances on %s ..." % node['ip'])
         mach = machines.get(node['ip'])
         if args.autostart:
             servname = 'kunlun-node-manager-%d.service' % node['brpc_http_port']
@@ -1040,22 +1139,29 @@ def stop_with_config(jscfg, comf, machines, args):
         addNodeToFilesListMap(filesmap, node, 'stop_instances.sh', '.')
         addToCommandsList(commandslist, node['ip'], ".", 'bash ./stop_instances.sh %s %s >& stop.log || true' % (
             mach['basedir'], args.product_version))
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
+    if 'clusters' in jscfg and len(jscfg['clusters']) > 0:
+        output_info(comf, "Stopping all clusters specified in the configuration file ...")
     stop_clusters(jscfg['clusters'], nodemgrmaps, machines, comf)
+    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # stop the clustermgr processes
     for node in clustermgr['nodes']:
+        output_info(comf, "Stopping cluster_mgr on %s ..." % node['ip'])
         if args.autostart:
             servname = 'kunlun-cluster-manager-%d.service' % node['brpc_raft_port']
             generate_systemctl_stop(servname, node['ip'], commandslist)
         else:
             addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash stop_cluster_mgr.sh")
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     for node in meta['nodes']:
         nodemgrobj = nodemgrmaps.get(node['ip'])
         # skip it if it is processed by nodemgr clean routine.
         if not nodemgrobj['skip']:
             continue
+        output_info(comf, "Stopping meta node on %s ..." % node['ip'])
         if args.autostart:
             servname = 'kunlun-storage-%d.service' % node['port']
             generate_systemctl_stop(servname, node['ip'], commandslist)
@@ -1063,9 +1169,10 @@ def stop_with_config(jscfg, comf, machines, args):
             targetdir='.'
             cmdpat = r'bash stop-storage-%d.sh'
             addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'], "storage")
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
-    process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
-    process_commandslist_setenv(comf, args, machines, commandslist)
+    # stop xpanel
+    stop_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args)
 
 def generate_systemctl_start(servname, ip, commandslist):
     syscmdpat1 = "sudo systemctl start %s"
@@ -1079,6 +1186,7 @@ def start_with_config(jscfg, comf, machines, args):
     clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
     nodemgrdir = "kunlun-node-manager-%s" % args.product_version
 
+    dirmap = {}
     filesmap = {}
     commandslist = []
 
@@ -1090,6 +1198,7 @@ def start_with_config(jscfg, comf, machines, args):
     for node in nodemgr['nodes']:
         if node['skip']:
             continue
+        output_info(comf, "Starting node_mgr on %s ..." % node['ip'])
         if args.autostart:
             servname = 'kunlun-node-manager-%d.service' % node['brpc_http_port']
             generate_systemctl_start(servname, node['ip'], commandslist)
@@ -1099,37 +1208,46 @@ def start_with_config(jscfg, comf, machines, args):
             addToCommandsList(commandslist, node['ip'], ".", 'bash ./start_instances.sh %s %s >& start.log || true' % (
                 mach['basedir'], args.product_version))
             addToCommandsList(commandslist, node['ip'], '.', "bash start-nodemgr-%d.sh </dev/null >& run.log &" % node['brpc_http_port'])
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     for node in meta['nodes']:
         nodemgrobj = nodemgrmaps.get(node['ip'])
         # skip it if it is processed by nodemgr clean routine.
         if not nodemgrobj['skip']:
             continue
+        output_info(comf, "Starting meta node on %s ..." % node['ip'])
         if args.autostart:
             servname = 'kunlun-storage-%d.service' % node['port']
             generate_systemctl_start(servname, node['ip'], commandslist)
         else:
             cmdpat = r'bash start-storage-%d.sh'
             addToCommandsList(commandslist, node['ip'], '.', cmdpat % node['port'], "storage")
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
+    if 'clusters' in jscfg and len(jscfg['clusters']) > 0:
+        output_info(comf, "Starting all clusters specified in the configuration file ...")
     start_clusters(jscfg['clusters'], nodemgrmaps, machines, comf)
+    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # start the clustermgr processes
     for node in clustermgr['nodes']:
+        output_info(comf, "Starting cluster_mgr on %s ..." % node['ip'])
         if args.autostart:
             servname = 'kunlun-cluster-manager-%d.service' % node['brpc_raft_port']
             generate_systemctl_start(servname, node['ip'], commandslist)
         else:
             addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash start_cluster_mgr.sh")
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
-    process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
-    process_commandslist_setenv(comf, args, machines, commandslist)
+    # start xpanel
+    start_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args)
 
 def service_with_config(jscfg, comf, machines, args):
     meta = jscfg['meta']
     clustermgr = jscfg['cluster_manager']
     nodemgr = jscfg['node_manager']
 
+    dirmap = {}
     filesmap = {}
     commandslist = []
 
@@ -1147,23 +1265,25 @@ def service_with_config(jscfg, comf, machines, args):
         nodemgrips.add(node['ip'])
         if node['skip']:
             continue
+        output_info(comf, "Servicing node_mgr on %s ..." % node['ip'])
         generate_nodemgr_service(args, machines, commandslist, node, i, filesmap)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         i += 1
 
     i = 0
     for node in meta['nodes']:
         node['nodemgr'] = nodemgrmaps.get(node['ip'])
+        output_info(comf, "Servicing meta node on %s ..." % node['ip'])
         generate_storage_service(args, machines, commandslist, node, i, filesmap)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         i+=1
 
     i = 0
     for node in clustermgr['nodes']:
+        output_info(comf, "Servicing cluster_mgr on %s ..." % node['ip'])
         generate_clustermgr_service(args, machines, commandslist, node, i, filesmap)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         i += 1
-
-    process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
-    # The reason for not using commands map is that, we need to keep the order for the commands.
-    process_commandslist_setenv(comf, args, machines, commandslist)
 
 def gen_cluster_config(args):
     if args.cluster_name == '':
@@ -1198,7 +1318,7 @@ if  __name__ == '__main__':
     parser.add_argument('--defbase', type=str, help="the default basedir", default='/kunlun')
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
     parser.add_argument('--verbose', help="verbose mode, to show more information", default=False, action='store_true')
-    parser.add_argument('--product_version', type=str, help="kunlun version", default='1.0.1')
+    parser.add_argument('--product_version', type=str, help="kunlun version", default='1.1.1')
     parser.add_argument('--localip', type=str, help="The local ip address", default='127.0.0.1')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--autostart', help="whether to start the cluster automaticlly", default=False, action='store_true')

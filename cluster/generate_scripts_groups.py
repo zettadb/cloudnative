@@ -331,7 +331,7 @@ if  __name__ == '__main__':
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
     parser.add_argument('--localip', type=str, help="The local ip address", default=gethostip())
-    parser.add_argument('--product_version', type=str, help="kunlun version", default='1.0.1')
+    parser.add_argument('--product_version', type=str, help="kunlun version", default='1.1.1')
     parser.add_argument('--valgrind', help="whether to use valgrind", default=False, action='store_true')
 
     args = parser.parse_args()
