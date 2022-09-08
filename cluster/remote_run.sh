@@ -25,21 +25,21 @@ sed -i "s#HOST_IP_ADDR#$host#g" $tmpscript
 sed -i "s#HOST_NAME#$hname#g" "$tmpscript"
 
 if test "$SSHPASS" = ""; then
-	scp -o ConnectTimeout=$contimeout $tmpscript $REMOTE_USER@$host:/tmp || ufail=1
+	scp -P $sshport -o ConnectTimeout=$contimeout $tmpscript $REMOTE_USER@$host:/tmp || ufail=1
 	if $tty; then
-		ssh -o ConnectTimeout=$contimeout -t $REMOTE_USER@$host "bash $tmpscript" || ufail=1
+		ssh -p $sshport -o ConnectTimeout=$contimeout -t $REMOTE_USER@$host "bash $tmpscript" || ufail=1
 	else
-		ssh -o ConnectTimeout=$contimeout $REMOTE_USER@$host "bash $tmpscript" < /dev/null || ufail=1
+		ssh -p $sshport -o ConnectTimeout=$contimeout $REMOTE_USER@$host "bash $tmpscript" < /dev/null || ufail=1
 	fi
-	test "$clear" = "true" && ssh -o ConnectTimeout=$contimeout $REMOTE_USER@$host "rm -f $tmpscript"
+	test "$clear" = "true" && ssh -p $sshport -o ConnectTimeout=$contimeout $REMOTE_USER@$host "rm -f $tmpscript"
 else
-	sshpass -p "$REMOTE_PASSWORD" scp -o ConnectTimeout=$contimeout $tmpscript $REMOTE_USER@$host:/tmp || ufail=1
+	sshpass -p "$REMOTE_PASSWORD" scp  -P $sshport -o ConnectTimeout=$contimeout $tmpscript $REMOTE_USER@$host:/tmp || ufail=1
 	if $tty; then
-		sshpass -p "$REMOTE_PASSWORD" ssh -o ConnectTimeout=$contimeout -t $REMOTE_USER@$host "bash $tmpscript" || ufail=1
+		sshpass -p "$REMOTE_PASSWORD" ssh -p $sshport -o ConnectTimeout=$contimeout -t $REMOTE_USER@$host "bash $tmpscript" || ufail=1
 	else
-		sshpass -p "$REMOTE_PASSWORD" ssh -o ConnectTimeout=$contimeout $REMOTE_USER@$host "bash $tmpscript" < /dev/null || ufail=1
+		sshpass -p "$REMOTE_PASSWORD" ssh -p $sshport -o ConnectTimeout=$contimeout $REMOTE_USER@$host "bash $tmpscript" < /dev/null || ufail=1
 	fi
-	test "$clear" = "true" && sshpass -p "$REMOTE_PASSWORD" ssh -o ConnectTimeout=$contimeout $REMOTE_USER@$host "rm -f $tmpscript"
+	test "$clear" = "true" && sshpass -p "$REMOTE_PASSWORD" ssh -p $sshport -o ConnectTimeout=$contimeout $REMOTE_USER@$host "rm -f $tmpscript"
 fi
 
 if test "$ufail" = "1"; then

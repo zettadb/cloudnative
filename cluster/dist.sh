@@ -20,9 +20,9 @@ for hostitem in $hosts; do
 	echo "=========== [`date`] transfer ($from) to $to on $host($hname) ==========="
 
 	if test "$SSHPASS" = ""; then
-		eval scp $sshopt -r $from $REMOTE_USER@$host:$to || ufail=1
+		eval scp -P $sshport $sshopt -r $from $REMOTE_USER@$host:$to || ufail=1
 	else
-		eval sshpass -p "$REMOTE_PASSWORD" scp $sshopt -r $from $REMOTE_USER@$host:$to || ufail=1
+		eval sshpass -p "$REMOTE_PASSWORD" scp -P $sshport $sshopt -r $from $REMOTE_USER@$host:$to || ufail=1
 	fi
 
 	if test "$ufail" = "1"; then
