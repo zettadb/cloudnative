@@ -36,7 +36,7 @@ def readFile():
     ha_mode = of["ha_mode"]
     metaPort = of["MetaPrimaryNode"]["port"]
     metaHost = of["MetaPrimaryNode"]["host"]
-    db = pymysql.connect(host = metaHost, port = int(metaPort), user = "pgx", password = "pgx_pwd", database = "kunlun_metadata_db")
+    db = pymysql.connect(host = metaHost, port = int(metaPort), user = "pgx", password = "pwd3", database = "kunlun_metadata_db")
     cur = db.cursor()
     cur.execute("select hostaddr from cluster_mgr_nodes where  member_state = 'source'")
     MgrHost = cur.fetchone()

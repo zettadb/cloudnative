@@ -94,7 +94,7 @@ def WFile(stmt, es):
     of.close()
 
 def myconn(host, port, sql):
-    conn = pymysql.connect(host = host, user = "pgx",port = int(port), password = "pgx_pwd", database = "mysql")
+    conn = pymysql.connect(host = host, user = "pgx",port = int(port), password = "pwd3", database = "mysql")
     cursor = conn.cursor()
     cursor.execute(sql)
     cursor.close()
@@ -169,7 +169,7 @@ def configData():
         num = 0
         for hosts in host:
             stmt = 'set global %s = %s' % (i, str(Medavalues[n]))
-            wf = 'mysql -h %s -P %s -upgx -ppgx_pwd "%s"' % (hosts, port[num], stmt)
+            wf = 'mysql -h %s -P %s -upgx -ppwd3 "%s"' % (hosts, port[num], stmt)
             print(wf)
             myconn(hosts, port[num], stmt)
             wFile(wf)
@@ -190,7 +190,7 @@ def configData():
         num = 0
         for hosts in host:
             stmt = 'set global %s = %s' % (i, str(Datavalues[n])) 
-            wf = 'mysql -h %s -P %s -upgx -ppgx_pwd "%s"' % (hosts, port[num], stmt)
+            wf = 'mysql -h %s -P %s -upgx -ppwd3 "%s"' % (hosts, port[num], stmt)
             print(wf)
             myconn(hosts, port[num], stmt)
             wFile(wf)

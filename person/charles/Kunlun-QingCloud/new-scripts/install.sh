@@ -240,12 +240,12 @@ then
 
 	#检查 群集是否安装完成
 	echo "select status from cluster_general_job_log where job_type = 'create_cluster'" > /home/kunlun/a.txt
-	clusterStatus=`mysql -h $metaIp -ppgx_pwd -upgx -P6001 kunlun_metadata_db < /home/kunlun/a.txt | grep -v status`
+	clusterStatus=`mysql -h $metaIp -ppwd3 -upgx -P6001 kunlun_metadata_db < /home/kunlun/a.txt | grep -v status`
 	echo $clusterStatus
 	while [[ "$clusterStatus" != "done" ]]
 	do
 		sleep 2
-		clusterStatus=`mysql -h $metaIp -ppgx_pwd -upgx -P6001 kunlun_metadata_db < /home/kunlun/a.txt | grep -v status`
+		clusterStatus=`mysql -h $metaIp -ppwd3 -upgx -P6001 kunlun_metadata_db < /home/kunlun/a.txt | grep -v status`
 		echo $clusterStatus
 	done
 

@@ -59,7 +59,7 @@ EOF
         "user": "pgx",
         "nodemgr_bin_path": "/home/kunlun/base/kunlun-node-manager-1.0.1/bin",
         "ip": "$i",
-        "password": "pgx_pwd",
+        "password": "pwd3",
         "port": 6001
     },
     {

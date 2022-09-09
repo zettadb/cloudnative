@@ -2,9 +2,9 @@ cd /home/kunlun
 rm -rf conf/tableList.txt
 metaIp=`cat configure.txt | grep /self/hosts/meta_data_node/ | grep /ip | awk '{print $2}'`
 echo "select DISTINCT(shard_id) from shard_nodes;" > tmp/a.txt
-mysql -h $metaIp -P6001 -ppgx_pwd -upgx kunlun_metadata_db < tmp/a.txt | sed '1d' > conf/shards.txt
+mysql -h $metaIp -P6001 -ppwd3 -upgx kunlun_metadata_db < tmp/a.txt | sed '1d' > conf/shards.txt
 echo "select hostaddr from cluster_mgr_nodes where member_state = 'source'" > tmp/a.txt
-clusterMgrPrimary=`mysql -h $metaIp -P6001 -ppgx_pwd -upgx kunlun_metadata_db < tmp/a.txt | tail -1`
+clusterMgrPrimary=`mysql -h $metaIp -P6001 -ppwd3 -upgx kunlun_metadata_db < tmp/a.txt | tail -1`
 
 for i in `cat conf/shards.txt`
 do
