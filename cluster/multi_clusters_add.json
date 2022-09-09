@@ -1,0 +1,122 @@
+{
+   "machines": [
+      {
+         "ip": "192.168.0.110",
+         "basedir": "/home/kunlun/multibase",
+         "user": "kunlun"
+      },
+      {
+         "ip": "192.168.0.111",
+         "basedir": "/home/kunlun/multibase",
+         "user": "kunlun"
+      },
+      {
+         "ip": "192.168.0.100",
+         "basedir": "/home/kunlun/multibase",
+         "user": "kunlun"
+      }
+   ],
+   "meta": {
+      "ha_mode": "mgr",
+      "group_seeds": "192.168.0.110:57001,192.168.0.111:57001,192.168.0.100:57001"
+   },
+   "node_manager": {
+      "nodes": [
+         {
+            "skip": true,
+            "ip": "192.168.0.110",
+            "storage_curport": 57020,
+            "server_curport": 47010
+         },
+         {
+            "skip": true,
+            "ip": "192.168.0.111",
+            "storage_curport": 57020,
+            "server_curport": 47010
+         },
+         {
+            "skip": true,
+            "ip": "192.168.0.100",
+            "storage_curport": 57020,
+            "server_curport": 47010
+         }
+      ]
+   },
+   "clusters": [
+      {
+         "name": "rbrcluster2",
+         "ha_mode": "rbr",
+         "storage_template": "small",
+         "comp": {
+            "nodes": [
+               {
+                  "ip": "192.168.0.110",
+                  "user": "abc",
+                  "password": "abc"
+               },
+               {
+                  "ip": "192.168.0.111",
+                  "user": "abc",
+                  "password": "abc"
+               }
+            ]
+         },
+         "data": [
+            {
+               "nodes": [
+                  {
+                     "ip": "192.168.0.110",
+                     "is_primary": true
+                  },
+                  {
+                     "ip": "192.168.0.111",
+                     "is_primary": false
+                  }
+               ]
+            },
+            {
+               "nodes": [
+                  {
+                     "ip": "192.168.0.100",
+                     "is_primary": true
+                  },
+                  {
+                     "ip": "192.168.0.111",
+                     "is_primary": false
+                  }
+               ]
+            }
+         ]
+      },
+      {
+         "name": "norepcluster1",
+         "ha_mode": "no_rep",
+         "storage_template": "small",
+         "comp": {
+            "nodes": [
+               {
+                  "ip": "192.168.0.111",
+                  "user": "abc",
+                  "password": "abc"
+               }
+            ]
+         },
+         "data": [
+            {
+               "nodes": [
+                  {
+                     "ip": "192.168.0.110"
+                  }
+               ]
+            },
+            {
+               "nodes": [
+                  {
+                     "ip": "192.168.0.100"
+                  }
+               ]
+            }
+         ]
+      }
+   ]
+}
