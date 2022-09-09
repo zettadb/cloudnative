@@ -546,7 +546,7 @@ def setup_machines2(jscfg, machines, args):
             node = cluster['haproxy']
             addIpToMachineMap(machines, node['ip'], args)
 
-def set_storage_using_nodemgr(machines, item, noden, innodb_buf="128MB"):
+def set_storage_using_nodemgr(machines, item, noden, innodb_buf="1024MB"):
     if 'data_dir_path' not in item:
         item['data_dir_path'] = "%s/%s" % (noden['storage_datadirs'].split(",")[0], str(item['port']))
     if 'log_dir_path' not in item:
@@ -736,7 +736,7 @@ def validate_and_set_config2(jscfg, machines, args):
                 raise ValueError('Error: Two primaries found in meta shard, there should be one and only one Primary specified !')
             else:
                 hasPrimary = True
-    if nodecnt > 1:
+    if nodecnt > 0:
         if not hasPrimary:
             meta['nodes'][0]['is_primary'] = True
 
@@ -830,7 +830,7 @@ def validate_and_set_config2(jscfg, machines, args):
                         raise ValueError('Error: Two primaries found in %s-shard%d, there should be one and only one Primary specified !' % (cluster['name'], i))
                     else:
                         hasPrimary = True
-            if nodecnt > 1:
+            if nodecnt > 0:
                 if not hasPrimary:
                     shard['nodes'][0]['is_primary'] = True
             i += 1

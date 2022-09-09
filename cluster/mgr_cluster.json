@@ -2,25 +2,31 @@
    "machines": [
       {
          "ip": "192.168.0.110",
-         "basedir": "/home/kunlun/norepbase",
+         "basedir": "/home/kunlun/mgrbase",
          "user": "kunlun"
       },
       {
          "ip": "192.168.0.111",
-         "basedir": "/home/kunlun/norepbase",
+         "basedir": "/home/kunlun/mgrbase",
          "user": "kunlun"
       },
       {
          "ip": "192.168.0.100",
-         "basedir": "/home/kunlun/norepbase",
+         "basedir": "/home/kunlun/mgrbase",
          "user": "kunlun"
       }
    ],
    "meta": {
-      "ha_mode": "no_rep",
+      "ha_mode": "mgr",
       "nodes": [
          {
             "ip": "192.168.0.110"
+         },
+         {
+            "ip": "192.168.0.111"
+         },
+         {
+            "ip": "192.168.0.100"
          }
       ]
    },
@@ -56,8 +62,8 @@
    },
    "clusters": [
       {
-         "name": "norepcluster1",
-         "ha_mode": "no_rep",
+         "name": "mgrcluster1",
+         "ha_mode": "mgr",
          "comp": {
             "nodes": [
                {
@@ -82,13 +88,12 @@
                "nodes": [
                   {
                      "ip": "192.168.0.110"
-                  }
-               ]
-            },
-            {
-               "nodes": [
+                  },
                   {
                      "ip": "192.168.0.111"
+                  },
+                  {
+                     "ip": "192.168.0.100"
                   }
                ]
             },
@@ -96,6 +101,12 @@
                "nodes": [
                   {
                      "ip": "192.168.0.100"
+                  },
+                  {
+                     "ip": "192.168.0.111"
+                  },
+                  {
+                     "ip": "192.168.0.110"
                   }
                ]
             }
