@@ -546,7 +546,7 @@ def setup_machines2(jscfg, machines, args):
             node = cluster['haproxy']
             addIpToMachineMap(machines, node['ip'], args)
 
-def set_storage_using_nodemgr(machines, item, noden, innodb_buf="1024MB"):
+def set_storage_using_nodemgr(machines, item, noden, innodb_buf="128MB"):
     if 'data_dir_path' not in item:
         item['data_dir_path'] = "%s/%s" % (noden['storage_datadirs'].split(",")[0], str(item['port']))
     if 'log_dir_path' not in item:
@@ -747,6 +747,15 @@ def validate_and_set_config2(jscfg, machines, args):
         if 'hdfs' in jscfg['backup']:
             node = jscfg['backup']['hdfs']
             addPortToMachine(portmap, node['ip'], node['port'])
+        if 'ssh' in jscfg['backup']:
+            node = jscfg['backup']['ssh']
+            if 'port' not in node:
+                node['port'] = 22
+            addPortToMachine(portmap, node['ip'], node['port'])
+            if 'user' not in node:
+                raise ValueError('Error: user must be specified for ssh backup!')
+            if 'targetDir' not in node:
+                raise ValueError('Error: targetDir must be specified for ssh backup!')
 
     if 'xpanel' in jscfg:
         node = jscfg['xpanel']
