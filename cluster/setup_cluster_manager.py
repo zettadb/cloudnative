@@ -524,6 +524,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         # Storage nodes
         cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d'
+        cmdpat += ' --meta_addrs=%s ' % metaseeds
         if cluster['storage_template'] == 'small':
             cmdpat += ' --dbcfg=./template-small.cnf'
         extraopt = " --ha_mode=%s" % cluster['ha_mode']
@@ -852,10 +853,9 @@ def install_with_config(jscfg, comf, machines, args):
         i += 1
 
     cmdpat = '%spython2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d'
+    cmdpat += ' --meta_addrs=%s ' % metaseeds
     if args.small:
         cmdpat += ' --dbcfg=./template-small.cnf'
-    # commands like:
-    # python2 install-mysql.py --config=./mysql_meta.json --target_node_index=0 --server_id=[int]
     shard_id = 'meta'
     pries = []
     secs = []
