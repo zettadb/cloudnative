@@ -546,7 +546,7 @@ def setup_machines2(jscfg, machines, args):
             node = cluster['haproxy']
             addIpToMachineMap(machines, node['ip'], args)
 
-def set_storage_using_nodemgr(machines, item, noden, innodb_buf="128MB"):
+def set_storage_using_nodemgr(machines, item, noden, innodb_buf="1024MB"):
     if 'data_dir_path' not in item:
         item['data_dir_path'] = "%s/%s" % (noden['storage_datadirs'].split(",")[0], str(item['port']))
     if 'log_dir_path' not in item:
