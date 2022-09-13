@@ -824,12 +824,17 @@ def install_with_config(jscfg, comf, machines, args):
 
     hasHDFS = False
     hdfs = None
+    hasSSH = False
+    sshbackup = None
     if 'backup' in jscfg:
         node = jscfg['backup']
         if 'hdfs' in node:
             hasHDFS = True
             hdfs = node['hdfs']
             generate_hdfs_coresite_xml(args, hdfs['ip'], hdfs['port'])
+        if 'ssh' in node:
+            hasSSH = True
+            sshbackup = node['ssh']
 
     i = 0
     for node in nodemgr['nodes']:
@@ -915,10 +920,16 @@ def install_with_config(jscfg, comf, machines, args):
     else:
         worknode = clustermgr['nodes'][0]
 
-    if hasHDFS and worknode is not None:
-        addNodeToFilesListMap(filesmap, worknode, 'add_hdfs.py', '.')
-        addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
-            "python2 add_hdfs.py --seeds=%s --hdfsHost=%s --hdfsPort=%d" % (metaseeds, hdfs['ip'], hdfs['port']))
+    if worknode is not None:
+        if hasHDFS:
+            addNodeToFilesListMap(filesmap, worknode, 'add_hdfs.py', '.')
+            addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
+                "python2 add_hdfs.py --seeds=%s --hdfsHost=%s --hdfsPort=%d" % (metaseeds, hdfs['ip'], hdfs['port']))
+        if hasSSH:
+            addNodeToFilesListMap(filesmap, worknode, 'add_ssh.py', '.')
+            addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
+                "python2 add_ssh.py --seeds=%s --sshHost=%s --sshPort=%d --sshUser=%s --sshTarget=%s" % (metaseeds,
+                sshbackup['ip'], sshbackup['port'], sshbackup['user'], sshbackup['targetDir']))
 
     if len(nodemgr['nodes']) > 0:
         nodemgrjson = "nodemgr.json"
