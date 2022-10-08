@@ -8,6 +8,7 @@ def test(sql, host, port, user, pwd, db):
     print(sql)
     if sql == 'select * from mysql_connector_python;':
         cur.execute(sql)
+        cur.autocommit = false
         rs = cur.fetchall()
         srs = str(rs)
         srs = srs.replace('[(', '')
@@ -39,9 +40,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description = 'this script is use to test ddl replication!')
     parser.add_argument('--host', help='host')
     parser.add_argument('--port', default=3306, help='port')
-    parser.add_argument('--db', default='mysql', help='database name')
-    parser.add_argument('--pwd', default='pgx_pwd', help='password')
-    parser.add_argument('--user', default='pgx', help='user name')
+    parser.add_argument('--db', default='postgres', help='database name')
+    parser.add_argument('--pwd', default='abc', help='password')
+    parser.add_argument('--user', default='abc', help='user name')
     args = parser.parse_args()
     host = args.host
     port = args.port
