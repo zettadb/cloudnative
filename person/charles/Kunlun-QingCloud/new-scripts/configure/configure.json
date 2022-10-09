@@ -1,0 +1,25 @@
+{
+	"comp":[{
+			"statement_timeout":1000000,
+			"mysql_read_timeout":1000000,
+			"mysql_write_timeout":1000000,
+			"lock_timeout":1000000,
+			"log_min_duration_statement":1000000
+		}
+	
+	],
+	
+	"metadata":[{
+			"lock_wait_timeout":2000, 
+			"innodb_lock_wait_timeout":3000
+		}
+	],
+	"storage":[{
+		"lock_wait_timeout":2000,
+		"innodb_lock_wait_timeout":3000,
+		"fullsync_timeout":3000000
+	
+		}
+	
+	]
+}

@@ -1,0 +1,47 @@
+#你cluster_mgr的ip地址和对应端口
+clusterMgrInfo:
+        host: "192.168.0.132"
+        port: "12212"
+
+MetaPrimaryNode:
+        host: "192.168.0.132"
+        port: "6003"
+
+# 要创建的computing node 对应的host，数量不限
+computer:
+        - 192.168.0.132
+        - 192.168.0.134
+        - 192.168.0.140
+
+pgsql_port_range: "8880-8900"
+
+# 要创建的datanode 对应的host，数量不限
+storage:
+        - 192.168.0.132
+        - 192.168.0.134
+        - 192.168.0.140
+
+mysql_port_range: "58880-58900"
+
+ha_mode: "rbr"
+dbcfg: 1
+user_name: "lalalademaxiya"
+shards: 1
+nodes: 3
+comps: 1
+
+datadir: "/home/kunlun/compare/data/storage_datadir"
+logdir: "/home/kunlun/compare/data/storage_logdir"
+wal_log_dir: "/home/kunlun/compare/data/storage_waldir"
+comp_datadir: "/home/kunlun/compare/data/server_datadir"
+
+total_mem: "1024"
+total_cpu_cores: "8"
+
+nick_name: "touDa"
+
+max_storage_size: 20
+max_connections: 6
+innodb_size: 1
+fullsync_level: 1
+

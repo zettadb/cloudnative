@@ -1,0 +1,42 @@
+MetaPrimaryNode:
+        host: "192.168.0.132"
+        port: "6003"
+
+# 要创建的datanode 对应的host，数量不限
+storage:
+        - 192.168.0.132
+        - 192.168.0.134
+        - 192.168.0.140
+
+# 要扩容的table_list,key为要扩容的表，values为对应表所处的shard编号
+table_list:
+        postgres.public.t1: 1
+        postgres.public.t2: 2
+
+# 这个是表示要扩容的shard的id
+dst_shard_id:
+        - 3
+
+mysql_port_range: "58880-58900"
+
+ha_mode: "rbr"
+dbcfg: 1
+user_name: "lalalademaxiya"
+shards: 1
+nodes: 3
+
+datadir: "/home/kunlun/compare/data/storage_datadir"
+logdir: "/home/kunlun/compare/data/storage_logdir"
+wal_log_dir: "/home/kunlun/compare/data/storage_waldir"
+comp_datadir: "/home/kunlun/compare/data/server_datadir"
+
+total_mem: "1024"
+total_cpu_cores: "8"
+
+nick_name: "touDa"
+
+max_storage_size: 20
+max_connections: 6
+innodb_size: 1
+fullsync_level: 1
+

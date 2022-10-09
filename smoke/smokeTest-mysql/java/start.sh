@@ -18,4 +18,5 @@ fi
 
 echo -e "\033[47;31;5m java -cp mysql-connector-java-8.0.16.jar mysql.java ${1}:${2} \033[0m"
 echo
-java -cp mysql-connector-java-8.0.16.jar mysql.java ${1}:${2}
+javac mysql.java
+java -cp .:mysql-connector-java-8.0.16.jar mysql ${1}:${2}

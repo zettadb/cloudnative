@@ -11,8 +11,10 @@ namespace SmokeTest
     {
         static void Main(string[] args)
         {
+	    string host = args[0];
+	    string port = args[1];
             Console.WriteLine("\n========== C# Driver ============");
-            string connSting = "Host=localhost;Port=5401;Username=abc;Password=abc;Database=postgres";
+            string connSting = "Host=" + host + ";Port=" + port + ";Username=abc;Password=abc;Database=postgres";
             var conn = new NpgsqlConnection(connSting);
             
             NpgsqlDataAdapter DA = new NpgsqlDataAdapter();

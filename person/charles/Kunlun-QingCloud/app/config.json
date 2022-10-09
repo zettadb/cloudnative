@@ -1,0 +1,352 @@
+{
+	"type":"array",
+	"properties":[{
+		"key":"cluster",
+		"description":"kunlun-cluster properties",
+		"type":"array",
+		"properties":[{
+			"key":"name",
+			"label":"Name",
+			"description":"the name of Kunlun_Cluster",
+			"type":"string",
+			"default":"Kunlun Cluster",
+			"required":"no"
+		},{
+			"key":"description",
+			"label":"Description",
+			"description":"the description of Kunlun_Cluster",
+			"type":"string",
+			"default":" ",
+			"required":"yes"
+		},{
+			"key":"vxnet",
+			"label":"Vxnet",
+			"description":"choose a Vxnet to join",
+			"type":"string",
+			"default":" ",
+			"required":"yes"
+		},{
+			"key":"computing_node",
+			"label":"Computing_Node",
+			"description":"the Computing_Node of Kunlun_Cluster",
+			"type":"array",
+			"properties":[{
+				"key":"loadbalancer",
+				"label":"Loadbalabcer Services",
+				"description": "Choose a loadbalancer service to use",
+                		"type": "loadbalancer",
+                		"port": 5432,
+                		"default": [],
+                		"required": "no"
+			},{
+				"key":"instance_class",
+				"label":"Instance_class",
+				"description":" ",
+				"type":"integer",
+				"default":202,
+				"range":[101,202,301],
+				"required":"yes"
+			},{
+				"key":"cpu",
+                	        "label":"Cpu",
+      	         		"description":"Cpus of each Computing_Node",
+                        	"type":"integer",
+                        	"default":2,
+                        	"range":[1,2,4,8,12,16,24,32,64],
+                        	"required":"yes"
+			},{
+				"key":"memory",
+                        	"label":"Memory",
+                        	"description":"Memory of each Computing_Node",
+                        	"type":"integer",
+                        	"default":2048,
+                        	"range":[2048,4096,6144,8192,12288,16384,24576,32768,40960,49152,65536,81920,98304,114688,131072],
+                        	"required":"yes"
+			},{
+				"key":"count",
+				"label":"Count",
+				"description":"Number of Computing Node, ideally, 3 or more",
+				"type":"integer",
+				"default":3,
+				"min":1,
+				"required":"yes"
+			},{
+				"key":"volume_size",
+				"label":"Volume Size",
+				"description":"Volume Size of computing node",
+				"type":"integer",
+				"default":10,
+				"min":10,
+				"required":"yes"
+			}]
+		},{
+			"key":"meta_data_node",
+			"label":"Meta_data Node",
+			"description":"Meta_data Node of Kunlun_Cluster",
+			"type":"array",
+			"properties":[{
+				"key":"instance_class",
+                        	"label":"Instance_class",
+                        	"description":" ",
+                        	"type":"integer",
+                        	"default":202,
+                        	"range":[101,202,301],
+                        	"required":"yes"
+                        },{
+                        	"key":"cpu",
+                        	"label":"Cpu",
+                        	"description":"Cpus of each Meta_data Node",
+                        	"type":"integer",
+                        	"default":2,
+                        	"range":[1,2,4,8,12,16,24,32,64],
+                        	"required":"yes"
+                        },{
+                        	"key":"memory",
+                        	"label":"Memory",
+                        	"description":"Memory of each Meta_data Node",
+                       		"type":"integer",
+                        	"default":2048,
+                        	"range":[2048,4096,6144,8192,12288,16384,24576,32768,40960,49152,65536,81920,98304,114688,131072],
+                        	"required":"yes"
+                        },{
+                        	"key":"count",
+                        	"label":"Count",
+                        	"description":"Number of Meta_Data Node, only one",
+                        	"type":"integer",
+                        	"default":1,
+                        	"range":[1],
+                        	"required":"no"
+                        },{
+				"key":"replica",
+                                "label":"Replica",
+                                "description":"The Replica of each Meta-Data Master Node, only two",
+                                "type":"integer",
+                                "default":2,
+                                "range":[2],
+                                "required":"no"
+			},{
+                        	"key":"volume_size",
+                        	"label":"Volume Size",
+                        	"description":"Volume Size of Meta_data Node",
+                        	"type":"integer",
+                        	"default":10,
+                        	"min":10,
+                        	"required":"yes"
+			}]
+		},{
+			"key":"data_node",
+			"label":"Data Node",
+			"description":"Data Node of Kunlun_Cluster",
+			"type":"array",
+			"properties":[{
+				"key":"instance_class",
+                        	"label":"Instance_class",
+                        	"description":" ",
+                        	"type":"integer",
+                        	"default":202,
+                        	"range":[101,202,301],
+                        	"required":"yes"
+                        },{
+                        	"key":"cpu",
+                        	"label":"Cpu",
+                        	"description":"Cpus of each Data Node",
+                        	"type":"integer",
+                        	"default":2,
+                        	"range":[1,2,4,8,12,16,24,32,64],
+                        	"required":"yes"
+                        },{
+                        	"key":"memory",
+                        	"label":"Memory",
+                        	"description":"Memory of each Data Node",
+                        	"type":"integer",
+                        	"default":2048,
+                        	"range":[2048,4096,6144,8192,12288,16384,24576,32768,40960,49152,65536,81920,98304,114688,131072],
+                        	"required":"yes"
+                        },{
+                        	"key":"count",
+                        	"label":"Count",
+                        	"description":"Number of Data Master Node, it is best of 2 or more",
+                        	"type":"integer",
+                        	"default":2,
+                        	"min":1,
+                        	"required":"yes"
+			},{
+				"key":"replica",
+				"label":"Replica",
+				"description":"The Replica of each Data Master Node, it is best of 2 or more",
+				"type":"integer",
+				"default":2,
+				"min":1,
+				"required":"yes"
+			},{
+                        	"key":"volume_size",
+                        	"label":"Volume Size",
+                        	"description":"Volume Size of Data Node",
+                        	"type":"integer",
+                        	"default":10,
+                        	"min":10,
+                        	"required":"yes"
+			}]
+		},{
+			"key":"xpanel",
+                        "label":"XPanel",
+                        "description":"XPanel of Kunlun_Cluster",
+                        "type":"array",
+                        "properties":[{
+                                "key":"instance_class",
+                                "label":"Instance_class",
+                                "description":" ",
+                                "type":"integer",
+                                "default":101,
+                                "range":[101],
+                                "required":"yes"
+                        },{
+                                "key":"cpu",
+                                "label":"Cpu",
+                                "description":"Cpus of each XPanel",
+                                "type":"integer",
+                                "default":2,
+                                "range":[1,2,4,8],
+                                "required":"yes"
+                        },{
+                                "key":"memory",
+                                "label":"Memory",
+                                "description":"Memory of XPanel",
+                                "type":"integer",
+                                "default":2048,
+                                "range":[2048,4096,6144,8192,12288,16384,24576,32768,40960,49152,65536,81920,98304,114688,131072],
+                                "required":"yes"
+                        },{
+                                "key":"count",
+                                "label":"Count",
+                                "description":"Number of XPanel",
+                                "type":"integer",
+                                "default":1,
+				"range": [1],
+                                "required":"no"
+			},{
+                                "key":"volume_size",
+                                "label":"Volume Size",
+                                "description":"Volume Size of XPanel",
+                                "type":"integer",
+                                "default":10,
+                                "min":10,
+                                "required":"yes"
+                        }]
+		}]
+	},{
+
+		"key":"env",
+		"description":"Kunlun-Cluster service properties",
+		"type":"array",
+		"properties":[{
+			"key": "max_connections",
+			"label": "Max_connections",
+			"description": "max_connections of computing node",
+			"type": "integer",
+			"default": 1000,
+			"max": 100000,
+			"min": 10,
+			"required": "no"
+		},{
+	                "key": "shared_buffers",
+	                "label": "Shared_buffers",
+	                "description": "shared_buffers ,1mb - 512mb",
+	                "type": "integer",
+	                "default": 8,
+	                "max": 512,
+	                "min": 1,
+	                "required": "no"
+	        },{
+			"key": "xpanel_port",
+                        "label": "xpanel_port",
+                        "description": "xpanel_port ,10000 - 59999",
+                        "type": "integer",
+                        "default": 17000,
+                        "max": 59999,
+                        "min": 1000,
+                        "required": "no"
+		},{
+	                "key": "temp_buffers",
+	                "label": "Temp_buffers",
+	                "description": "temp_buffers of computing node, 1mb - 128mb",
+	                "type": "integer",
+	                "default": 32,
+	                "max": 128,
+	                "min": 1,
+	                "required": "no"
+	        },{
+	                "key": "log_min_duration_statement",
+	                "label": "Log_min_duration_statement",
+	                "description": "log_min_duration_statement of computing node ,-1 is disabled, 0 logs all statements and their durations, > 0 logs onlystatements running at least this number of milliseconds",
+	                "type": "integer",
+	                "default": 10000,
+	                "max": 100000000,
+	                "min": 1000,
+	                "required": "no"
+	        },{
+	                "key": "statement_timeout",
+	                "label": "Statement_timeout",
+	                "description": "statement_timeout of computing node,in milliseconds, can't be disabled in Kunlun_Cluster.",
+	                "type": "integer",
+	                "default": 100000,
+	                "max": 100000000,
+	                "min": 1000,
+	                "required": "no"
+	        },{
+	                "key": "lock_timeout",
+	   		"label": "Lock_timeout",
+	                "description": "lock_timeout of computing node,in milliseconds, can't be disabled in Kunlun_Cluster.",
+	                "type": "integer",
+	                "default": 100000,
+	                "max": 100000000,
+	                "min": 1000,
+	                "required": "no"
+	        },{
+	                "key": "mysql_connect_timeout",
+	                "label": "Mysql_connect_timeout",
+	                "description": "mysql_connect_timeout,1s - 1000s",
+		        "type": "integer",
+	                "default": 50,
+	                "max": 1000,
+	                "min": 1,
+	                "required": "no"
+	        },{
+	                "key": "mysql_read_timeout",
+	                "label": "Mysql_read_timeout",
+	                "description": "mysql_read_timeout,1s - 1000s",
+	                "type": "integer",
+	                "default": 50,
+	                "max": 1000,
+	                "min": 1,
+	                "required": "no"
+	        },{
+	                "key": "mysql_write_timeout",
+	                "label": "Mysql_write_timeout",
+	                "description": "mysql_write_timeout,1s - 1000s",
+	                "type": "integer",
+	                "default": 50,
+	                "max": 1000,
+	                "min": 1,
+	                "required": "no"
+	        },{
+	                "key": "innodb_lock_wait_timeout",
+	                "label": "Innodb_lock_wait_timeout",
+	                "description": "innodb_lock_wait_timeout,1s - 1000s",
+	                "type": "integer",
+	                "default": 20,
+	                "max": 1000,
+	                "min": 1,
+	                "required": "no"
+	        },{
+	                "key": "lock_wait_timeout",
+	                "label": "Lock_wait_timeout",
+	                "description": "lock_wait_timeout,1s - 1000s",
+	                "type": "integer",
+	                "default": 5,
+	                "max": 1000,
+	                "min": 1,
+	                "required": "no"
+	        }]
+	}]
+}

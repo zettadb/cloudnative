@@ -1,0 +1,120 @@
+{
+	"name": {{cluster.name}},
+    	"description": {{cluster.description}},
+    	"multi_zone_policy": "round_robin",
+    	"vxnet": {{cluster.vxnet}},
+	"advanced_actions": ["change_vxnet"],
+	"backup_policy": "device",
+	"upgrade_policy":[],
+	"nodes":[{
+		"role":"computing_node",
+		"loadbalancer": {{cluster.computing_node.loadbalancer}},
+		"container":{
+			"type":"kvm",
+			"image":"img-8it3tzn7",
+			"zone":"sh1a"
+		},
+		"instance_class":{{cluster.computing_node.instance_class}},
+		"count":{{cluster.computing_node.count}},
+		"cpu": {{cluster.computing_node.cpu}},
+		"memory":{{cluster.computing_node.memory}},
+		"volume":{
+			"size":{{cluster.computing_node.volume_size}},
+			"mount_point":"/data",
+			"filesystem":"xfs"
+		},
+		"user_access": true,
+		"services":{
+			"init":{
+				"cmd":"/bin/bash /home/kunlun/init.sh > /home/kunlun/log.log 2>&1",
+				"order": 3
+			}
+		}
+	},{
+		"role":"meta_data_node",
+		"container":{
+			"type":"kvm",
+			"image":"img-8it3tzn7",
+			"zone":"sh1a"
+		},
+		"instance_class":{{cluster.meta_data_node.instance_class}},
+		"count":{{cluster.meta_data_node.count}},
+		"cpu": {{cluster.meta_data_node.cpu}},
+		"memory":{{cluster.meta_data_node.memory}},
+		"volume":{
+                        "size":{{cluster.meta_data_node.volume_size}},
+			"mount_point":"/data",
+			"filesystem":"xfs"
+                },
+		"replica":{{cluster.meta_data_node.replica}},
+		"user_access": true,
+		"services":{
+			"init":{
+				"cmd":"/bin/bash /home/kunlun/init.sh > /home/kunlun/log.log 2>&1",
+				"order": 1
+			}
+		}
+	},{
+		"role":"data_node",
+		"container":{
+                        "type":"kvm",
+                        "image":"img-8it3tzn7",
+                        "zone":"sh1a"
+                },
+                "instance_class":{{cluster.data_node.instance_class}},
+                "count":{{cluster.data_node.count}},
+                "cpu": {{cluster.data_node.cpu}},
+                "memory":{{cluster.data_node.memory}},
+                "volume":{
+                        "size":{{cluster.data_node.volume_size}},
+                        "mount_point":"/data",
+                        "filesystem":"xfs"
+                },
+		"advanced_actions": ["scale_horizontal"],
+		"replica":{{cluster.data_node.replica}},
+		"user_access": true,
+		"services":{
+			"init":{
+				"cmd":"/bin/bash /home/kunlun/init.sh > /home/kunlun/log.log 2>&1",
+				"order": 2
+			}
+		}
+	},{
+		"role":"xpanel",
+                "container":{
+                        "type":"kvm",
+                        "image":"img-dp0avcsg",
+                        "zone":"sh1a"
+                },
+                "instance_class":{{cluster.xpanel.instance_class}},
+                "count":{{cluster.xpanel.count}},
+                "cpu": {{cluster.xpanel.cpu}},
+                "memory":{{cluster.xpanel.memory}},
+                "volume":{
+                        "size":{{cluster.xpanel.volume_size}},
+                        "mount_point":"/data",
+                        "filesystem":"xfs"
+                },
+                "user_access": true,
+                "services":{
+                        "init":{
+                                "cmd":"/bin/bash /home/kunlun/init.sh > /home/kunlun/log.log 2>&1",
+				"order": 4
+                        }
+                }
+	}],
+"env":{
+	"xpanel_port": {{env.xpanel_port}},
+	"max_connections": {{env.max_connections}},
+	"shared_buffers":{{env.shared_buffers}},
+	"temp_buffers":{{env.temp_buffers}},
+        "log_min_duration_statement":{{env.log_min_duration_statement}},
+        "statement_timeout":{{env.statement_timeout}},
+        "lock_timeout":{{env.lock_timeout}},
+        "mysql_connect_timeout":{{env.mysql_connect_timeout}},
+        "mysql_read_timeout":{{env.mysql_read_timeout}},
+        "mysql_write_timeout":{{env.mysql_write_timeout}},
+        "innodb_lock_wait_timeout":{{env.innodb_lock_wait_timeout}},
+	"lock_wait_timeout":{{env.lock_wait_timeout}}
+	}
+}
