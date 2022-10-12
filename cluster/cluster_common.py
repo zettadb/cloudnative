@@ -7,6 +7,11 @@ import socket
 import uuid
 import getpass
 
+def output_info(comf, str):
+    comf.write("cat <<EOF\n")
+    comf.write("%s\n" % str)
+    comf.write("EOF\n")
+
 def my_print(toprint):
     if sys.version_info.major == 2:
         sys.stdout.write(toprint + "\n")
@@ -626,8 +631,6 @@ def validate_and_set_config2(jscfg, machines, args):
             node['valgrind'] = False
         if 'skip' not in node:
             node['skip'] = False
-        if 'nodetype' not in node:
-            node['nodetype'] = 'none'
         # default 8 cpus
         if 'total_cpu_cores' not in node:
             node['total_cpu_cores'] = 8

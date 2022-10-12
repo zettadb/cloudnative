@@ -561,9 +561,9 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
                 k += 1
             j += 1
         for item in pries:
-            addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
+            addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt, "storage")
         for item in secs:
-            addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
+            addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt, "storage")
 
         # Computing nodes
         pg_compname = 'cluster%d_comp.json' % i
@@ -887,9 +887,9 @@ def install_with_config(jscfg, comf, machines, args):
             generate_storage_service(args, machines, commandslist, node, i, filesmap)
         i+=1
     for item in pries:
-        addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
+        addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt, "storage")
     for item in secs:
-        addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt)
+        addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt, "storage")
     purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # bootstrap the cluster
@@ -917,7 +917,7 @@ def install_with_config(jscfg, comf, machines, args):
         worknode = meta['nodes'][0]
     elif len(nodemgr['nodes']) > 0:
         worknode = nodemgr['nodes'][0]
-    else:
+    elif len(clustermgr['nodes']) > 0:
         worknode = clustermgr['nodes'][0]
 
     if worknode is not None:
@@ -1066,7 +1066,7 @@ def clean_with_config(jscfg, comf, machines, args):
         worknode = meta['nodes'][0]
     elif len(nodemgr['nodes']) > 0:
         worknode = nodemgr['nodes'][0]
-    else:
+    elif len(clustermgr['nodes']) > 0:
         worknode = clustermgr['nodes'][0]
 
     if worknode is not None:

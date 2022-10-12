@@ -197,13 +197,13 @@ def generate_install_scripts(jscfg, args):
 	    i+=1
 
     for item in mpries:
-        addToCommandsList(commandslist, item[0], item[1], item[2] + meta_extraopt)
+        addToCommandsList(commandslist, item[0], item[1], item[2] + meta_extraopt, "storage")
     for item in pries:
-        addToCommandsList(commandslist, item[0], item[1], item[2] + shard_extraopt)
+        addToCommandsList(commandslist, item[0], item[1], item[2] + shard_extraopt, "storage")
     for item in msecs:
-        addToCommandsList(commandslist, item[0], item[1], item[2] + meta_extraopt)
+        addToCommandsList(commandslist, item[0], item[1], item[2] + meta_extraopt, "storage")
     for item in secs:
-        addToCommandsList(commandslist, item[0], item[1], item[2] + shard_extraopt)
+        addToCommandsList(commandslist, item[0], item[1], item[2] + shard_extraopt, "storage")
 
     comps = cluster['comp']['nodes']
     pg_compname = 'postgres_comp.json'
@@ -315,6 +315,10 @@ def generate_install_scripts(jscfg, args):
     com_name = 'commands.sh'
     comf = open(r'install/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog' DEBUG\n")
+    comf.write("trap 'exit 1' ERR\n")
 
     # files copy.
     for ip in machines:
@@ -377,6 +381,7 @@ def generate_install_scripts(jscfg, args):
     process_filesmap(comf, filesmap, machines, 'install', args)
     # The reason for not using commands map is that, we need to keep the order for the commands.
     process_commandslist_setenv(comf, args, machines, commandslist)
+    output_info(comf, "Installation completed !")
     comf.close()
 
 # The order is meta shard -> data shards -> cluster_mgr -> comp nodes
@@ -403,7 +408,7 @@ def generate_start_scripts(jscfg, args):
     targetdir='%s/dba_tools' % storagedir
     for node in meta['nodes']:
         cmdpat = r'bash startmysql.sh %s'
-        addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
+        addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'], "storage")
 
     # bash startmysql.sh [port]
     targetdir='%s/dba_tools' % storagedir
@@ -411,7 +416,7 @@ def generate_start_scripts(jscfg, args):
     for shard in datas:
 	    for node in shard['nodes']:
                 cmdpat = r'bash startmysql.sh %s'
-                addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'])
+                addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % node['port'], "storage")
     
     clmgrnodes = jscfg['cluster']['clustermgr']['nodes']
     cmdpat = r'bash start_cluster_mgr.sh </dev/null >& run.log &'
@@ -433,7 +438,11 @@ def generate_start_scripts(jscfg, args):
     com_name = 'commands.sh'
     comf = open(r'start/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog' DEBUG\n")
     process_commandslist_setenv(comf, args, machines, commandslist)
+    output_info(comf, "Start action completed !")
     comf.close()
 
 # The order is: comp-nodes -> cluster_mgr -> data shards -> meta shard
@@ -485,7 +494,11 @@ def generate_stop_scripts(jscfg, args):
     com_name = 'commands.sh'
     comf = open(r'stop/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog' DEBUG\n")
     process_commandslist_setenv(comf, args, machines, commandslist)
+    output_info(comf, "Stop action completed !")
     comf.close()
 
 def generate_systemctl_clean(servname, ip, commandslist):
@@ -586,8 +599,12 @@ def generate_clean_scripts(jscfg, args):
     com_name = 'commands.sh'
     comf = open(r'clean/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog' DEBUG\n")
     process_commandslist_setenv(comf, args, machines, env_cmdlist)
     process_commandslist_noenv(comf, args, machines, noenv_cmdlist)
+    output_info(comf, "Clean action completed !")
     comf.close()
 
 # The order is meta shard -> data shards -> cluster_mgr -> comp nodes
@@ -645,10 +662,14 @@ def generate_check_scripts(jscfg, args):
     com_name = 'commands.sh'
     comf = open(r'check/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog' DEBUG\n")
 
     # files copy.
     process_filesmap(comf, filesmap, machines, '.', args)
     process_commandslist_setenv(comf, args, machines, commandslist)
+    output_info(comf, "Check action completed !")
     comf.close()
 
 if  __name__ == '__main__':
