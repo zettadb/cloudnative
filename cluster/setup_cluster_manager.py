@@ -273,6 +273,7 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     nodemgrdir = "kunlun-node-manager-%s" % args.product_version
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
+    proxysqldir = "kunlun-proxysql-%s" % args.product_version
     confpath = "%s/conf/node_mgr.cnf" % nodemgrdir
     mach = machines.get(node['ip'])
     if hasHDFS:
@@ -286,6 +287,11 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
     addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, storagedir), "bash %s/process_deps.sh" % mach['basedir'])
     addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, serverdir), "bash %s/process_deps.sh" % mach['basedir'])
+    if node['has_proxysql']:
+        addNodeToFilesListMap(filesmap, node, "%s.tgz" % proxysqldir, targetdir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % proxysqldir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % proxysqldir)
+        addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, proxysqldir), "bash %s/process_deps.sh" % mach['basedir'])
     comstr = "test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0"
     addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, storagedir), comstr)
     addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, serverdir), comstr)
@@ -370,8 +376,12 @@ def install_clustermgr(args):
     comf.write('#! /bin/bash\n')
     comf.write("cat /dev/null > runlog\n")
     comf.write("cat /dev/null > lastlog\n")
-    comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
-    comf.write("trap 'cat lastlog; exit 1' ERR\n")
+    if args.verbose:
+        comf.write("trap 'cat lastlog' DEBUG\n")
+        comf.write("trap 'exit 1' ERR\n")
+    else:
+        comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
+        comf.write("trap 'cat lastlog; exit 1' ERR\n")
     install_with_config(jscfg, comf, machines, args)
     output_info(comf, "Installation completed !")
     comf.close()
@@ -385,7 +395,10 @@ def stop_clustermgr(args):
     comf.write('#! /bin/bash\n')
     comf.write("cat /dev/null > runlog\n")
     comf.write("cat /dev/null > lastlog\n")
-    comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
+    if args.verbose:
+        comf.write("trap 'cat lastlog' DEBUG\n")
+    else:
+        comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
     stop_with_config(jscfg, comf, machines, args)
     output_info(comf, "Start action completed !")
     comf.close()
@@ -399,7 +412,10 @@ def start_clustermgr(args):
     comf.write('#! /bin/bash\n')
     comf.write("cat /dev/null > runlog\n")
     comf.write("cat /dev/null > lastlog\n")
-    comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
+    if args.verbose:
+        comf.write("trap 'cat lastlog' DEBUG\n")
+    else:
+        comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
     start_with_config(jscfg, comf, machines, args)
     output_info(comf, "Stop action completed !")
     comf.close()
@@ -413,7 +429,10 @@ def clean_clustermgr(args):
     comf.write('#! /bin/bash\n')
     comf.write("cat /dev/null > runlog\n")
     comf.write("cat /dev/null > lastlog\n")
-    comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
+    if args.verbose:
+        comf.write("trap 'cat lastlog' DEBUG\n")
+    else:
+        comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
     clean_with_config(jscfg, comf, machines, args)
     output_info(comf, "Clean action completed !")
     comf.close()
@@ -427,7 +446,10 @@ def service_clustermgr(args):
     comf.write('#! /bin/bash\n')
     comf.write("cat /dev/null > runlog\n")
     comf.write("cat /dev/null > lastlog\n")
-    comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
+    if args.verbose:
+        comf.write("trap 'cat lastlog' DEBUG\n")
+    else:
+        comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
     service_with_config(jscfg, comf, machines, args)
     output_info(comf, "Service action completed !")
     comf.close()

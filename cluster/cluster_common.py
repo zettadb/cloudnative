@@ -551,7 +551,7 @@ def setup_machines2(jscfg, machines, args):
             node = cluster['haproxy']
             addIpToMachineMap(machines, node['ip'], args)
 
-def set_storage_using_nodemgr(machines, item, noden, innodb_buf="1024MB"):
+def set_storage_using_nodemgr(machines, item, noden, innodb_buf="128MB"):
     if 'data_dir_path' not in item:
         item['data_dir_path'] = "%s/%s" % (noden['storage_datadirs'].split(",")[0], str(item['port']))
     if 'log_dir_path' not in item:
@@ -625,6 +625,8 @@ def validate_and_set_config2(jscfg, machines, args):
     for node in nodemgr['nodes']:
         node['storage_usedports'] = []
         node['server_usedports'] = []
+        if 'has_proxysql' not in node:
+            node['has_proxysql'] = False
         if 'nodetype' not in node:
             node['nodetype'] = 'both'
         if 'valgrind' not in node:
@@ -943,7 +945,7 @@ def get_master_conn(args, metaseeds):
                 conn = None
                 continue
             else:
-                print "%s:%s is master" % (host, str(port))
+                my_print("%s:%s is master" % (host, str(port)))
                 csr.close()
                 return conn
         except mc.errors.InterfaceError as err:
