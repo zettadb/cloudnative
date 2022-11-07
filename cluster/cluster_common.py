@@ -541,6 +541,8 @@ def setup_machines2(jscfg, machines, args):
         addIpToMachineMap(machines, node['ip'], args)
     if 'xpanel' in jscfg:
         addIpToMachineMap(machines, jscfg['xpanel']['ip'], args)
+    if 'elasticsearch' in jscfg:
+        addIpToMachineMap(machines, jscfg['elasticsearch']['ip'], args)
     for cluster in clusters:
         for node in cluster['comp']['nodes']:
             addIpToMachineMap(machines, node['ip'], args, True)
@@ -773,13 +775,37 @@ def validate_and_set_config2(jscfg, machines, args):
         if 'imageFile' not in node:
             node['imageFile'] = 'kunlun-xpanel-%s.tar.gz' % args.product_version
 
+    if 'elasticsearch' in jscfg:
+        node = jscfg['elasticsearch']
+        if 'ip' not in node:
+            raise ValueError('Error: the ip of elasticsearch must be specified!')
+        if 'port' not in node:
+            node['port'] = 9200
+        if 'kibana_port' not in node:
+            node['kibana_port'] = 5601
+
     for cluster in clusters:
         if 'name' not in cluster:
-            cluster['name'] = getuuid()
+            raise ValueError('Error: the name of cluster must be specified!')
         if  'ha_mode' not in cluster:
             cluster['ha_mode'] = 'mgr'
         if 'storage_template' not in cluster:
             cluster['storage_template'] = 'normal'
+        if 'innodb_buffer_pool_size_MB' not in cluster:
+            cluster['innodb_buffer_pool_size_MB'] = 1024
+        innodb_sizeMB = cluster['innodb_buffer_pool_size_MB']
+        if 'fullsync_level' not in cluster:
+            cluster['fullsync_level'] = 1
+        if 'max_connections' not in cluster:
+            cluster['max_connections'] = 1000
+        if 'max_storage_size_GB' not in cluster:
+            cluster['max_storage_size_GB'] = 20
+        if 'storage_cpu_cores' not in cluster:
+            cluster['storage_cpu_cores'] = 8
+        cluster['dbcfg'] = 0
+        if cluster['storage_template'] == 'small':
+            cluster['dbcfg'] = 1
+        storage_sizeGB = cluster['max_storage_size_GB']
         ha_mode = cluster['ha_mode']
         validate_ha_mode(ha_mode)
         comps = cluster['comp']
@@ -825,7 +851,7 @@ def validate_and_set_config2(jscfg, machines, args):
                     node['port'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 2)
                 addPortToMachine(portmap, node['ip'], node['port'])
                 addto_usedports(args, nodemgrobj, 'storage', node['port'])
-                set_storage_using_nodemgr(machines, node, nodemgrobj)
+                set_storage_using_nodemgr(machines, node, nodemgrobj, '%dMB' % innodb_sizeMB)
                 if ha_mode == 'mgr':
                     if 'xport' not in node:
                         node['xport'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 1)
@@ -854,6 +880,7 @@ def validate_and_set_config2(jscfg, machines, args):
             addPortToMachine(portmap, node['ip'], node['port'])
             if 'mysql_port' in node:
                 addPortToMachine(portmap, node['ip'], node['mysql_port'])
+
     if args.verbose:
         for node in nodemgr['nodes']:
             my_print(str(node))
