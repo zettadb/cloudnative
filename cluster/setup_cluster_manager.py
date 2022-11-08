@@ -405,7 +405,7 @@ def stop_clustermgr(args):
     else:
         comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
     stop_with_config(jscfg, comf, machines, args)
-    output_info(comf, "Start action completed !")
+    output_info(comf, "Stop action completed !")
     comf.close()
 
 def start_clustermgr(args):
@@ -422,7 +422,7 @@ def start_clustermgr(args):
     else:
         comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
     start_with_config(jscfg, comf, machines, args)
-    output_info(comf, "Stop action completed !")
+    output_info(comf, "Start action completed !")
     comf.close()
 
 def clean_clustermgr(args):
@@ -501,7 +501,10 @@ def install_xpanel(jscfg, machines, dirmap, filesmap, commandslist, metaseeds, c
         process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % node['imageFile'], mach['basedir'])
         cmdpat = "sudo docker inspect %s >& /dev/null || ( gzip -cd %s | sudo docker load )"
         process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (node['image'], node['imageFile']))
-    cmdpat = "sudo docker run -itd --env METASEEDS=%s --name %s -p %d:80 %s bash -c '/bin/bash /kunlun/start.sh'"
+    restart = 'no'
+    if args.autostart:
+        restart = 'always'
+    cmdpat = "sudo docker run -itd --restart={} --env METASEEDS=%s --name %s -p %d:80 %s bash -c '/bin/bash /kunlun/start.sh'".format(restart)
     process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % (metaseeds, node['name'], node['port'], node['image']))
 
 def stop_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args):
@@ -552,9 +555,12 @@ def install_elasticsearch(jscfg, machines, metaseeds, comf, args):
     cmdpat = "sudo docker inspect %s >& /dev/null || ( gzip -cd %s | sudo docker load )"
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (es_image, es_pack))
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (k_image, k_pack))
-    cmdpat = "sudo docker run -itd --name elasticsearch_%d  -p %d:9200 -e discovery.type=single-node %s"
+    restart = 'no'
+    if args.autostart:
+        restart = 'always'
+    cmdpat = "sudo docker run -itd --restart={} --name elasticsearch_%d  -p %d:9200 -e discovery.type=single-node %s".format(restart)
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (es_port, es_port, es_image))
-    cmdpat = "sudo docker run -itd --name kibana_%d  -p %d:5601 -e ELASTICSEARCH_HOSTS=http://%s:%d %s"
+    cmdpat = "sudo docker run -itd --restart={} --name kibana_%d  -p %d:5601 -e ELASTICSEARCH_HOSTS=http://%s:%d %s".format(restart)
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (k_port, k_port, node['ip'], es_port, k_image))
     process_file(comf, args, machines, node['ip'], 'clustermgr/add_elasticsearch.py', mach['basedir'])
     cmdpat = "python2 add_elasticsearch.py --seeds=%s --esHost=%s --esPort=%d"
@@ -597,6 +603,11 @@ def stop_elasticsearch(jscfg, machines, comf, args):
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % k_port)
     cmdpat = "sudo docker container stop elasticsearch_%d"
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % es_port)
+    es_pack = 'elasticsearch-7.10.1.tar.gz'
+    k_pack = 'kibana-7.10.1.tar.gz'
+    cmdpat = 'rm -f %s'
+    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % es_pack)
+    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % k_pack)
 
 def clean_elasticsearch(jscfg, machines, metaseeds, comf, args):
     if 'elasticsearch' not in jscfg:
