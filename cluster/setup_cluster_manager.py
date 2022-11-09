@@ -237,6 +237,7 @@ def generate_nodemgr_env(args, machines, node, idx, filesmap):
     envf.write("PATH=$FILEBEAT_HOME:$PATH; #KUNLUN_SET_ENV\n")
     envf.write("export JAVA_HOME; #KUNLUN_SET_ENV\n")
     envf.write("export HADOOP_HOME; #KUNLUN_SET_ENV\n")
+    envf.write("export FILEBEAT_HOME; #KUNLUN_SET_ENV\n")
     envf.write("export PATH; #KUNLUN_SET_ENV\n")
     envf.close()
     addNodeToFilesListMap(filesmap, node, fname, './%s' % fname_to)
