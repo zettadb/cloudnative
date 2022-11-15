@@ -333,6 +333,7 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     scriptf.write(cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
     scriptf.write(cmdpat % (confpath, 'storage_prog_package_name', storagedir))
     scriptf.write(cmdpat % (confpath, 'computer_prog_package_name', serverdir))
+    scriptf.write(cmdpat % (confpath, 'proxysql_prog_package_name', proxysqldir))
     if 'prometheus_port_start' in node:
         scriptf.write(cmdpat % (confpath, 'prometheus_port_start', node['prometheus_port_start']))
     scriptf.close()
