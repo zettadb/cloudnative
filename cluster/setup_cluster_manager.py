@@ -277,7 +277,6 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     nodemgrdir = "kunlun-node-manager-%s" % args.product_version
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
-    proxysqldir = "kunlun-proxysql-%s" % args.product_version
     confpath = "%s/conf/node_mgr.cnf" % nodemgrdir
     mach = machines.get(node['ip'])
     if hasHDFS:
@@ -291,11 +290,6 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
     addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, storagedir), "bash %s/process_deps.sh" % mach['basedir'])
     addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, serverdir), "bash %s/process_deps.sh" % mach['basedir'])
-    if node['has_proxysql']:
-        addNodeToFilesListMap(filesmap, node, "%s.tgz" % proxysqldir, targetdir)
-        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % proxysqldir)
-        addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % proxysqldir)
-        addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, proxysqldir), "bash %s/process_deps.sh" % mach['basedir'])
     comstr = "test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0"
     addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, storagedir), comstr)
     addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, serverdir), comstr)
@@ -314,8 +308,6 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     if hasHDFS:
         addToCommandsList(commandslist, node['ip'], '.', "cp -f ./core-site.xml program_binaries/hadoop-3.3.1/etc/hadoop")
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
-    addNodeToFilesListMap(filesmap, node, "filebeat-7.10.1-linux-x86_64.tar.gz", targetdir)
-    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf filebeat-7.10.1-linux-x86_64.tar.gz")
     addToCommandsList(commandslist, node['ip'], nodemgrdir, "chmod a+x bin/util/*")
     addToCommandsList(commandslist, node['ip'], '.', 'cp -f env.sh.nodemgr %s/bin/extra.env' % nodemgrdir)
     addToCommandsList(commandslist, node['ip'], '.', 'cp -f env.sh.nodemgr program_binaries/%s/dba_tools/extra.env' % storagedir)
@@ -333,7 +325,6 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     scriptf.write(cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
     scriptf.write(cmdpat % (confpath, 'storage_prog_package_name', storagedir))
     scriptf.write(cmdpat % (confpath, 'computer_prog_package_name', serverdir))
-    scriptf.write(cmdpat % (confpath, 'proxysql_prog_package_name', proxysqldir))
     if 'prometheus_port_start' in node:
         scriptf.write(cmdpat % (confpath, 'prometheus_port_start', node['prometheus_port_start']))
     scriptf.close()
@@ -470,10 +461,6 @@ def setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, 
     addToDirMap(dirmap, node['ip'], "%s/instance_binaries/computer" % mach['basedir'])
     addNodeToFilesListMap(filesmap, node, "prometheus.tgz", targetdir)
     addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf prometheus.tgz")
-    #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % storagedir)
-    #addToCommandsList(commandslist, node['ip'], targetdir, "tar -czf %s.tgz %s" % (storagedir, storagedir))
-    #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
-    #addToCommandsList(commandslist, node['ip'], targetdir, "tar -czf %s.tgz %s" % (serverdir, serverdir))
 
 def get_haproxy_ips(jscfg):
     haproxyips = set()
@@ -537,97 +524,6 @@ def clean_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args):
     if node['imageType'] == 'file':
         mach = machines.get(node['ip'])
         process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], 'rm -f %s' % node['imageFile'])
-
-def install_elasticsearch(jscfg, machines, metaseeds, comf, args):
-    if 'elasticsearch' not in jscfg:
-        return
-    node = jscfg['elasticsearch']
-    mach = machines.get(node['ip'])
-    es_pack = 'elasticsearch-7.10.1.tar.gz'
-    es_image = 'elasticsearch:7.10.1'
-    k_pack = 'kibana-7.10.1.tar.gz'
-    k_image = 'kibana:7.10.1'
-    es_port = node['port']
-    k_port = node['kibana_port']
-    output_info(comf, "install elasticsearch and kibana on %s ..." % node['ip'])
-    process_command_noenv(comf, args, machines, node['ip'], '/', 'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
-        mach['user'], mach['user'], mach['basedir']))
-    process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % es_pack, mach['basedir'])
-    process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % k_pack, mach['basedir'])
-    cmdpat = "sudo docker inspect %s >& /dev/null || ( gzip -cd %s | sudo docker load )"
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (es_image, es_pack))
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (k_image, k_pack))
-    restart = 'no'
-    if args.autostart:
-        restart = 'always'
-    cmdpat = "sudo docker run -itd --restart={} --name elasticsearch_%d  -p %d:9200 -e discovery.type=single-node %s".format(restart)
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (es_port, es_port, es_image))
-    cmdpat = "sudo docker run -itd --restart={} --name kibana_%d  -p %d:5601 -e ELASTICSEARCH_HOSTS=http://%s:%d %s".format(restart)
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (k_port, k_port, node['ip'], es_port, k_image))
-    process_file(comf, args, machines, node['ip'], 'clustermgr/add_elasticsearch.py', mach['basedir'])
-    cmdpat = "python2 add_elasticsearch.py --seeds=%s --esHost=%s --esPort=%d"
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (metaseeds, node['ip'], es_port))
-    es_host = "%s:%d" % (node['ip'], es_port)
-    k_host = "%s:%d" % (node['ip'], k_port)
-    filebeat = "filebeat-7.10.1-linux-x86_64"
-    for node in jscfg['node_manager']['nodes']:
-        mach = machines.get(node['ip'])
-        targetdir = "%s/program_binaries/%s" % (mach['basedir'], filebeat)
-        cmdpat = "sed -i 's/localhost:9200/%s/g' filebeat.yml"
-        process_command_noenv(comf, args, machines, node['ip'], targetdir, cmdpat % es_host)
-        cmdpat = "sed -i '/localhost:5601/s/#host/host/g' filebeat.yml"
-        process_command_noenv(comf, args, machines, node['ip'], targetdir, cmdpat)
-        cmdpat = "sed -i 's/localhost:5601/%s/g' filebeat.yml"
-        process_command_noenv(comf, args, machines, node['ip'], targetdir, cmdpat % k_host)
-
-def start_elasticsearch(jscfg, machines, comf, args):
-    if 'elasticsearch' not in jscfg:
-        return
-    node = jscfg['elasticsearch']
-    mach = machines.get(node['ip'])
-    es_port = node['port']
-    k_port = node['kibana_port']
-    output_info(comf, "start elasticsearch and kibana on %s ..." % node['ip'])
-    cmdpat = "sudo docker container start kibana_%d"
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % k_port)
-    cmdpat = "sudo docker container start elasticsearch_%d"
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % es_port)
-
-def stop_elasticsearch(jscfg, machines, comf, args):
-    if 'elasticsearch' not in jscfg:
-        return
-    node = jscfg['elasticsearch']
-    mach = machines.get(node['ip'])
-    es_port = node['port']
-    k_port = node['kibana_port']
-    output_info(comf, "stop elasticsearch and kibana on %s ..." % node['ip'])
-    cmdpat = "sudo docker container stop kibana_%d"
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % k_port)
-    cmdpat = "sudo docker container stop elasticsearch_%d"
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % es_port)
-    es_pack = 'elasticsearch-7.10.1.tar.gz'
-    k_pack = 'kibana-7.10.1.tar.gz'
-    cmdpat = 'rm -f %s'
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % es_pack)
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % k_pack)
-
-def clean_elasticsearch(jscfg, machines, metaseeds, comf, args):
-    if 'elasticsearch' not in jscfg:
-        return
-    node = jscfg['elasticsearch']
-    mach = machines.get(node['ip'])
-    es_image = 'elasticsearch:7.10.1'
-    k_image = 'kibana:7.10.1'
-    es_port = node['port']
-    k_port = node['kibana_port']
-    output_info(comf, "clean elasticsearch and kibana on %s ..." % node['ip'])
-    cmdpat = "sudo docker container rm -f kibana_%d"
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % k_port)
-    cmdpat = "sudo docker container rm -f elasticsearch_%d"
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % es_port)
-    cmdpat = 'sudo docker image rm -f %s'
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % k_image)
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % es_image)
 
 def get_cluster_memo_asjson(cluster):
     comps = cluster['comp']['nodes']
@@ -905,8 +801,6 @@ def install_with_config(jscfg, comf, machines, args):
     workips.update(nodemgrips)
     workips.update(clustermgrips)
     workips.update(haproxyips)
-    if 'elasticsearch' in jscfg:
-        workips.add(jscfg['elasticsearch']['ip'])
     # my_print("workips:%s" % str(workips))
     output_info(comf, "initializing all working nodes ...")
     for ip in workips:
@@ -1101,7 +995,6 @@ def install_with_config(jscfg, comf, machines, args):
 
     purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
     install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, comf, args)
-    install_elasticsearch(jscfg, machines, metaseeds, comf, args)
 
     i = 0
     for node in clustermgr['nodes']:
@@ -1202,7 +1095,6 @@ def clean_with_config(jscfg, comf, machines, args):
         output_info(comf, "Cleaning all clusters specified in the configuration file ...")
     rnames = clean_clusters(args, jscfg['clusters'], nodemgrmaps, machines, comf)
     purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
-    clean_elasticsearch(jscfg, machines, metaseeds, comf, args)
 
     # clean the nodemgr processes
     for node in clustermgr['nodes']:
@@ -1314,7 +1206,6 @@ def stop_with_config(jscfg, comf, machines, args):
         output_info(comf, "Stopping all clusters specified in the configuration file ...")
     stop_clusters(jscfg['clusters'], nodemgrmaps, machines, comf)
     purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
-    stop_elasticsearch(jscfg, machines, comf, args)
 
     # stop the clustermgr processes
     for node in clustermgr['nodes']:
@@ -1398,7 +1289,6 @@ def start_with_config(jscfg, comf, machines, args):
         output_info(comf, "Starting all clusters specified in the configuration file ...")
     start_clusters(jscfg['clusters'], nodemgrmaps, machines, comf)
     purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
-    start_elasticsearch(jscfg, machines, comf, args)
 
     # start the clustermgr processes
     for node in clustermgr['nodes']:

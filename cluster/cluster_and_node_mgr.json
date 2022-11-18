@@ -58,6 +58,6 @@
     },
     "xpanel": {
 	"ip": "192.168.0.110",
-	"image": "registry.cn-hangzhou.aliyuncs.com/kunlundb/kunlun-xpanel:1.1.1"
+	"image": "registry.cn-hangzhou.aliyuncs.com/kunlundb/kunlun-xpanel:1.0.2"
     }
 }    

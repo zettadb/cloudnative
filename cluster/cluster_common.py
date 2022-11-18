@@ -541,8 +541,6 @@ def setup_machines2(jscfg, machines, args):
         addIpToMachineMap(machines, node['ip'], args)
     if 'xpanel' in jscfg:
         addIpToMachineMap(machines, jscfg['xpanel']['ip'], args)
-    if 'elasticsearch' in jscfg:
-        addIpToMachineMap(machines, jscfg['elasticsearch']['ip'], args)
     for cluster in clusters:
         for node in cluster['comp']['nodes']:
             addIpToMachineMap(machines, node['ip'], args, True)
@@ -627,8 +625,6 @@ def validate_and_set_config2(jscfg, machines, args):
     for node in nodemgr['nodes']:
         node['storage_usedports'] = []
         node['server_usedports'] = []
-        if 'has_proxysql' not in node:
-            node['has_proxysql'] = False
         if 'nodetype' not in node:
             node['nodetype'] = 'both'
         if 'valgrind' not in node:
@@ -774,15 +770,6 @@ def validate_and_set_config2(jscfg, machines, args):
             node['imageType'] = 'url'
         if 'imageFile' not in node:
             node['imageFile'] = 'kunlun-xpanel-%s.tar.gz' % args.product_version
-
-    if 'elasticsearch' in jscfg:
-        node = jscfg['elasticsearch']
-        if 'ip' not in node:
-            raise ValueError('Error: the ip of elasticsearch must be specified!')
-        if 'port' not in node:
-            node['port'] = 9200
-        if 'kibana_port' not in node:
-            node['kibana_port'] = 5601
 
     for cluster in clusters:
         if 'name' not in cluster:
