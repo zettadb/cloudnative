@@ -9,6 +9,33 @@ import getpass
 import argparse
 from cluster_common import *
 
+def check_version_to_major(version, mver):
+    vers = version.split('.')
+    major = int(vers[0])
+    if major >= mver:
+        return True
+    else:
+        return False
+
+def check_version_to_minor(version, majorv, minorv):
+    vers = version.split('.')
+    major = int(vers[0])
+    minor = int(vers[1])
+    if major > majorv or (major == majorv and minor >= minorv):
+        return True
+    else:
+        return False
+
+def check_version_to_patch(version, majorv, minorv, patchv):
+    vers = version.split('.')
+    major = int(vers[0])
+    minor = int(vers[1])
+    patch = int(vers[2])
+    if major > majorv or (major == majorv and minor > minorv) or (major == majorv and minor == minorv and patch >= patchv):
+        return True
+    else:
+        return False
+
 def purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist):
     process_dirmap(comf, dirmap, machines, args)
     process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
@@ -269,8 +296,9 @@ def install_nodemgr_env(comf, mach, machines, args):
     progname = "kunlun-node-manager-%s" % args.product_version
     ip = mach['ip']
     # Set up the files
-    process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
-    process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
+    if not args.cloud:
+        process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
+        process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
 
 def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, filesmap, metaseeds, hasHDFS):
     cmdpat = "bash change_config.sh %s '%s' '%s'\n"
@@ -283,39 +311,41 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     if hasHDFS:
         addNodeToFilesListMap(filesmap, node, "core-site.xml", '.')
     targetdir = "program_binaries"
-    addNodeToFilesListMap(filesmap, node, "%s.tgz" % storagedir, targetdir)
-    addNodeToFilesListMap(filesmap, node, "%s.tgz" % serverdir, targetdir)
-    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % storagedir)
-    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % serverdir)
-    addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % storagedir)
-    addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
-    addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, storagedir), "bash %s/process_deps.sh" % mach['basedir'])
-    addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, serverdir), "bash %s/process_deps.sh" % mach['basedir'])
-    if node['has_proxysql']:
-        addNodeToFilesListMap(filesmap, node, "%s.tgz" % proxysqldir, targetdir)
-        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % proxysqldir)
-        addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % proxysqldir)
-        addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, proxysqldir), "bash %s/process_deps.sh" % mach['basedir'])
-    comstr = "test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0"
-    addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, storagedir), comstr)
-    addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, serverdir), comstr)
-    if mach['haspg']:
-         addNodeToFilesListMap(filesmap, node, "../install/build_driver_forpg.sh", '.')
-         addToCommandsList(commandslist, node['ip'], ".", "cp -f %s/%s/resources/psycopg2-2.8.4.tar.gz ." %(targetdir, serverdir))
-         addToCommandsList(commandslist, node['ip'], ".",  "bash %s/build_driver_forpg.sh %s 0" % (mach['basedir'], mach['basedir']), "computing")
-    setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
+    if not args.cloud:
+        addNodeToFilesListMap(filesmap, node, "%s.tgz" % storagedir, targetdir)
+        addNodeToFilesListMap(filesmap, node, "%s.tgz" % serverdir, targetdir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % storagedir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % serverdir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % storagedir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
+        addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, storagedir), "bash %s/process_deps.sh" % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, serverdir), "bash %s/process_deps.sh" % mach['basedir'])
+        if node['has_proxysql']:
+            addNodeToFilesListMap(filesmap, node, "%s.tgz" % proxysqldir, targetdir)
+            addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % proxysqldir)
+            addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % proxysqldir)
+            addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, proxysqldir), "bash %s/process_deps.sh" % mach['basedir'])
+        comstr = "test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0"
+        addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, storagedir), comstr)
+        addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, serverdir), comstr)
+        if mach['haspg']:
+            addNodeToFilesListMap(filesmap, node, "../install/build_driver_forpg.sh", '.')
+            addToCommandsList(commandslist, node['ip'], ".", "cp -f %s/%s/resources/psycopg2-2.8.4.tar.gz ." %(targetdir, serverdir))
+            addToCommandsList(commandslist, node['ip'], ".",  "bash %s/build_driver_forpg.sh %s 0" % (mach['basedir'], mach['basedir']), "computing")
+    setup_mgr_common(args, commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
     for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
         nodedirs = node[item].strip()
         for d in nodedirs.split(","):
             addToDirMap(dirmap, node['ip'], d.strip())
-    addNodeToFilesListMap(filesmap, node, "hadoop-3.3.1.tar.gz", targetdir)
-    addNodeToFilesListMap(filesmap, node, "jdk-8u131-linux-x64.tar.gz", targetdir)
-    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf hadoop-3.3.1.tar.gz")
+    if not args.cloud:
+        addNodeToFilesListMap(filesmap, node, "hadoop-3.3.1.tar.gz", targetdir)
+        addNodeToFilesListMap(filesmap, node, "jdk-8u131-linux-x64.tar.gz", targetdir)
+        addNodeToFilesListMap(filesmap, node, "filebeat-7.10.1-linux-x86_64.tar.gz", targetdir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf hadoop-3.3.1.tar.gz")
+        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
+        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf filebeat-7.10.1-linux-x86_64.tar.gz")
     if hasHDFS:
         addToCommandsList(commandslist, node['ip'], '.', "cp -f ./core-site.xml program_binaries/hadoop-3.3.1/etc/hadoop")
-    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf jdk-8u131-linux-x64.tar.gz")
-    addNodeToFilesListMap(filesmap, node, "filebeat-7.10.1-linux-x86_64.tar.gz", targetdir)
-    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf filebeat-7.10.1-linux-x86_64.tar.gz")
     addToCommandsList(commandslist, node['ip'], nodemgrdir, "chmod a+x bin/util/*")
     addToCommandsList(commandslist, node['ip'], '.', 'cp -f env.sh.nodemgr %s/bin/extra.env' % nodemgrdir)
     addToCommandsList(commandslist, node['ip'], '.', 'cp -f env.sh.nodemgr program_binaries/%s/dba_tools/extra.env' % storagedir)
@@ -333,7 +363,8 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
     scriptf.write(cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/prometheus' % mach['basedir']))
     scriptf.write(cmdpat % (confpath, 'storage_prog_package_name', storagedir))
     scriptf.write(cmdpat % (confpath, 'computer_prog_package_name', serverdir))
-    scriptf.write(cmdpat % (confpath, 'proxysql_prog_package_name', proxysqldir))
+    if check_version_to_minor(args.product_version, 1, 1):
+        scriptf.write(cmdpat % (confpath, 'proxysql_prog_package_name', proxysqldir))
     if 'prometheus_port_start' in node:
         scriptf.write(cmdpat % (confpath, 'prometheus_port_start', node['prometheus_port_start']))
     scriptf.close()
@@ -346,8 +377,9 @@ def install_clustermgr_env(comf, mach, machines, args):
     progname = "kunlun-cluster-manager-%s" % args.product_version
     ip = mach['ip']
     # Set up the files
-    process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
-    process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
+    if not args.cloud:
+        process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
+        process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
 
 def setup_clustermgr_commands(args, idx, machines, node, commandslist, dirmap, filesmap, metaseeds, initmember, initcommon):
     cmdpat = "bash change_config.sh %s '%s' '%s'\n"
@@ -358,7 +390,7 @@ def setup_clustermgr_commands(args, idx, machines, node, commandslist, dirmap, f
     mach = machines.get(node['ip'])
     targetdir = "program_binaries"
     if initcommon:
-        setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
+        setup_mgr_common(args, commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir)
     script_name = "setup_clustermgr_%d.sh" % idx
     scriptf = open('clustermgr/%s' % script_name, 'w')
     scriptf.write("#! /bin/bash\n")
@@ -461,19 +493,20 @@ def service_clustermgr(args):
     output_info(comf, "Service action completed !")
     comf.close()
 
-def setup_mgr_common(commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir):
+def setup_mgr_common(args, commandslist, dirmap, filesmap, machines, node, targetdir, storagedir, serverdir):
     mach = machines.get(node['ip'])
     addToDirMap(dirmap, node['ip'], "%s/%s" % (mach['basedir'], targetdir))
     addToDirMap(dirmap, node['ip'], "%s/%s/util" % (mach['basedir'], targetdir))
     addToDirMap(dirmap, node['ip'], "%s/instance_binaries" % mach['basedir'])
     addToDirMap(dirmap, node['ip'], "%s/instance_binaries/storage" % mach['basedir'])
     addToDirMap(dirmap, node['ip'], "%s/instance_binaries/computer" % mach['basedir'])
-    addNodeToFilesListMap(filesmap, node, "prometheus.tgz", targetdir)
-    addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf prometheus.tgz")
-    #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % storagedir)
-    #addToCommandsList(commandslist, node['ip'], targetdir, "tar -czf %s.tgz %s" % (storagedir, storagedir))
-    #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
-    #addToCommandsList(commandslist, node['ip'], targetdir, "tar -czf %s.tgz %s" % (serverdir, serverdir))
+    if not args.cloud:
+        addNodeToFilesListMap(filesmap, node, "prometheus.tgz", targetdir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf prometheus.tgz")
+        #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % storagedir)
+        #addToCommandsList(commandslist, node['ip'], targetdir, "tar -czf %s.tgz %s" % (storagedir, storagedir))
+        #addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
+        #addToCommandsList(commandslist, node['ip'], targetdir, "tar -czf %s.tgz %s" % (serverdir, serverdir))
 
 def get_haproxy_ips(jscfg):
     haproxyips = set()
@@ -498,9 +531,10 @@ def install_xpanel(jscfg, machines, dirmap, filesmap, commandslist, metaseeds, c
     mach = machines.get(node['ip'])
     output_info(comf, "setup xpanel on %s ..." % node['ip'])
     if node['imageType'] == 'file':
-        process_command_noenv(comf, args, machines, node['ip'], '/', 'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
-            mach['user'], mach['user'], mach['basedir']))
-        process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % node['imageFile'], mach['basedir'])
+        if not args.cloud:
+            process_command_noenv(comf, args, machines, node['ip'], '/', 'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
+                mach['user'], mach['user'], mach['basedir']))
+            process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % node['imageFile'], mach['basedir'])
         cmdpat = "sudo docker inspect %s >& /dev/null || ( gzip -cd %s | sudo docker load )"
         process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (node['image'], node['imageFile']))
     restart = 'no'
@@ -550,10 +584,11 @@ def install_elasticsearch(jscfg, machines, metaseeds, comf, args):
     es_port = node['port']
     k_port = node['kibana_port']
     output_info(comf, "install elasticsearch and kibana on %s ..." % node['ip'])
-    process_command_noenv(comf, args, machines, node['ip'], '/', 'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
-        mach['user'], mach['user'], mach['basedir']))
-    process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % es_pack, mach['basedir'])
-    process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % k_pack, mach['basedir'])
+    if not args.cloud:
+        process_command_noenv(comf, args, machines, node['ip'], '/', 'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
+            mach['user'], mach['user'], mach['basedir']))
+        process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % es_pack, mach['basedir'])
+        process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % k_pack, mach['basedir'])
     cmdpat = "sudo docker inspect %s >& /dev/null || ( gzip -cd %s | sudo docker load )"
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (es_image, es_pack))
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (k_image, k_pack))
@@ -927,7 +962,7 @@ def install_with_config(jscfg, comf, machines, args):
         process_file(comf, args, machines, ip, 'install/build_driver_formysql.sh', mach['basedir'])
         process_file(comf, args, machines, ip, 'clustermgr/mysql-connector-python-2.1.3.tar.gz', mach['basedir'])
         process_command_noenv(comf, args, machines, ip, mach['basedir'], 'bash ./build_driver_formysql.sh %s' % mach['basedir'])
-        if ip in haproxyips:
+        if ip in haproxyips and not args.cloud:
             process_file(comf, args, machines, ip, 'clustermgr/haproxy-2.5.0-bin.tar.gz', mach['basedir'])
             process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf haproxy-2.5.0-bin.tar.gz')
 
@@ -1143,8 +1178,11 @@ def clean_with_config(jscfg, comf, machines, args):
     clustermgr = jscfg['cluster_manager']
     nodemgr = jscfg['node_manager']
     storagedir = "kunlun-storage-%s" % args.product_version
+    storagedirpfx = "kunlun-storage-"
     clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
+    clustermgrdirpfx = "kunlun-cluster-manager-"
     nodemgrdir = "kunlun-node-manager-%s" % args.product_version
+    nodemgrdirpfx = "kunlun-node-manager-"
     sudopfx=""
     if args.sudo:
         sudopfx="sudo "
@@ -1175,7 +1213,7 @@ def clean_with_config(jscfg, comf, machines, args):
         addNodeToFilesListMap(filesmap, node, 'clear_instance.sh', '.')
         addToCommandsList(commandslist, node['ip'], ".", 'bash ./clear_instances.sh %s %s >& clear.log || true' % (
             mach['basedir'], args.product_version))
-        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s*' % (mach['basedir'], nodemgrdir))
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s*' % (mach['basedir'], nodemgrdirpfx))
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/program_binaries' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/instance_binaries' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-node-manager*.service' % mach['basedir'])
@@ -1209,7 +1247,7 @@ def clean_with_config(jscfg, comf, machines, args):
         mach = machines.get(node['ip'])
         output_info(comf, "Cleaning cluster_mgr on %s ..." % node['ip'])
         addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash stop_cluster_mgr.sh")
-        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s*' % (mach['basedir'], clustermgrdir))
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s*' % (mach['basedir'], clustermgrdirpfx))
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/program_binaries' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/instance_binaries' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-cluster-manager*.service' % mach['basedir'])
@@ -1492,6 +1530,7 @@ if  __name__ == '__main__':
     parser.add_argument('--product_version', type=str, help="kunlun version", default='1.1.1')
     parser.add_argument('--localip', type=str, help="The local ip address", default='127.0.0.1')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
+    parser.add_argument('--cloud', help="whether run on cloud images", default=False, action='store_true')
     parser.add_argument('--autostart', help="whether to start the cluster automaticlly", default=False, action='store_true')
     parser.add_argument('--setbashenv', help="whether to set the user bash env", default=False, action='store_true')
     parser.add_argument('--defbrpc_raft_port_clustermgr', type=int, help="default brpc_raft_port for cluster_manager", default=58001)
