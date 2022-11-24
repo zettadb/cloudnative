@@ -960,7 +960,8 @@ def install_with_config(jscfg, comf, machines, args):
         process_file(comf, args, machines, ip, 'install/process_deps.sh', mach['basedir'])
         process_file(comf, args, machines, ip, 'install/change_config.sh', mach['basedir'])
         process_file(comf, args, machines, ip, 'install/build_driver_formysql.sh', mach['basedir'])
-        process_file(comf, args, machines, ip, 'clustermgr/mysql-connector-python-2.1.3.tar.gz', mach['basedir'])
+        if not args.cloud:
+            process_file(comf, args, machines, ip, 'clustermgr/mysql-connector-python-2.1.3.tar.gz', mach['basedir'])
         process_command_noenv(comf, args, machines, ip, mach['basedir'], 'bash ./build_driver_formysql.sh %s' % mach['basedir'])
         if ip in haproxyips and not args.cloud:
             process_file(comf, args, machines, ip, 'clustermgr/haproxy-2.5.0-bin.tar.gz', mach['basedir'])
