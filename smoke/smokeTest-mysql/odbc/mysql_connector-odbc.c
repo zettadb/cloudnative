@@ -137,13 +137,13 @@ int main(int argc, char* argv[])
 				cDB = optarg;
 				break;
 			case '?':
-				puts("usgae:\n	--help\n	-p/--port=port, \n	-h/--host=host,\n	-d/--db=database_name");
+				puts("usage:\n	--help\n	-p/--port=port, \n	-h/--host=host,\n	-d/--db=database_name");
 				exit(0);
 		}
 	}
 	if(HOST == NULL || HOST == NULL || cDB == NULL)
 	{
-		puts("usgae:\n	--help\n	-p=port || --port=port\n	-h=host || --host=host\n	-d=database_name || --db=database_name");
+		puts("usage:\n	--help\n	-p=port || --port=port\n	-h=host || --host=host\n	-d=database_name || --db=database_name");
 		exit(0);
 	}
 	int iPort = atoi(PORT);
