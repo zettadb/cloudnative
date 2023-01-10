@@ -405,7 +405,7 @@ def validate_and_set_config1(jscfg, machines, args):
         raise ValueError('Error: There must be at least one node in meta shard')
     if meta_ha_mode == '':
         if metacnt > 1:
-            meta_ha_mode = 'mgr'
+            meta_ha_mode = 'rbr'
         else:
             meta_ha_mode = 'no_rep'
 
@@ -694,7 +694,7 @@ def validate_and_set_config2(jscfg, machines, args):
     nodecnt = len(meta['nodes'])
     if ha_mode == '':
         if nodecnt > 1:
-            ha_mode = 'mgr'
+            ha_mode = 'rbr'
         else:
             ha_mode = 'no_rep'
     meta['ha_mode'] = ha_mode
@@ -788,7 +788,7 @@ def validate_and_set_config2(jscfg, machines, args):
         if 'name' not in cluster:
             raise ValueError('Error: the name of cluster must be specified!')
         if  'ha_mode' not in cluster:
-            cluster['ha_mode'] = 'mgr'
+            cluster['ha_mode'] = 'rbr'
         if 'storage_template' not in cluster:
             cluster['storage_template'] = 'normal'
         if 'innodb_buffer_pool_size_MB' not in cluster:
