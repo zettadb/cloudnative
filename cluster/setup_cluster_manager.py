@@ -601,7 +601,7 @@ def install_elasticsearch(jscfg, machines, metaseeds, comf, args):
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (k_port, k_port, node['ip'], es_port, k_image))
     process_file(comf, args, machines, node['ip'], 'clustermgr/add_elasticsearch.py', mach['basedir'])
     cmdpat = "python2 add_elasticsearch.py --seeds=%s --esHost=%s --esPort=%d"
-    process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (metaseeds, node['ip'], es_port))
+    process_command_setenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (metaseeds, node['ip'], es_port))
     es_host = "%s:%d" % (node['ip'], es_port)
     k_host = "%s:%d" % (node['ip'], k_port)
     filebeat = "filebeat-7.10.1-linux-x86_64"
