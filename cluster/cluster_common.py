@@ -627,8 +627,6 @@ def validate_and_set_config2(jscfg, machines, args):
     for node in nodemgr['nodes']:
         node['storage_usedports'] = []
         node['server_usedports'] = []
-        if 'has_proxysql' not in node:
-            node['has_proxysql'] = False
         if 'nodetype' not in node:
             node['nodetype'] = 'both'
         if 'valgrind' not in node:

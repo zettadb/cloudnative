@@ -320,11 +320,10 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
         addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % serverdir)
         addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, storagedir), "bash %s/process_deps.sh" % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, serverdir), "bash %s/process_deps.sh" % mach['basedir'])
-        if node['has_proxysql']:
-            addNodeToFilesListMap(filesmap, node, "%s.tgz" % proxysqldir, targetdir)
-            addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % proxysqldir)
-            addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % proxysqldir)
-            addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, proxysqldir), "bash %s/process_deps.sh" % mach['basedir'])
+        addNodeToFilesListMap(filesmap, node, "%s.tgz" % proxysqldir, targetdir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "tar -xzf %s.tgz" % proxysqldir)
+        addToCommandsList(commandslist, node['ip'], targetdir, "rm -f %s.tgz" % proxysqldir)
+        addToCommandsList(commandslist, node['ip'], "%s/%s/lib" %(targetdir, proxysqldir), "bash %s/process_deps.sh" % mach['basedir'])
         comstr = "test -d etc && echo > etc/instances_list.txt 2>/dev/null; exit 0"
         addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, storagedir), comstr)
         addToCommandsList(commandslist, node['ip'], "%s/%s" %(targetdir, serverdir), comstr)
