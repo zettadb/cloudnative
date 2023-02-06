@@ -26,6 +26,7 @@ def get_master_conn(args, metaseeds):
         mysql_conn_params['user'] = args.user
         mysql_conn_params['password'] = args.password
         mysql_conn_params['database'] = 'Kunlun_Metadata_DB'
+        mysql_conn_params['use_pure'] = True
         conn = None
         csr = None
         try:
