@@ -28,7 +28,7 @@ def get_master_conn(args, metaseeds):
             csr = conn.cursor()
             csr.execute("select @@super_read_only")
             row = csr.fetchone()
-            if row is None or row[0] == '1':
+            if row is None or int(row[0]) == 1:
                 csr.close()
                 csr = None
                 conn.close()
