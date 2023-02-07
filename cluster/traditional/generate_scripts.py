@@ -6,6 +6,7 @@
 import sys
 import json
 import getpass
+import platform
 import argparse
 from cluster_common import *
 
@@ -672,11 +673,51 @@ def generate_check_scripts(jscfg, args):
     output_info(comf, "Check action completed !")
     comf.close()
 
+# this should be put in contrib/x86_64
+# If it is a gzip for docker image, the second item is the image name
+# if it is a gzip for a directory, the second item is the dir after decompressed.
+def get_x86_64_3rdpackages_filemap(args):
+    return {
+            "haproxy": ["haproxy-2.5.0-bin.tar.gz", "haproxy-2.5.0-bin"]
+            }
+
+def get_arch_3rdpackages_filemap(args):
+    arch = args.targetarch
+    if arch == 'x86_64':
+        return get_x86_64_3rdpackages_filemap(args)
+    else: # not ready for aarch64 loongarch64, etc
+        raise ValueError('bad arch: %s' % arch)
+
+def download_packages(args):
+    arch = args.targetarch
+    prodver = args.product_version
+    downtype = args.downloadtype
+    contentTypes = set()
+    downbase = get_downloadbase(args.downloadsite)
+    targetdir="."
+    contentTypes.add('application/x-gzip')
+    binarynames = ["kunlun-storage", "kunlun-server", "kunlun-cluster-manager"]
+    # download the binary packages
+    for name in binarynames:
+        fname = "%s-%s.tgz" % (name, prodver)
+        if downtype == 'release':
+            fpath = "releases_%s/%s/release-binaries/%s" % (arch, prodver, fname)
+        elif downtype == 'daily_rel':
+            fpath = "dailybuilds_%s/enterprise/%s" % (arch, fname)
+        else:
+            fpath = "dailybuilds_debug_%s/enterprise/%s" % (arch, fname)
+        download_file(downbase, fpath, contentTypes, targetdir, args.overwrite, args)
+    archmap = get_arch_3rdpackages_filemap(args)
+    for pkgname in archmap:
+        finfo = archmap[pkgname]
+        fpath = 'contrib/%s/%s' % (arch, finfo[0])
+        download_file(downbase, fpath, contentTypes, targetdir, args.overwrite, args)
+
 if  __name__ == '__main__':
-    actions=["install", "start", "stop", "clean", "check"]
+    actions=["download", "install", "start", "stop", "clean", "check"]
     parser = argparse.ArgumentParser(description='Specify the arguments.')
     parser.add_argument('--action', type=str, help="The action", required=True, choices=actions)
-    parser.add_argument('--config', type=str, help="The cluster config path", required=True)
+    parser.add_argument('--config', type=str, help="The cluster config path", default="config_legacy.json")
     parser.add_argument('--defuser', type=str, help="the default user", default=getpass.getuser())
     parser.add_argument('--defbase', type=str, help="the default basedir", default='/kunlun')
     parser.add_argument('--installtype', type=str, help="the install type", default='full', choices=['full', 'cluster'])
@@ -689,18 +730,29 @@ if  __name__ == '__main__':
     parser.add_argument('--valgrind', help="whether to use valgrind", default=False, action='store_true')
     parser.add_argument('--defbrpc_raft_port', type=int, help="default brpc_raft_port for cluster_manager", default=58000)
     parser.add_argument('--defbrpc_http_port', type=int, help="default brpc_raft_port for cluster_manager", default=58001)
+    parser.add_argument('--download', help="whether to overwrite existing file during download", default=False, action='store_true')
+    parser.add_argument('--downloadsite', type=str, help="the download base site", choices=['public', 'devsite', 'internal'], default='public')
+    parser.add_argument('--downloadtype', type=str, help="the packages type", choices=['release', 'daily_rel', 'daily_debug'], default='release')
+    parser.add_argument('--targetarch', type=str, help="the cpu arch for the packages to download/install", default=platform.machine())
+    parser.add_argument('--overwrite', help="whether to overwrite existing file during download", default=False, action='store_true')
 
     args = parser.parse_args()
     if not args.defbase.startswith('/'):
         raise ValueError('Error: the default basedir must be absolute path!')
-    checkdirs(actions)
 
+    if args.action == 'download':
+        download_packages(args)
+        sys.exit(0)
+
+    checkdirs(actions)
     my_print(str(sys.argv))
     jscfg = get_json_from_file(args.config)
     if args.autostart:
         args.sudo = True
 
     if args.action == 'install':
+        if args.download:
+            download_packages(args)
         generate_install_scripts(jscfg, args)
     elif args.action == 'start':
         generate_start_scripts(jscfg, args)

@@ -8,6 +8,7 @@ import json
 import getpass
 import uuid
 import os
+import platform
 import argparse
 from cluster_common import *
 
@@ -67,12 +68,9 @@ def validate_config(jscfg, args):
             node['is_primary'] = True
         i+=1
 
-
 def generate_install_scripts(jscfg, args):
     validate_config(jscfg, args)
-
     installtype = args.installtype
-    localip = '127.0.0.1'
 
     machines = {}
     for mach in jscfg['machines']:
@@ -132,13 +130,17 @@ def generate_install_scripts(jscfg, args):
             j += 1
         i+=1
     for item in pries:
-        addToCommandsList(commandslist, item[0], item[1], item[2])
+        addToCommandsList(commandslist, item[0], item[1], item[2], "storage")
     for item in secs:
-        addToCommandsList(commandslist, item[0], item[1], item[2])
+        addToCommandsList(commandslist, item[0], item[1], item[2], "storage")
 
     com_name = 'commands.sh'
     comf = open(r'install/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog' DEBUG\n")
+    comf.write("trap 'cat exit 1' ERR\n")
 
     # files copy.
     for ip in machines:
@@ -198,11 +200,11 @@ def generate_install_scripts(jscfg, args):
 
     # The reason for not using commands map is that, we need to keep the order for the commands.
     process_commandslist_setenv(comf, args, machines, commandslist)
+    output_info(comf, "Installation completed !")
     comf.close()
 
 # The order is meta shard -> data shards -> cluster_mgr -> comp nodes
 def generate_start_scripts(jscfg, args):
-    localip = '127.0.0.1'
 
     machines = {}
     for mach in jscfg['machines']:
@@ -235,12 +237,15 @@ def generate_start_scripts(jscfg, args):
     os.system('mkdir -p start')
     comf = open(r'start/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog' DEBUG\n")
     process_commandslist_setenv(comf, args, machines, commandslist)
+    output_info(comf, "Start action completed !")
     comf.close()
 
 # The order is: comp-nodes -> cluster_mgr -> data shards -> meta shard
 def generate_stop_scripts(jscfg, args):
-    localip = '127.0.0.1'
 
     machines = {}
     for mach in jscfg['machines']:
@@ -267,7 +272,11 @@ def generate_stop_scripts(jscfg, args):
     os.system('mkdir -p stop')
     comf = open(r'stop/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog' DEBUG\n")
     process_commandslist_setenv(comf, args, machines, commandslist)
+    output_info(comf, "Stop action completed !")
     comf.close()
 
 # The order is: comp-nodes -> cluster_mgr -> data shards -> meta shard
@@ -276,7 +285,6 @@ def generate_clean_scripts(jscfg, args):
     if args.sudo:
         sudopfx="sudo "
     cleantype = args.cleantype
-    localip = '127.0.0.1'
 
     machines = {}
     for mach in jscfg['machines']:
@@ -315,32 +323,70 @@ def generate_clean_scripts(jscfg, args):
     os.system('mkdir -p clean')
     comf = open(r'clean/%s' % com_name, 'w')
     comf.write('#! /bin/bash\n')
+    comf.write("cat /dev/null > runlog\n")
+    comf.write("cat /dev/null > lastlog\n")
+    comf.write("trap 'cat lastlog' DEBUG\n")
     process_commandslist_setenv(comf, args, machines, env_cmdlist)
     process_commandslist_noenv(comf, args, machines, noenv_cmdlist)
+    output_info(comf, "Clean action completed !")
     comf.close()
 
+def download_packages(args):
+    arch = args.targetarch
+    prodver = args.product_version
+    downtype = args.downloadtype
+    contentTypes = set()
+    downbase = get_downloadbase(args.downloadsite)
+    targetdir="."
+    contentTypes.add('application/x-gzip')
+    binarynames = ["kunlun-storage"]
+    # download the binary packages
+    for name in binarynames:
+        fname = "%s-%s.tgz" % (name, prodver)
+        if downtype == 'release':
+            fpath = "releases_%s/%s/release-binaries/%s" % (arch, prodver, fname)
+        elif downtype == 'daily_rel':
+            fpath = "dailybuilds_%s/enterprise/%s" % (arch, fname)
+        else:
+            fpath = "dailybuilds_debug_%s/enterprise/%s" % (arch, fname)
+        download_file(downbase, fpath, contentTypes, targetdir, args.overwrite, args)
+
 if  __name__ == '__main__':
-    actions=["install", "start", "stop", "clean"]
+    actions=["download", "install", "start", "stop", "clean"]
     parser = argparse.ArgumentParser(description='Specify the arguments.')
     parser.add_argument('--action', type=str, help="The action", required=True, choices=actions)
-    parser.add_argument('--config', type=str, help="The cluster config path", required=True)
+    parser.add_argument('--config', type=str, help="The cluster config path", default="config_groups.json")
     parser.add_argument('--defuser', type=str, help="the default user", default=getpass.getuser())
     parser.add_argument('--defbase', type=str, help="the default basedir", default='/kunlun')
+    parser.add_argument('--localip', type=str, help="The local ip address", default='127.0.0.1')
     parser.add_argument('--installtype', type=str, help="the install type", default='full', choices=['full', 'cluster'])
     parser.add_argument('--cleantype', type=str, help="the clean type", default='full', choices=['full', 'cluster'])
     parser.add_argument('--sudo', help="whether to use sudo", default=False, action='store_true')
     parser.add_argument('--small', help="whether to use small template", default=False, action='store_true')
-    parser.add_argument('--localip', type=str, help="The local ip address", default=gethostip())
     parser.add_argument('--product_version', type=str, help="kunlun version", default='1.2.1')
     parser.add_argument('--valgrind', help="whether to use valgrind", default=False, action='store_true')
+    parser.add_argument('--download', help="whether to overwrite existing file during download", default=False, action='store_true')
+    parser.add_argument('--downloadsite', type=str, help="the download base site", choices=['public', 'devsite', 'internal'], default='public')
+    parser.add_argument('--downloadtype', type=str, help="the packages type", choices=['release', 'daily_rel', 'daily_debug'], default='release')
+    parser.add_argument('--targetarch', type=str, help="the cpu arch for the packages to download/install", default=platform.machine())
+    parser.add_argument('--overwrite', help="whether to overwrite existing file during download", default=False, action='store_true')
 
     args = parser.parse_args()
+    if not args.defbase.startswith('/'):
+        raise ValueError('Error: the default basedir must be absolute path!')
+
+    if args.action == 'download':
+        download_packages(args)
+        sys.exit(0)
+
     checkdirs(actions)
 
     my_print(str(sys.argv))
     jscfg = get_json_from_file(args.config)
 
     if args.action == 'install':
+        if args.download:
+            download_packages(args)
         generate_install_scripts(jscfg, args)
     elif args.action == 'start':
         generate_start_scripts(jscfg, args)

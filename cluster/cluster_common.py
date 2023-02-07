@@ -6,6 +6,10 @@ import os.path
 import socket
 import uuid
 import getpass
+if sys.version_info.major == 2:
+    import urllib as ulib
+else:
+    import urllib.request as ulib
 
 def output_info(comf, str):
     comf.write("cat <<EOF\n")
@@ -273,13 +277,13 @@ def process_commandslist_setenv(comf, args, machines, commandslist):
         sshport = mach.get('sshport', 22)
         if islocal(args, ip, mach['user']):
             # For local, we do not consider the user.
-            mkstr = '''/bin/bash -c $"cd %s && cd %s || exit 1; envtype=%s && source %s/env.sh; %s" >& lastlog '''
+            mkstr = '''/bin/bash -c $"cd %s || exit 1; test -f env.sh.node && source ./env.sh.node; cd %s || exit 1; envtype=%s && source %s/env.sh; %s" >& lastlog '''
             tup= (mach['basedir'], cmd[1], cmd[3], mach['basedir'], cmd[2])
         else:
             ttyopt=""
             if cmd[2].find("sudo ") >= 0:
                 ttyopt="--tty"
-            mkstr = '''bash remote_run.sh --sshport=%d %s --user=%s %s $"cd %s && cd %s || exit 1; envtype=%s && source %s/env.sh; %s" >& lastlog '''
+            mkstr = '''bash remote_run.sh --sshport=%d %s --user=%s %s $"cd %s || exit 1; test -f env.sh.node && source ./env.sh.node; cd %s || exit 1; envtype=%s && source %s/env.sh; %s" >& lastlog '''
             tup= (sshport, ttyopt, mach['user'], ip, mach['basedir'], cmd[1], cmd[3], mach['basedir'], cmd[2])
         comf.write(mkstr % tup)
         comf.write("\n")
@@ -600,21 +604,15 @@ def validate_and_set_config2(jscfg, machines, args):
         if 'valgrind' not in node:
             node['valgrind'] = False
         clustermgrips.add(node['ip'])
-        if 'brpc_raft_port' in node:
-            addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
-        else:
+        if 'brpc_raft_port' not in node:
             node['brpc_raft_port'] = args.defbrpc_raft_port_clustermgr
-            addPortToMachine(portmap, node['ip'], args.defbrpc_raft_port_clustermgr)
-        if 'brpc_http_port' in node:
-            addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
-        else:
+        addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
+        if 'brpc_http_port' not in node:
             node['brpc_http_port'] = args.defbrpc_http_port_clustermgr
-            addPortToMachine(portmap, node['ip'], args.defbrpc_http_port_clustermgr)
-        if 'prometheus_port_start' in node:
-            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
-        else:
+        addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
+        if 'prometheus_port_start' not in node:
             node['prometheus_port_start'] = args.defpromethes_port_start_clustermgr
-            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
+        addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
 
     defpaths = {
             "server_datadirs": "server_datadir",
@@ -627,8 +625,6 @@ def validate_and_set_config2(jscfg, machines, args):
     for node in nodemgr['nodes']:
         node['storage_usedports'] = []
         node['server_usedports'] = []
-        if 'has_proxysql' not in node:
-            node['has_proxysql'] = False
         if 'nodetype' not in node:
             node['nodetype'] = 'both'
         if 'valgrind' not in node:
@@ -657,21 +653,15 @@ def validate_and_set_config2(jscfg, machines, args):
             raise ValueError('Error: %s exists, only one node_mgr can be run on a machine!' % node['ip'])
         nodemgrips.add(node['ip'])
         nodemgrmaps[node['ip']] = node
-        if 'brpc_http_port' in node:
-            addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
-        else:
+        if 'brpc_http_port' not in node:
             node['brpc_http_port'] = args.defbrpc_http_port_nodemgr
-            addPortToMachine(portmap, node['ip'], args.defbrpc_http_port_nodemgr)
-        if 'tcp_port' in node:
-            addPortToMachine(portmap, node['ip'], node['tcp_port'])
-        else:
+        addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
+        if 'tcp_port' not in node:
             node['tcp_port'] = args.deftcp_port_nodemgr
-            addPortToMachine(portmap, node['ip'], args.deftcp_port_nodemgr)
-        if 'prometheus_port_start' in node:
-            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
-        else:
+        addPortToMachine(portmap, node['ip'], node['tcp_port'])
+        if 'prometheus_port_start' not in node:
             node['prometheus_port_start'] = args.defprometheus_port_start_nodemgr
-            addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
+        addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
         # The logic is that:
         # - if it is set, check every item is an absolute path.
         # - if it is not set, it is default to $basedir/{server_datadir, storage_datadir, storage_logdir, storage_waldir}
@@ -768,6 +758,7 @@ def validate_and_set_config2(jscfg, machines, args):
         node = jscfg['xpanel']
         if 'port' not in node:
             node['port'] = 18080
+        addPortToMachine(portmap, node['ip'], node['port'])
         if 'name' not in node:
             node['name'] = 'xpanel_%d' % node['port']
         if 'imageType' not in node:
@@ -781,8 +772,10 @@ def validate_and_set_config2(jscfg, machines, args):
             raise ValueError('Error: the ip of elasticsearch must be specified!')
         if 'port' not in node:
             node['port'] = 9200
+        addPortToMachine(portmap, node['ip'], node['port'])
         if 'kibana_port' not in node:
             node['kibana_port'] = 5601
+        addPortToMachine(portmap, node['ip'], node['kibana_port'])
 
     for cluster in clusters:
         if 'name' not in cluster:
@@ -937,6 +930,42 @@ def addto_usedports(args, nodemgrobj, addtype, port):
         nodemgrobj['storage_usedports'].append(str(port))
     else:
         nodemgrobj['server_usedports'].append(str(port))
+
+def get_downloadbase(downloadsite):
+    if downloadsite == 'public':
+        downbase = "https://downloads.kunlunbase.com"
+    elif downloadsite == 'devsite':
+        downbase = "http://zettatech.tpddns.cn:14000"
+    else:
+        downbase = "http://192.168.0.104:14000"
+    return downbase
+
+def download_file(basesite, uri, contentTypes, targetdir, overwrite, args):
+    retry = 5
+    url = "%s/%s" % (basesite, uri)
+    fname = os.path.basename(uri)
+    target = '%s/%s' % (targetdir, fname)
+    #my_print("downloading %s to clustermgr ..." % url)
+    #return
+    if not os.path.exists(target) or overwrite:
+        if os.path.exists(target):
+            os.unlink(target)
+        my_print("downloading %s to %s" % (url, targetdir))
+        i = 0
+        good = False
+        while i < retry:
+            info = ulib.urlretrieve(url, target)
+            msg = info[1]
+            explen = msg.getheader('Content-Length', '0')
+            exptype = msg.getheader('Content-Type', 'unknown')
+            statinfo = os.stat(target)
+            reallen = str(statinfo.st_size)
+            if explen == reallen and exptype in contentTypes:
+                good = True
+                break
+            i += 1
+        if not good:
+            raise ValueError('Error: fail to download %s' % url)
 
 def get_servernodes_from_meta(args, metaseeds):
     conn = get_master_conn(args, metaseeds)
