@@ -1647,7 +1647,7 @@ if  __name__ == '__main__':
     parser.add_argument('--defprometheus_port_start_nodemgr', type=int, help="default prometheus starting port for node_manager", default=58010)
     parser.add_argument('--outfile', type=str, help="the path for the cluster config", default="cluster.json")
     parser.add_argument('--cluster_name', type=str, help="the name of the cluster to generate the config file", default="")
-    parser.add_argument('--download', help="whether to overwrite existing file during download", default=False, action='store_true')
+    parser.add_argument('--download', help="whether to download before install operation", default=False, action='store_true')
     parser.add_argument('--downloadsite', type=str, help="the download base site", choices=['public', 'devsite', 'internal'], default='public')
     parser.add_argument('--downloadtype', type=str, help="the packages type", choices=['release', 'daily_rel', 'daily_debug'], default='release')
     parser.add_argument('--targetarch', type=str, help="the cpu arch for the packages to download/install", default=platform.machine())
