@@ -427,10 +427,22 @@ def setup_clustermgr_commands(args, idx, machines, node, commandslist, dirmap, f
     addToCommandsList(commandslist, node['ip'], '.', "bash ./%s" % script_name)
 
 def install_clustermgr(args):
+    if args.multipledc:
+        install_clustermgr_multidc(args)
+    else:
+        install_clustermgr_onedc(args)
+
+def install_clustermgr_onedc(args):
+    install_clustermgr_int(args, setup_machines2, validate_and_set_config2)
+
+def install_clustermgr_multidc(args):
+    install_clustermgr_int(args, setup_machines3, validate_and_set_config3)
+
+def install_clustermgr_int(args, machine_func, validate_func):
     jscfg = get_json_from_file(args.config)
     machines = {}
-    setup_machines2(jscfg, machines, args)
-    validate_and_set_config2(jscfg, machines, args)
+    machine_func(jscfg, machines, args)
+    validate_func(jscfg, machines, args)
     comf = open(r'clustermgr/install.sh', 'w')
     comf.write('#! /bin/bash\n')
     comf.write("cat /dev/null > runlog\n")
@@ -446,10 +458,22 @@ def install_clustermgr(args):
     comf.close()
 
 def stop_clustermgr(args):
+    if args.multipledc:
+        stop_clustermgr_multidc(args)
+    else:
+        stop_clustermgr_onedc(args)
+
+def stop_clustermgr_onedc(args):
+    stop_clustermgr_int(args, setup_machines2, validate_and_set_config2)
+
+def stop_clustermgr_multidc(args):
+    stop_clustermgr_int(args, setup_machines3, validate_and_set_config3)
+
+def stop_clustermgr_int(args, machine_func, validate_func):
     jscfg = get_json_from_file(args.config)
     machines = {}
-    setup_machines2(jscfg, machines, args)
-    validate_and_set_config2(jscfg, machines, args)
+    machine_func(jscfg, machines, args)
+    validate_func(jscfg, machines, args)
     comf = open(r'clustermgr/stop.sh', 'w')
     comf.write('#! /bin/bash\n')
     comf.write("cat /dev/null > runlog\n")
@@ -463,10 +487,22 @@ def stop_clustermgr(args):
     comf.close()
 
 def start_clustermgr(args):
+    if args.multipledc:
+        start_clustermgr_multidc(args)
+    else:
+        start_clustermgr_onedc(args)
+
+def start_clustermgr_onedc(args):
+    start_clustermgr_int(args, setup_machines2, validate_and_set_config2)
+
+def start_clustermgr_multidc(args):
+    start_clustermgr_int(args, setup_machines3, validate_and_set_config3)
+
+def start_clustermgr_int(args, machine_func, validate_func):
     jscfg = get_json_from_file(args.config)
     machines = {}
-    setup_machines2(jscfg, machines, args)
-    validate_and_set_config2(jscfg, machines, args)
+    machine_func(jscfg, machines, args)
+    validate_func(jscfg, machines, args)
     comf = open(r'clustermgr/start.sh', 'w')
     comf.write('#! /bin/bash\n')
     comf.write("cat /dev/null > runlog\n")
@@ -480,10 +516,22 @@ def start_clustermgr(args):
     comf.close()
 
 def clean_clustermgr(args):
+    if args.multipledc:
+        clean_clustermgr_multidc(args)
+    else:
+        clean_clustermgr_onedc(args)
+
+def clean_clustermgr_onedc(args):
+    clean_clustermgr_int(args, setup_machines2, validate_and_set_config2)
+
+def clean_clustermgr_multidc(args):
+    clean_clustermgr_int(args, setup_machines3, validate_and_set_config3)
+
+def clean_clustermgr_int(args, machine_func, validate_func):
     jscfg = get_json_from_file(args.config)
     machines = {}
-    setup_machines2(jscfg, machines, args)
-    validate_and_set_config2(jscfg, machines, args)
+    machine_func(jscfg, machines, args)
+    validate_func(jscfg, machines, args)
     comf = open(r'clustermgr/clean.sh', 'w')
     comf.write('#! /bin/bash\n')
     comf.write("cat /dev/null > runlog\n")
@@ -497,10 +545,22 @@ def clean_clustermgr(args):
     comf.close()
 
 def service_clustermgr(args):
+    if args.multipledc:
+        service_clustermgr_multidc(args)
+    else:
+        service_clustermgr_onedc(args)
+
+def service_clustermgr_onedc(args):
+    service_clustermgr_int(args, setup_machines2, validate_and_set_config2)
+
+def service_clustermgr_multidc(args):
+    service_clustermgr_int(args, setup_machines3, validate_and_set_config3)
+
+def service_clustermgr_int(args, machine_func, validate_func):
     jscfg = get_json_from_file(args.config)
     machines = {}
-    setup_machines2(jscfg, machines, args)
-    validate_and_set_config2(jscfg, machines, args)
+    machine_func(jscfg, machines, args)
+    validate_func(jscfg, machines, args)
     comf = open(r'clustermgr/service.sh', 'w')
     comf.write('#! /bin/bash\n')
     comf.write("cat /dev/null > runlog\n")
@@ -543,58 +603,86 @@ def get_xpanel_ips(jscfg):
     xpanelips = set()
     if 'xpanel' not in jscfg:
         return xpanelips
-    xpanelips.add(jscfg['xpanel']['ip'])
+    for node in jscfg['xpanel']['nodes']:
+        xpanelips.add(node['ip'])
     return xpanelips
+
+def setup_xpanel(jscfg, machines, comf, args):
+    if 'xpanel' not in jscfg:
+        return
+    xpanel = jscfg['xpanel']
+    for node in xpanel['nodes']:
+        if xpanel['imageType'] == 'file':
+            if not args.cloud:
+                output_info(comf, "transfering xpanel package to %s ..." % node['ip'])
+                process_command_noenv(comf, args, machines, node['ip'], '/',
+                    'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
+                    mach['user'], mach['user'], mach['basedir']))
+                process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % xpanel['imageFile'], mach['basedir'])
+            cmdpat = "sudo docker inspect %s >& /dev/null || ( gzip -cd %s | sudo docker load )"
+            process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], 
+                    cmdpat % (xpanel['image'], xpanel['imageFile']))
 
 def install_xpanel(jscfg, machines, dirmap, filesmap, commandslist, metaseeds, comf, args):
     if 'xpanel' not in jscfg:
         return
-    node = jscfg['xpanel']
-    mach = machines.get(node['ip'])
-    output_info(comf, "setup xpanel on %s ..." % node['ip'])
-    if node['imageType'] == 'file':
-        node['imageFile'] = 'kunlun-xpanel-%s.tar.gz' % args.product_version
-        if not args.cloud:
-            process_command_noenv(comf, args, machines, node['ip'], '/', 'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
-                mach['user'], mach['user'], mach['basedir']))
-            process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % node['imageFile'], mach['basedir'])
-        cmdpat = "sudo docker inspect %s >& /dev/null || ( gzip -cd %s | sudo docker load )"
-        process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (node['image'], node['imageFile']))
+    xpanel = jscfg['xpanel']
     restart = 'no'
     if args.autostart:
         restart = 'always'
-    cmdpat = "sudo docker run -itd --restart={} --env METASEEDS=%s --name %s -p %d:80 %s bash -c '/bin/bash /kunlun/start.sh'".format(restart)
-    process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % (metaseeds, node['name'], node['port'], node['image']))
+    for node in xpanel['nodes']:
+        mach = machines.get(node['ip'])
+        output_info(comf, "setup xpanel on %s ..." % node['ip'])
+        cmdpat = "sudo docker run -itd --restart={} --env METASEEDS=%s --name %s -p %d:80 %s bash -c '/bin/bash /kunlun/start.sh'".format(restart)
+        process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % (metaseeds, node['name'], node['port'], xpanel['image']))
 
 def stop_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args):
     if 'xpanel' not in jscfg:
         return
-    node = jscfg['xpanel']
-    output_info(comf, "Stopping xpanel on %s ..." % node['ip'])
-    cmdpat = "sudo docker container stop -f %s"
-    process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['name'])
+    xpanel = jscfg['xpanel']
+    for node in xpanel['nodes']:
+        output_info(comf, "Stopping xpanel on %s ..." % node['ip'])
+        cmdpat = "sudo docker container stop -f %s"
+        process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['name'])
 
 def start_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args):
     if 'xpanel' not in jscfg:
         return
-    node = jscfg['xpanel']
-    output_info(comf, "Starting xpanel on %s ..." % node['ip'])
-    cmdpat = "sudo docker container start %s"
-    process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['name'])
+    xpanel = jscfg['xpanel']
+    for node in xpanel['nodes']:
+        output_info(comf, "Starting xpanel on %s ..." % node['ip'])
+        cmdpat = "sudo docker container start %s"
+        process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['name'])
 
 def clean_xpanel(jscfg, machines, dirmap, filesmap, commandslist, comf, args):
     if 'xpanel' not in jscfg:
         return
-    node = jscfg['xpanel']
-    output_info(comf, "Cleaning xpanel on %s ..." % node['ip'])
-    cmdpat = "sudo docker container rm -f %s"
-    process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['name'])
-    cmdpat = "sudo docker image rm -f %s"
-    process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['image'])
-    if node['imageType'] == 'file' and not args.cloud:
-        node['imageFile'] = 'kunlun-xpanel-%s.tar.gz' % args.product_version
-        mach = machines.get(node['ip'])
-        process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], 'rm -f %s' % node['imageFile'])
+    xpanel = jscfg['xpanel']
+    for node in xpanel['nodes']:
+        output_info(comf, "Cleaning xpanel on %s ..." % node['ip'])
+        cmdpat = "sudo docker container rm -f %s"
+        process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % node['name'])
+        cmdpat = "sudo docker image rm -f %s"
+        process_command_noenv(comf, args, machines, node['ip'], '/', cmdpat % xpanel['image'])
+        if xpanel['imageType'] == 'file' and not args.cloud:
+            mach = machines.get(node['ip'])
+            process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], 'rm -f %s' % xpanel['imageFile'])
+
+def setup_elasticsearch(jscfg, machines, comf, args):
+    if 'elasticsearch' not in jscfg:
+        return
+    node = jscfg['elasticsearch']
+    mach = machines.get(node['ip'])
+    fmap = get_3rdpackages_filemap(args)
+    es_pack = fmap['elasticsearch'][0]
+    k_pack = fmap['kibana'][0]
+    if not args.cloud:
+        output_info(comf, "transfering elasticsearch and kibana package to %s ..." % node['ip'])
+        process_command_noenv(comf, args, machines, node['ip'], '/',
+                'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
+            mach['user'], mach['user'], mach['basedir']))
+        process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % es_pack, mach['basedir'])
+        process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % k_pack, mach['basedir'])
 
 def install_elasticsearch(jscfg, machines, metaseeds, comf, args):
     if 'elasticsearch' not in jscfg:
@@ -602,20 +690,11 @@ def install_elasticsearch(jscfg, machines, metaseeds, comf, args):
     node = jscfg['elasticsearch']
     mach = machines.get(node['ip'])
     fmap = get_3rdpackages_filemap(args)
-    es_info = fmap['elasticsearch']
-    es_pack = es_info[0]
-    es_image = es_info[1]
-    k_info = fmap['kibana']
-    k_pack = k_info[0]
-    k_image = k_info[1]
+    es_image = fmap['elasticsearch'][1]
+    k_image = fmap['kibana'][1]
     es_port = node['port']
     k_port = node['kibana_port']
     output_info(comf, "install elasticsearch and kibana on %s ..." % node['ip'])
-    if not args.cloud:
-        process_command_noenv(comf, args, machines, node['ip'], '/', 'sudo mkdir -p %s && sudo chown -R %s:\`id -gn %s\` %s' % (mach['basedir'],
-            mach['user'], mach['user'], mach['basedir']))
-        process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % es_pack, mach['basedir'])
-        process_file(comf, args, machines, node['ip'], 'clustermgr/%s' % k_pack, mach['basedir'])
     cmdpat = "sudo docker inspect %s >& /dev/null || ( gzip -cd %s | sudo docker load )"
     process_command_setenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (es_image, "\\${ES_FILE}"))
     process_command_setenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (k_image, "\\${KIBANA_FILE}"))
@@ -626,9 +705,6 @@ def install_elasticsearch(jscfg, machines, metaseeds, comf, args):
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (es_port, es_port, es_image))
     cmdpat = "sudo docker run -itd --restart={} --name kibana_%d  -p %d:5601 -e ELASTICSEARCH_HOSTS=http://%s:%d %s".format(restart)
     process_command_noenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (k_port, k_port, node['ip'], es_port, k_image))
-    process_file(comf, args, machines, node['ip'], 'clustermgr/add_elasticsearch.py', mach['basedir'])
-    cmdpat = "python2 add_elasticsearch.py --seeds=%s --esHost=%s --esPort=%d"
-    process_command_setenv(comf, args, machines, node['ip'], mach['basedir'], cmdpat % (metaseeds, node['ip'], es_port))
     es_host = "%s:%d" % (node['ip'], es_port)
     k_host = "%s:%d" % (node['ip'], k_port)
     for node in jscfg['node_manager']['nodes']:
@@ -673,11 +749,9 @@ def clean_elasticsearch(jscfg, machines, metaseeds, comf, args):
     node = jscfg['elasticsearch']
     mach = machines.get(node['ip'])
     fmap = get_3rdpackages_filemap(args)
-    es_info = fmap['elasticsearch']
-    es_image = es_info[1]
+    es_image = fmap['elasticsearch'][1]
     es_port = node['port']
-    k_info = fmap['kibana']
-    k_image = k_info[1]
+    k_image = fmap['kibana'][1]
     k_port = node['kibana_port']
     output_info(comf, "clean elasticsearch and kibana on %s ..." % node['ip'])
     cmdpat = "sudo docker container rm -f kibana_%d"
@@ -707,12 +781,24 @@ def get_cluster_memo_asjson(cluster):
             }
     return mobj
 
-def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, comf, args):
+def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, comf, metaobj, args):
+    if 'clusters' not in jscfg or len(jscfg['clusters']) == 0:
+        return
+    if args.multipledc:
+        my_print("skip cluster operation for multiple dc")
+        return
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
     clusters = jscfg['clusters']
     meta_hamode = jscfg['meta']['ha_mode']
     
+    if 'nodemapmaster' not in metaobj:
+        metaobj['nodemapmaster'] = {'op':'add', "elements":[]}
+    elements = metaobj['nodemapmaster']["elements"]
+    memoeles = []
+    metaobj['cluster_info'] = {'op':'add', 'elements': memoeles}
+    vareles = metaobj['set_variables']['elements']
+
     i = 1
     for cluster in clusters:
         cluster_name = cluster['name']
@@ -723,11 +809,8 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         for node in cluster['comp']['nodes']:
             setup_server_env(node, machines, dirmap, commandslist, args)
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
-        memo_name = "cluster%d_memo.json" % i
         memo_obj = get_cluster_memo_asjson(cluster)
-        memof = open(r'clustermgr/%s' % memo_name, 'w')
-        json.dump(memo_obj, memof, indent=4)
-        memof.close()
+        memoeles.append({"name": cluster_name, "memo": memo_obj})
         # Storage nodes
         cmdpat = 'python2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d'
         cmdpat += ' --meta_addrs=%s ' % metaseeds
@@ -747,25 +830,36 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
             json.dump(shard, shardf, indent=4)
             shardf.close()
             k = 0
+            pnode = None
+            snodes = []
             for node in shard['nodes']:
+                if 'fullsync_level' in cluster and cluster['fullsync_level'] != 1:
+                    vareles.append({"ip": node['ip'], 'port':node['port'],
+                        'variable_name':'fullsync_consistency_level',
+                        "type":"integer", 'value':cluster['fullsync_level']})
                 targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
-                addNodeToFilesListMap(filesmap, node, 'add_cluster.py', targetdir)
-                addNodeToFilesListMap(filesmap, node, 'update_memo.py', targetdir)
-                addNodeToFilesListMap(filesmap, node, memo_name, targetdir)
                 addNodeToFilesListMap(filesmap, node, my_shardname, targetdir)
                 mach = machines.get(node['ip'])
                 cmd = cmdpat % (my_shardname, k, cluster_name, shard_id, k+1)
                 generate_storage_startstop(args, machines, node, k, filesmap)
                 if node.get('is_primary', False):
+                    pnode = node
+                    vareles.append({"ip": node['ip'], 'port':node['port'],
+                        'variable_name':'ha_role', "type":"integer", 'value': 1})
                     pairs.append({"node":node, "cfg": my_shardname})
                     pries.append([node['ip'], targetdir, cmd])
                 else:
                     secs.append([node['ip'], targetdir, cmd])
+                    snodes.append(node)
                 addToDirMap(dirmap, node['ip'], node['data_dir_path'])
                 addToDirMap(dirmap, node['ip'], node['log_dir_path'])
                 addToDirMap(dirmap, node['ip'], node['innodb_log_dir_path'])
                 k += 1
+            for node in snodes:
+                elements.append({"host": node['ip'], "port":node['port'], 
+                    "master_host":pnode['ip'], "master_port":pnode['port'], "is_meta": False})
             j += 1
+
         for item in pries:
             addToCommandsList(commandslist, item[0], item[1], item[2] + extraopt, "storage")
         for item in secs:
@@ -808,19 +902,6 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         addToCommandsList(commandslist, node['ip'], targetdir,
             cmdpat % (reg_shardname, pg_compname, reg_metaname, cluster_name, meta_hamode, cluster['ha_mode'], cluster_name), "parent")
 
-        if cluster['ha_mode'] == 'rbr':
-            cmdpat = r'python2 add_cluster.py --seeds=%s --type=data --shardscfg=%s'
-            for pair in pairs:
-                node = pair['node']
-                cfg = pair['cfg']
-                targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
-                addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (metaseeds, cfg), 'storage')
-
-        node = cluster['data'][0]['nodes'][0]
-        cmdpat = r'python2 update_memo.py --seeds=%s --cluster=%s --memocfg=%s'
-        targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
-        addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (metaseeds, cluster_name, memo_name), 'storage')
-
         cmdpat = r'%spython2 add_comp_self.py  --meta_config=./%s --cluster_name=%s --user=%s --password=%s --hostname=%s --port=%d --mysql_port=%d --datadir=%s --install --ha_mode=%s'
         idx=0
         for node in cluster['comp']['nodes']:
@@ -845,7 +926,10 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         i += 1
 
-def start_clusters(clusters, nodemgrmaps, machines, comf):
+def start_clusters(clusters, nodemgrmaps, machines, comf, args):
+    if args.multipledc:
+        my_print("skip cluster operation for multiple dc")
+        return
     commandslist = []
     targetdir = '.'
     for cluster in clusters:
@@ -869,7 +953,10 @@ def start_clusters(clusters, nodemgrmaps, machines, comf):
             addToCommandsList(commandslist, node['ip'], ".", cmdpat)
     process_commandslist_setenv(comf, args, machines, commandslist)
 
-def stop_clusters(clusters, nodemgrmaps, machines, comf):
+def stop_clusters(clusters, nodemgrmaps, machines, comf, args):
+    if args.multipledc:
+        my_print("skip cluster operation for multiple dc")
+        return
     commandslist = []
     targetdir = '.'
     for cluster in clusters:
@@ -893,6 +980,9 @@ def stop_clusters(clusters, nodemgrmaps, machines, comf):
     process_commandslist_setenv(comf, args, machines, commandslist)
 
 def clean_clusters(args, clusters, nodemgrmaps, machines, comf):
+    if args.multipledc:
+        my_print("skip cluster operation for multiple dc")
+        return None
     storagedir = "kunlun-storage-%s" % args.product_version
     serverdir = "kunlun-server-%s" % args.product_version
     commandslist = []
@@ -928,6 +1018,114 @@ def clean_clusters(args, clusters, nodemgrmaps, machines, comf):
     process_commandslist_setenv(comf, args, machines, commandslist)
     return names
 
+def setup_metanodes_multidc(jscfg, metanodes, my_metaname, metaobj):
+    # We need to reorder the meta nodes order, so that the install order is:
+    #    - meta nodes in primary dc(master first)
+    #    - meta nodes in secondary dc(also master first, then replicas)
+    #    - meta nodes in standby dc(like above)
+    meta = jscfg['meta']
+    dcprimary = jscfg['dcprimary']
+    dcsecondarylist = jscfg['dcsecondarylist']
+    dcstandbylist = jscfg['dcstandbylist']
+    dc_meta_map = jscfg['dc_meta_map']
+    i = 0
+    if len(meta['nodes']) > 0:
+        j = 0
+        elements = []
+        for node in dc_meta_map[dcprimary['name']]:
+            fname = '%s.%d' % (my_metaname, i)
+            metaf = open(r'clustermgr/%s' % fname, 'w')
+            i += 1
+            idx = j
+            json.dump({"group_uuid": meta['group_uuid'], "nodes": dc_meta_map[dcprimary['name']]}, metaf, indent=4)
+            metaf.close()
+            metanodes.append({"node": node, "file": fname, "index": idx, "fullsync": 1})
+            if j > 0:
+                node0 = dc_meta_map[dcprimary['name']][0]
+                elements.append({"host": node['ip'], "port": node['port'],
+                    'master_host': node0['ip'], 'master_port': node0['port'], 'is_meta':True})
+            j += 1
+        pdcmaster = dc_meta_map[dcprimary['name']][0]
+        pdcmasternode = {"ip": pdcmaster["ip"], "port": pdcmaster['port'], 'is_primary': True}
+        sdcmaster = None
+        for dc in dcsecondarylist:
+            nodes = dc_meta_map[dc['name']]
+            node0 = nodes[0]
+            if sdcmaster is None:
+                sdcmaster = node0
+            fname = '%s.%d' % (my_metaname, i)
+            metaf = open(r'clustermgr/%s' % fname, 'w')
+            i += 1
+            json.dump({"group_uuid": meta['group_uuid'], "nodes": [pdcmasternode, node0]}, metaf, indent=4)
+            metaf.close()
+            idx = 1
+            metanodes.append({"node": node0, "file": fname, "index": idx, "fullsync": 1})
+            elements.append({"host": node0['ip'], "port": node0['port'],
+                'master_host': pdcmaster['ip'], 'master_port': pdcmaster['port'], 'is_meta':True})
+            node0['is_primary'] = True
+            for j in range(1, len(nodes)):
+                fname = '%s.%d' % (my_metaname, i)
+                metaf = open(r'clustermgr/%s' % fname, 'w')
+                i += 1
+                idx = j
+                json.dump({"group_uuid": meta['group_uuid'], "nodes": nodes}, metaf, indent=4)
+                node = nodes[j]
+                metanodes.append({"node": node, "file": fname, "index": idx, "fullsync": 0})
+                elements.append({"host": node['ip'], "port": node['port'],
+                    'master_host': node0['ip'], 'master_port': node0['port'], 'is_meta':True})
+
+        if sdcmaster is None:
+            sdcmaster = dc_meta_map[dcprimary['name']][1]
+        sdcmasternode = {"ip": sdcmaster["ip"], "port": sdcmaster['port'], 'is_primary': True}
+        for dc in dcstandbylist:
+            nodes = dc_meta_map[dc['name']]
+            node0 = nodes[0]
+            fname = '%s.%d' % (my_metaname, i)
+            metaf = open(r'clustermgr/%s' % fname, 'w')
+            i += 1
+            json.dump({"group_uuid": meta['group_uuid'], "nodes": [sdcmasternode, node0]}, metaf, indent=4)
+            metaf.close()
+            idx = 1
+            metanodes.append({"node": node0, "file": fname, "index": idx, "fullsync": 0})
+            elements.append({"host": node0['ip'], "port": node0['port'],
+                'master_host': sdcmasternode['ip'], 'master_port': sdcmasternode['port'], 'is_meta':True})
+            node0['is_primary'] = True
+            for j in range(1, len(nodes)):
+                fname = '%s.%d' % (my_metaname, i)
+                metaf = open(r'clustermgr/%s' % fname, 'w')
+                i += 1
+                idx = j
+                json.dump({"group_uuid": meta['group_uuid'], "nodes": nodes}, metaf, indent=4)
+                metanodes.append({"node": nodes[j], "file": fname, "index": idx, "fullsync": 0})
+                elements.append({"host": node['ip'], "port": node['port'],
+                    'master_host': node0['ip'], 'master_port': node0['port'], 'is_meta':True})
+        metaobj['nodemapmaster'] = {"op":"add", "elements": elements}
+
+def setup_metanodes_onedc(jscfg, metanodes, my_metaname, metaobj):
+    meta = jscfg['meta']
+    if len(meta) == 0:
+        return
+    metaf = open(r'clustermgr/%s' % my_metaname, 'w')
+    json.dump(meta, metaf, indent=4)
+    metaf.close()
+    pnode = None
+    mlen = len(meta['nodes'])
+    for idx in range(0, mlen):
+        node = meta['nodes'][idx]
+        if node['is_primary']:
+            metanodes.append({"node": node, "file":my_metaname, "index":idx, "fullsync":1})
+            pnode = node
+            break
+    elements = []
+    for idx in range(0, mlen):
+        node = meta['nodes'][idx]
+        if node['is_primary']:
+            continue
+        metanodes.append({"node": node, "file":my_metaname, "index":idx, "fullsync":1})
+        elements.append({"host": node['ip'], "port": node['port'], "master_host": pnode['ip'], 
+            "master_port": pnode['port'], "is_meta": True})
+    metaobj['nodemapmaster'] = {'op':'add', 'elements': elements}
+
 def install_with_config(jscfg, comf, machines, args):
     meta = jscfg['meta']
     clustermgr = jscfg['cluster_manager']
@@ -949,6 +1147,7 @@ def install_with_config(jscfg, comf, machines, args):
         nodemgrmaps[node['ip']] = node
         nodemgrips.add(node['ip'])
 
+    # TODO: we need to add priority here.
     clustermgrips = set()
     members=[]
     for node in clustermgr['nodes']:
@@ -997,66 +1196,93 @@ def install_with_config(jscfg, comf, machines, args):
             process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s' % haproxy_file)
         i += 1
 
+    setup_xpanel(jscfg, machines, comf, args)
+    setup_elasticsearch(jscfg, machines, comf, args)
+
     dirmap = {}
     filesmap = {}
     commandslist = []
 
     # used for install storage nodes
-    my_metaname = 'mysql_meta.json'
     reg_metaname = 'reg_meta.json'
     xpanel_sqlfile = 'dba_tools_db.sql'
     if not 'group_uuid' in meta:
 	    meta['group_uuid'] = getuuid()
     metaf = open(r'clustermgr/%s' % reg_metaname, 'w')
     objs = []
-    if len(meta['nodes']) > 0:
-        tempf = open(r'clustermgr/%s' % my_metaname,'w')
-        json.dump(meta, tempf, indent=4)
-        tempf.close()
-        for node in meta['nodes']:
-            mach = machines.get(node['ip'])
-            obj = {}
-            obj['is_primary'] = node.get('is_primary', False)
-            obj['data_dir_path'] = node['data_dir_path']
-            obj['nodemgr_bin_path'] = "%s/%s/bin" % (mach['basedir'], nodemgrdir)
-            obj['ip'] = node['ip']
-            obj['port'] = node['port']
-            obj['user'] = "pgx"
-            obj['password'] = "pgx_pwd"
-            if 'master_priority' in node:
-                obj['master_priority'] = node['master_priority']
-            objs.append(obj)
-    elif not metaseeds == '': # For case just providing the seeds.
-        for addr in metaseeds.split(','):
-            parts = addr.split(':')
-            obj = {}
-            obj['is_primary'] = False
-            obj['data_dir_path'] = ''
-            obj['nodemgr_bin_path'] = ''
-            obj['ip'] = parts[0]
-            if (len(parts) > 1):
-                obj['port'] = int(parts[1])
-            else:
-                obj['port'] = 3306
-            obj['user'] = "pgx"
-            obj['password'] = "pgx_pwd"
-            objs.append(obj)
+    for addr in metaseeds.split(','):
+        parts = addr.split(':')
+        obj = {}
+        obj['is_primary'] = False
+        obj['data_dir_path'] = ''
+        obj['nodemgr_bin_path'] = ''
+        obj['ip'] = parts[0]
+        if len(parts) > 1:
+            obj['port'] = int(parts[1])
+        else:
+            obj['port'] = 3306
+        obj['user'] = "pgx"
+        obj['password'] = "pgx_pwd"
+        objs.append(obj)
     json.dump(objs, metaf, indent=4)
     metaf.close()
 
+    my_metaname = 'mysql_meta.json'
+    metaobj = {}
+    metaobj['set_variables'] = {'op':'add', 'elements':[]}
+    vareles = metaobj['set_variables']['elements']
+    metanodes = []
+    if args.multipledc:
+        setup_metanodes_multidc(jscfg, metanodes, my_metaname, metaobj)
+    else:
+        setup_metanodes_onedc(jscfg, metanodes, my_metaname, metaobj)
+
+    # process elastic search data.
+    if 'elasticsearch' in jscfg:
+        node = jscfg['elasticsearch']
+        esobj = {
+            "op": "add",
+            "data": {
+                "host": node['ip'],
+                "port": node['port']
+            }
+        }
+        metaobj['elasticsearch'] = esobj
+
+    # process backup data
     hasHDFS = False
-    hdfs = None
-    hasSSH = False
-    sshbackup = None
     if 'backup' in jscfg:
         node = jscfg['backup']
         if 'hdfs' in node:
             hasHDFS = True
             hdfs = node['hdfs']
             generate_hdfs_coresite_xml(args, hdfs['ip'], hdfs['port'])
+            metaobj['hdfsbackup'] = {
+                    "op": "add",
+                    "data": {
+                            "host": hdfs['ip'],
+                            "port": hdfs['port']
+                        }
+                    }
         if 'ssh' in node:
-            hasSSH = True
             sshbackup = node['ssh']
+            metaobj['sshbackup'] = {
+                    "op": "add",
+                    "data": {
+                        "host": sshbackup['ip'],
+                        "port": sshbackup['port'],
+                        "user": sshbackup['user'],
+                        "targetRoot": sshbackup['targetDir']
+                        }
+                    }
+
+    # process datacenter data
+    if 'datacenters' in jscfg and len(jscfg['datacenters']) > 0:
+        metaobj['datacenters'] = { 'op': 'add', 'elements': jscfg['datacenters']}
+
+   # bootstrap the cluster
+    if len(nodemgr['nodes']) > 0:
+        metaobj['node_manager'] = {'op': 'add', 'elements': nodemgr['nodes']}
 
     i = 0
     for node in nodemgr['nodes']:
@@ -1072,7 +1298,7 @@ def install_with_config(jscfg, comf, machines, args):
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         i += 1
 
-    cmdpat = 'python2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d'
+    cmdpat = 'python2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d --fullsync=%d'
     cmdpat += ' --meta_addrs=%s ' % metaseeds
     if args.small:
         cmdpat += ' --dbcfg=./template-small.cnf'
@@ -1082,20 +1308,29 @@ def install_with_config(jscfg, comf, machines, args):
     i = 0
     if len(meta['nodes']):
         output_info(comf, "setup meta nodes ...")
-    for node in meta['nodes']:
+    for item in metanodes:
+        node = item['node']
+        fname = item['file']
+        idx = item['index']
+        fullsync = item['fullsync']
+        if 'fullsync_level' in meta and meta['fullsync_level'] != 1:
+            vareles.append({"ip": node['ip'], 'port':node['port'],
+            'variable_name':'fullsync_consistency_level',
+            "type": "integer",
+            'value':meta['fullsync_level']})
         setup_meta_env(node, machines, dirmap, commandslist, args)
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
         node['nodemgr'] = nodemgrmaps.get(node['ip'])
         mach = machines.get(node['ip'])
         addNodeToFilesListMap(filesmap, node, reg_metaname, "%s/%s/scripts" % (node['program_dir'], serverdir))
-        addNodeToFilesListMap(filesmap, node, my_metaname, targetdir)
-        addNodeToFilesListMap(filesmap, node, 'add_cluster.py', targetdir)
-        #addNodeToFilesListMap(filesmap, node, 'update_memo.py', targetdir)
+        addNodeToFilesListMap(filesmap, node, fname, "%s/%s" % (targetdir, my_metaname))
         addNodeToFilesListMap(filesmap, node, xpanel_sqlfile, targetdir)
-        cmd = cmdpat % (my_metaname, i, cluster_name, shard_id, i+1)
+        cmd = cmdpat % (my_metaname, i, cluster_name, shard_id, i+1, fullsync)
         if node.get('is_primary', False):
             pries.append([node['ip'], targetdir, cmd])
+            vareles.append({"ip": node['ip'], 'port':node['port'],
+                'variable_name':'ha_role', "type":"integer", 'value': 1})
         else:
             secs.append([node['ip'], targetdir, cmd])
         addToDirMap(dirmap, node['ip'], node['data_dir_path'])
@@ -1126,44 +1361,9 @@ def install_with_config(jscfg, comf, machines, args):
         targetdir='%s/%s/dba_tools' % (firstmeta['program_dir'], storagedir)
         cmdpat=r'bash imysql.sh %s < %s'
         addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (str(firstmeta['port']), xpanel_sqlfile), "storage")
-        if meta_hamode == 'rbr':
-            cmdpat=r'python2 add_cluster.py --seeds=%s --type=meta --shardscfg=%s'
-            addToCommandsList(commandslist, firstmeta['ip'], targetdir, cmdpat % (metaseeds, my_metaname), "storage")
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
-    worknode = None
-    if len(meta['nodes']) > 0:
-        worknode = meta['nodes'][0]
-    elif len(nodemgr['nodes']) > 0:
-        worknode = nodemgr['nodes'][0]
-    elif len(clustermgr['nodes']) > 0:
-        worknode = clustermgr['nodes'][0]
-
-    if worknode is not None:
-        if hasHDFS:
-            addNodeToFilesListMap(filesmap, worknode, 'add_hdfs.py', '.')
-            addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
-                "python2 add_hdfs.py --seeds=%s --hdfsHost=%s --hdfsPort=%d" % (metaseeds, hdfs['ip'], hdfs['port']))
-        if hasSSH:
-            addNodeToFilesListMap(filesmap, worknode, 'add_ssh.py', '.')
-            addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
-                "python2 add_ssh.py --seeds=%s --sshHost=%s --sshPort=%d --sshUser=%s --sshTarget=%s" % (metaseeds,
-                sshbackup['ip'], sshbackup['port'], sshbackup['user'], sshbackup['targetDir']))
-
-    if len(nodemgr['nodes']) > 0:
-        nodemgrjson = "nodemgr.json"
-        nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
-        json.dump(nodemgr['nodes'], nodemgrf, indent=4)
-        nodemgrf.close()
-        if worknode is not None:
-            mach = machines.get(worknode['ip'])
-            addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
-            addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
-            addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
-                "python2 modify_servernodes.py --config %s --action=install --seeds=%s" % (nodemgrjson, metaseeds))
-
-    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
-    install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, comf, args)
+    install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, comf, metaobj, args)
     install_elasticsearch(jscfg, machines, metaseeds, comf, args)
 
     i = 0
@@ -1177,6 +1377,28 @@ def install_with_config(jscfg, comf, machines, args):
             generate_clustermgr_service(args, machines, commandslist, node, i, filesmap)
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
         i += 1
+
+    metajson = 'metadata.json'
+    metaf = open('clustermgr/%s' % metajson, 'w')
+    json.dump(metaobj, metaf, indent=4)
+    metaf.close()
+
+    worknode = None
+    if len(meta['nodes']) > 0:
+        worknode = meta['nodes'][0]
+    elif len(nodemgr['nodes']) > 0:
+        worknode = nodemgr['nodes'][0]
+    elif len(clustermgr['nodes']) > 0:
+        worknode = clustermgr['nodes'][0]
+
+    if worknode is not None:
+        output_info(comf, "update metadata from %s ..." % worknode['ip'])
+        mach = machines.get(worknode['ip'])
+        addNodeToFilesListMap(filesmap, worknode, 'modify_metadata.py', '.')
+        addNodeToFilesListMap(filesmap, worknode, metajson, '.')
+        addToCommandsList(commandslist, worknode['ip'], machines.get(worknode['ip'])['basedir'],
+                "python2 modify_metadata.py --config %s --seeds=%s" % (metajson, metaseeds), "storage")
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # start the nodemgr and clustermgr process finally.
     output_info(comf, "starting node_mgr nodes ...")
@@ -1265,10 +1487,11 @@ def clean_with_config(jscfg, comf, machines, args):
             addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s*' % (mach['basedir'], nodemgrdirpfx))
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
+    rnames = None
     if 'clusters' in jscfg and len(jscfg['clusters']) > 0:
         output_info(comf, "Cleaning all clusters specified in the configuration file ...")
-    rnames = clean_clusters(args, jscfg['clusters'], nodemgrmaps, machines, comf)
-    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
+        rnames = clean_clusters(args, jscfg['clusters'], nodemgrmaps, machines, comf)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
     clean_elasticsearch(jscfg, machines, metaseeds, comf, args)
 
     # clean the nodemgr processes
@@ -1298,23 +1521,21 @@ def clean_with_config(jscfg, comf, machines, args):
     if worknode is not None:
         ip = worknode['ip']
         mach = machines.get(ip)
-        addNodeToFilesListMap(filesmap, worknode, 'modify_servernodes.py', '.')
-        addNodeToFilesListMap(filesmap, worknode, 'delete_cluster.py', '.')
-        # Skip if we clean the meta.
-        if len(nodemgr['nodes']) > 0 and 'group_seeds' in meta:
-            nodemgrjson = "nodemgr.json"
-            nodemgrf = open('clustermgr/%s' % nodemgrjson, 'w')
-            json.dump(nodemgr['nodes'], nodemgrf, indent=4)
-            nodemgrf.close()
-            addNodeToFilesListMap(filesmap, worknode, nodemgrjson, '.')
+        if len(nodemgr['nodes']) > 0 and len(meta['nodes']) == 0 and 'group_seeds' in meta:
+            metaobj = {}
+            metaobj['node_manager'] = {'op':'remove', 'elements': nodemgr['nodes']}
+            if rnames is not None and len(rnames) > 0:
+                metaobj['delete_cluster'] = {'op':'remove', "elements": rnames}
+            metajson = 'metadata.json'
+            metaf = open('clustermgr/%s' % metajson, 'w')
+            json.dump(metaobj, metaf, indent=4)
+            metaf.close()
+            addNodeToFilesListMap(filesmap, worknode, 'modify_metadata.py', '.')
+            addNodeToFilesListMap(filesmap, worknode, metajson, '.')
+            # Skip if we clean the meta.
             addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
-                "python2 modify_servernodes.py --config %s --action=clean --seeds=%s" % (nodemgrjson, metaseeds))
-        # Skip if we clean the meta.
-        if len(rnames) > 0 and 'group_seeds' in meta:
-            for cname in rnames:
-                addToCommandsList(commandslist, ip, machines.get(worknode['ip'])['basedir'],
-                    "python2 delete_cluster.py --seeds=%s --cluster_name=%s" % (metaseeds, cname))
-    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
+                "python2 modify_metadata.py --config %s --seeds=%s" % (metajson, metaseeds), "storage")
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # clean the meta nodes
     for node in meta['nodes']:
@@ -1380,8 +1601,8 @@ def stop_with_config(jscfg, comf, machines, args):
 
     if 'clusters' in jscfg and len(jscfg['clusters']) > 0:
         output_info(comf, "Stopping all clusters specified in the configuration file ...")
-    stop_clusters(jscfg['clusters'], nodemgrmaps, machines, comf)
-    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
+        stop_clusters(jscfg['clusters'], nodemgrmaps, machines, comf, args)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
     stop_elasticsearch(jscfg, machines, comf, args)
 
     # stop the clustermgr processes
@@ -1464,8 +1685,8 @@ def start_with_config(jscfg, comf, machines, args):
 
     if 'clusters' in jscfg and len(jscfg['clusters']) > 0:
         output_info(comf, "Starting all clusters specified in the configuration file ...")
-    start_clusters(jscfg['clusters'], nodemgrmaps, machines, comf)
-    purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
+        start_clusters(jscfg['clusters'], nodemgrmaps, machines, comf, args)
+        purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
     start_elasticsearch(jscfg, machines, comf, args)
 
     # start the clustermgr processes
@@ -1652,6 +1873,7 @@ if  __name__ == '__main__':
     parser.add_argument('--downloadtype', type=str, help="the packages type", choices=['release', 'daily_rel', 'daily_debug'], default='release')
     parser.add_argument('--targetarch', type=str, help="the cpu arch for the packages to download/install", default=platform.machine())
     parser.add_argument('--overwrite', help="whether to overwrite existing file during download", default=False, action='store_true')
+    parser.add_argument('--multipledc', help="whether used for installation in multiple datacenters", default=False, action='store_true')
 
 
     args = parser.parse_args()

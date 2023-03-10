@@ -225,6 +225,12 @@ def addToDirMap(map, ip, newdir):
     dirs = map[ip]
     dirs.append(newdir)
 
+def addToListMap(map, key, value):
+    if key not in map:
+        map[key] = []
+    l = map[key]
+    l.append(value)
+
 def islocal(args, ip, user):
     if ip.startswith("127") or ip in [args.localip, "localhost", socket.gethostname()]:
         if getpass.getuser() == user:
@@ -409,7 +415,8 @@ def validate_and_set_config1(jscfg, machines, args):
         raise ValueError('Error: There must be at least one node in meta shard')
     if meta_ha_mode == '':
         if metacnt > 1:
-            meta_ha_mode = 'rbr'
+            # This validation is not used for rbr, so mgr for multiple replicas.
+            meta_ha_mode = 'mgr'
         else:
             meta_ha_mode = 'no_rep'
 
@@ -696,6 +703,8 @@ def validate_and_set_config2(jscfg, machines, args):
         raise ValueError('Error: ha_mode is mgr/rbr, but there is only one node in meta shard')
     hasPrimary=False
     meta_addrs = []
+    if 'fullsync_level' not in meta:
+        meta['fullsync_level'] = 1
     for node in meta['nodes']:
         # These attr should not be set explicitly.
         for attr in ['data_dir_path', 'log_dir_path', 'innodb_log_dir_path']:
@@ -761,8 +770,11 @@ def validate_and_set_config2(jscfg, machines, args):
         addPortToMachine(portmap, node['ip'], node['port'])
         if 'name' not in node:
             node['name'] = 'xpanel_%d' % node['port']
+        node['nodes'] = [{"ip":node['ip'], "port": node['port'], "name":node["name"]}]
         if 'imageType' not in node:
             node['imageType'] = 'url'
+        if node['imageType'] == 'file':
+            node['image'] = 'kunlun-xpanel:%s' % args.product_version
         if 'imageFile' not in node:
             node['imageFile'] = 'kunlun-xpanel-%s.tar.gz' % args.product_version
 
@@ -877,6 +889,335 @@ def validate_and_set_config2(jscfg, machines, args):
     if args.verbose:
         for node in nodemgr['nodes']:
             my_print(str(node))
+
+# Cluster installation will be added later, so not cover this now.
+def setup_machines3(jscfg, machines, args):
+    machnodes = jscfg.get('machines', [])
+    meta = jscfg['meta']
+    metanodes = meta.get('nodes', [])
+    nodemgr = jscfg.get('node_manager', {"nodes": []})
+    nodemgrnodes = nodemgr.get('nodes', [])
+    clustermgr = jscfg.get('cluster_manager', {"nodes": []})
+    clustermgrnodes = clustermgr.get('nodes', [])
+    xpanel = jscfg.get("xpanel", {"nodes": []})
+    xpanelnodes = xpanel.get('nodes', [])
+    for mach in machnodes:
+        ip=mach['ip']
+        user=mach.get('user', args.defuser)
+        base=mach.get('basedir', args.defbase)
+        addMachineToMap(machines, ip, user, base)
+    for node in metanodes:
+        addIpToMachineMap(machines, node['ip'], args)
+    for node in nodemgrnodes:
+        addIpToMachineMap(machines, node['ip'], args)
+    for node in clustermgrnodes:
+        addIpToMachineMap(machines, node['ip'], args)
+    if 'elasticsearch' in jscfg:
+        addIpToMachineMap(machines, jscfg['elasticsearch']['ip'], args)
+    for node in xpanelnodes:
+        addIpToMachineMap(machines, node['ip'], args)
+
+# Cluster installation is not added yet, so not cover this currently.
+def validate_and_set_config3(jscfg, machines, args):
+    # check data centers first.
+    dcs = jscfg.get('datacenters', [])
+    meta = jscfg.get('meta', {'nodes':[]})
+    if not 'nodes' in meta:
+        meta['nodes'] = []
+    clustermgr = jscfg.get('cluster_manager', {'nodes':[]})
+    if not 'nodes' in clustermgr:
+        clustermgr['nodes'] = []
+    if not 'cluster_manager' in clustermgr:
+        jscfg['cluster_manager'] = clustermgr
+    nodemgr = jscfg.get('node_manager', {'nodes':[]})
+    if not 'nodes' in nodemgr:
+        nodemgr['nodes'] = []
+    if not 'node_manager' in nodemgr:
+        jscfg['node_manager'] = nodemgr
+    clusters = jscfg.get('clusters', [])
+    if not 'clusters' in jscfg:
+        jscfg['clusters'] = clusters
+
+    firstboot = False
+    # if we specify meta nodes, it is real bootstrap operation.
+    if len(meta['nodes']) > 0:
+        firstboot = True
+
+    dcnames = set()
+    dcmap = {}
+    dcprimary = None
+    dcsecondarylist = []
+    dcstandbylist = []
+    for node in dcs:
+        if node['name'] in dcnames:
+            raise ValueError('Error: duplicate dc name:%s!' % node['name'])
+        dcnames.add(node['name'])
+        dcmap[node['name']] = node
+        if 'skip' not in node:
+            node['skip'] = False
+        if 'province' not in node:
+            node['province'] = None
+        if 'city' not in node:
+            node['city'] = None
+        if 'is_primary' not in node:
+            node['is_primary'] = False
+        if node['is_primary']:
+            if dcprimary is not None:
+                raise ValueError('Error: there should be only one primary datacenter!')
+            dcprimary = node
+
+    if args.verbose:
+        my_print("data centers:%s\n" % str(dcs))
+
+    if firstboot:
+        if dcprimary is None:
+            raise ValueError('Error: primary is not set for bootstrap operation !')
+        for node in dcs:
+            if node.get('skip', False):
+                raise ValueError('Error: datacenter %s must be initialized during bootstrap !' % node['name'])
+    
+    pdcprovince = None
+    pdccity = None
+    if dcprimary is not None:
+        pdcprovince = dcprimary['province']
+        pdccity = dcprimary['city']
+    for node in dcs:
+        if node is dcprimary:
+            continue
+        if node['province'] == pdcprovince and node['city'] == pdccity:
+            dcsecondarylist.append(node)
+        else:
+            dcstandbylist.append(node)
+    jscfg['dcprimary'] = dcprimary
+    jscfg['dcsecondarylist'] = dcsecondarylist
+    jscfg['dcstandbylist'] = dcstandbylist
+
+    if args.verbose:
+        if dcprimary is not None:
+            my_print("primary datacenter:%s\n" % str(dcprimary))
+        my_print("secondary datacenters:%s\n" % str(dcsecondarylist))
+        my_print("standby datacenters:%s\n" % str(dcstandbylist))
+
+    portmap = {}
+    dirmap = {}
+    ipdcmap = {}
+
+    defpaths = {
+            "server_datadirs": "server_datadir",
+            "storage_datadirs": "storage_datadir",
+            "storage_logdirs": "storage_logdir",
+            "storage_waldirs": "storage_waldir",
+        }
+    nodemgrips = set()
+    nodemgrmaps = {}
+    for node in nodemgr['nodes']:
+        if node['ip'] in nodemgrips:
+            raise ValueError('Error: %s exists, only one node_mgr can be run on a machine!' % node['ip'])
+        if 'dc' not in node:
+            raise ValueError('Error: dc attribute for the node(%s) must be specified !' % node['ip'])
+        elif node['dc'] not in dcnames:
+            if firstboot:
+                raise ValueError('Error: unknown datacenter %s !' % node['dc'])
+            else:
+                dcnames.add(node['dc'])
+                dcs.append(get_default_datacenter(args, node['dc']))
+        ipdcmap[node['ip']] = node['dc']
+        node['storage_usedports'] = []
+        node['server_usedports'] = []
+        if 'nodetype' not in node:
+            node['nodetype'] = 'both'
+        if 'valgrind' not in node:
+            node['valgrind'] = False
+        if 'skip' not in node:
+            node['skip'] = False
+        # default 8 cpus
+        if 'total_cpu_cores' not in node:
+            node['total_cpu_cores'] = 8
+        # default 16GB memory.
+        if 'total_mem' not in node:
+            node['total_mem'] = 16384
+        if 'storage_portrange' not in node:
+            node['storage_portrange'] = args.defstorage_portrange_nodemgr
+        if 'server_portrange' not in node:
+            node['server_portrange'] = args.defserver_portrange_nodemgr
+        # validate other configurations
+        if 'storage_curport' not in node:
+            range1 = node['storage_portrange'].split('-')
+            node['storage_curport'] = int(range1[0]) + 1
+        if 'server_curport' not in node:
+            range2 = node['server_portrange'].split('-')
+            node['server_curport'] = int(range2[0]) + 1
+        mach = machines.get(node['ip'])
+        nodemgrips.add(node['ip'])
+        nodemgrmaps[node['ip']] = node
+        if 'brpc_http_port' not in node:
+            node['brpc_http_port'] = args.defbrpc_http_port_nodemgr
+        addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
+        if 'tcp_port' not in node:
+            node['tcp_port'] = args.deftcp_port_nodemgr
+        addPortToMachine(portmap, node['ip'], node['tcp_port'])
+        if 'prometheus_port_start' not in node:
+            node['prometheus_port_start'] = args.defprometheus_port_start_nodemgr
+        addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
+        # The logic is that:
+        # - if it is set, check every item is an absolute path.
+        # - if it is not set, it is default to $basedir/{server_datadir, storage_datadir, storage_logdir, storage_waldir}
+        for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
+            if item in node:
+                nodedirs = node[item].strip()
+                dirs = set()
+                for d in nodedirs.split(","):
+                    formald = d.strip()
+                    #addDirToMachine(dirmap, node['ip'], d)
+                    if not formald.startswith('/'):
+                        raise ValueError('Error: the dir in %s must be absolute path!' % item)
+                    if formald in dirs:
+                        raise ValueError('Error: duplicate dir on %s(%s): %s!' % (node['ip'], item, d))
+                    dirs.add(formald)
+            else:
+                node[item] = "%s/%s" % (mach['basedir'], defpaths[item])
+
+    if firstboot:
+        for node in nodemgr['nodes']:
+            if node['skip']:
+                raise ValueError('Error: node %s must be initialized during bootstrap !' % node['ip'])
+
+    if args.verbose:
+        my_print("ipdcmap:%s\n" % str(ipdcmap))
+
+    clustermgrips = set()
+    dc_clustermgr_map = {}
+    for node in clustermgr['nodes']:
+        if node['ip'] in clustermgrips:
+            raise ValueError('Error: %s exists, only one cluster_mgr can be run on a machine!' % node['ip'])
+        if 'dc' not in node:
+            if node['ip'] not in ipdcmap:
+                raise ValueError('Error: datacenter not specified for clustermgr node %s!' % node['ip'])
+            else:
+                addToListMap(dc_clustermgr_map, ipdcmap[node['ip']], node)
+        else:
+            if node['dc'] not in dcnames:
+                raise ValueError('Error: unknown datacenter %s !' % node['dc'])
+            elif node['ip'] in ipdcmap and ipdcmap[node['ip']] != node['dc']:
+                raise ValueError('Error: conflict datacenter specification for %s !' % node['ip'])
+            else:
+                addToListMap(dc_clustermgr_map, node['dc'], node)
+        if 'valgrind' not in node:
+            node['valgrind'] = False
+        clustermgrips.add(node['ip'])
+        if 'brpc_raft_port' not in node:
+            node['brpc_raft_port'] = args.defbrpc_raft_port_clustermgr
+        addPortToMachine(portmap, node['ip'], node['brpc_raft_port'])
+        if 'brpc_http_port' not in node:
+            node['brpc_http_port'] = args.defbrpc_http_port_clustermgr
+        addPortToMachine(portmap, node['ip'], node['brpc_http_port'])
+        if 'prometheus_port_start' not in node:
+            node['prometheus_port_start'] = args.defpromethes_port_start_clustermgr
+        addPortToMachine(portmap, node['ip'], node['prometheus_port_start'])
+
+    if firstboot:
+        for dc in dcnames:
+            if dc not in dc_clustermgr_map or len(dc_clustermgr_map[dc]) < 2:
+                raise ValueError('Error: there must be at least two clustermgr nodes in datacenter %s during bootstrap!' % dc)
+
+    if 'ha_mode' not in meta:
+        meta['ha_mode'] = 'rbr'
+    elif meta['ha_mode'] != 'rbr':
+        raise ValueError('Error: ha_mode for meta must be rbr currently !')
+    nodecnt = len(meta['nodes'])
+    if nodecnt == 0 and 'group_seeds' not in meta:
+        raise ValueError('Error: meta nodes must specified during bootstrap!')
+    dc_meta_map = {}
+    for node in meta['nodes']:
+        # These attr should not be set explicitly.
+        for attr in ['data_dir_path', 'log_dir_path', 'innodb_log_dir_path']:
+            if attr in node:
+                raise ValueError('%s can not be set explicitly for meta node %s' % (attr, node['ip']))
+        if node['ip'] not in nodemgrips:
+            raise ValueError('Error: no node_manager item for node %s!' % node['ip'])
+        addToListMap(dc_meta_map, ipdcmap[node['ip']], node)
+        # node['nodemgr'] = nodemgrmaps.get(node['ip'])
+        nodemgrobj = nodemgrmaps.get(node['ip'])
+        fix_nodemgr_nodetype(args, nodemgrobj, 'storage')
+        if 'port' not in node:
+            node['port'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 2)
+        addPortToMachine(portmap, node['ip'], node['port'])
+        addto_usedports(args, nodemgrobj, 'storage', node['port'])
+        set_storage_using_nodemgr(machines, node, nodemgrobj, "128MB")
+        if 'election_weight' not in node:
+            node['election_weight'] = 50
+        node['is_primary'] = False
+    jscfg['dc_meta_map'] = dc_meta_map
+
+    if firstboot:
+        for dc in dcnames:
+            if dc not in dc_meta_map or len(dc_meta_map[dc]) < 2:
+                raise ValueError('Error: there must be at least two meta nodes in datacenter %s during bootstrap!' % dc)
+        meta_addrlist = []
+        pdcmetanodes = dc_meta_map[dcprimary['name']]
+        pdcmetanodes[0]['is_primary'] = True
+        for node in pdcmetanodes:
+            meta_addrlist.append('%s:%d' % (node['ip'], node['port']))
+        for dc in dcsecondarylist:
+            node = dc_meta_map[dc['name']][0]
+            meta_addrlist.append('%s:%d' % (node['ip'], node['port']))
+        meta_addrs = ",".join(meta_addrlist)
+        meta['group_seeds'] = meta_addrs
+    if args.verbose:
+        my_print("group_seeds:%s\n" % meta['group_seeds'])
+
+    if 'backup' in jscfg:
+        if 'hdfs' in jscfg['backup']:
+            node = jscfg['backup']['hdfs']
+            addPortToMachine(portmap, node['ip'], node['port'])
+        if 'ssh' in jscfg['backup']:
+            node = jscfg['backup']['ssh']
+            if 'port' not in node:
+                node['port'] = 22
+            addPortToMachine(portmap, node['ip'], node['port'])
+            if 'user' not in node:
+                raise ValueError('Error: user must be specified for ssh backup!')
+            if 'targetDir' not in node:
+                raise ValueError('Error: targetDir must be specified for ssh backup!')
+
+    if 'xpanel' in jscfg:
+        xpanel = jscfg['xpanel']
+        if 'imageType' not in xpanel:
+            xpanel['imageType'] = 'url'
+        if xpanel['imageType'] == 'file':
+            xpanel['image'] = 'kunlun-xpanel:%s' % args.product_version
+        if 'imageFile' not in xpanel:
+            xpanel['imageFile'] = 'kunlun-xpanel-%s.tar.gz' % args.product_version
+        for node in xpanel['nodes']:
+            if 'port' not in node:
+                node['port'] = 18080
+            addPortToMachine(portmap, node['ip'], node['port'])
+            if 'name' not in node:
+                node['name'] = 'xpanel_%d' % node['port']
+
+    if 'elasticsearch' in jscfg:
+        node = jscfg['elasticsearch']
+        if 'ip' not in node:
+            raise ValueError('Error: the ip of elasticsearch must be specified!')
+        if 'port' not in node:
+            node['port'] = 9200
+        addPortToMachine(portmap, node['ip'], node['port'])
+        if 'kibana_port' not in node:
+            node['kibana_port'] = 5601
+        addPortToMachine(portmap, node['ip'], node['kibana_port'])
+
+    if args.verbose:
+        for node in nodemgr['nodes']:
+            my_print(str(node))
+
+def get_default_datacenter(args, dcname):
+    node = {
+            "name": dcname,
+            "province": None,
+            "city": None,
+            "skipped": True
+            }
+    return node
 
 def get_default_nodemgr(args, machines, ip, nodetype):
     mach = machines.get(ip)

@@ -1,0 +1,171 @@
+{
+    "machines":[
+        {
+            "ip":"192.168.0.110",
+            "basedir":"/home/kunlun/mdcbase",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.111",
+	    "basedir":"/home/kunlun/mdcbase",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.100",
+            "basedir":"/home/kunlun/mdcbase",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.143",
+            "basedir":"/home/kunlun/mdcbase",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.151",
+	    "basedir":"/home/kunlun/mdcbase",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.117",
+            "basedir":"/home/kunlun/mdcbase",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.141",
+            "basedir":"/home/kunlun/mdcbase",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.121",
+	    "basedir":"/home/kunlun/mdcbase",
+            "user":"kunlun"
+        },
+        {
+            "ip":"192.168.0.137",
+            "basedir":"/home/kunlun/mdcbase",
+            "user":"kunlun"
+        }
+    ],
+    "datacenters": [
+	    {
+		    "name": "sz-dc1",
+		    "province": "guangdong",
+		    "city": "shenzhen",
+		    "is_primary": true
+	    },
+	    {
+		    "name": "sz-dc2",
+		    "province": "guangdong",
+		    "city": "shenzhen"
+	    },
+	    {
+		    "name": "gz-dc1",
+		    "province": "guangdong",
+		    "city": "guangzhou"
+	    }
+    ],
+    "meta":{
+	"ha_mode": "rbr",
+        "nodes":[
+ 		{
+ 		"ip":"192.168.0.110"
+                },
+                {
+ 		"ip":"192.168.0.111"
+                },
+                {
+ 		"ip":"192.168.0.143"
+                },
+ 		{
+ 		"ip":"192.168.0.151"
+                },
+                {
+ 		"ip":"192.168.0.141"
+                },
+                {
+ 		"ip":"192.168.0.121"
+                }
+        ]
+    },
+    "cluster_manager": {
+           "nodes": [
+		{
+ 		"ip": "192.168.0.110"
+		},
+		{
+ 		"ip": "192.168.0.111"
+		},
+		{
+ 		"ip": "192.168.0.143"
+		},
+		{
+ 		"ip": "192.168.0.151"
+		},
+		{
+ 		"ip": "192.168.0.141"
+		},
+		{
+ 		"ip": "192.168.0.121"
+		}
+	    ]	
+    },
+    "node_manager": {
+           "nodes": [
+		{
+ 		"ip": "192.168.0.110",
+		"dc": "sz-dc1"
+		},
+		{
+ 		"ip": "192.168.0.111",
+		"dc": "sz-dc1"
+		},
+		{ 
+ 		"ip": "192.168.0.100",
+		"dc": "sz-dc1"
+		},
+		{
+ 		"ip": "192.168.0.143",
+		"dc": "sz-dc2"
+		},
+		{
+ 		"ip": "192.168.0.151",
+		"dc": "sz-dc2"
+		},
+		{ 
+ 		"ip": "192.168.0.117",
+		"dc": "sz-dc2"
+		},
+		{
+ 		"ip": "192.168.0.141",
+		"dc": "gz-dc1"
+		},
+		{
+ 		"ip": "192.168.0.121",
+		"dc": "gz-dc1"
+		},
+		{ 
+ 		"ip": "192.168.0.137",
+		"dc": "gz-dc1"
+		}
+	    ]	
+    },
+    "xpanel": {
+	"image": "registry.cn-hangzhou.aliyuncs.com/kunlundb/kunlun-xpanel:1.2.1",
+	"nodes": [
+		{
+			"ip": "192.168.0.110"
+		},
+		{
+			"ip": "192.168.0.111"
+		},
+		{
+			"ip": "192.168.0.100"
+		}
+
+	]
+    },
+    "elasticsearch": {
+	"ip": "192.168.0.110"
+    }
+}    
+
