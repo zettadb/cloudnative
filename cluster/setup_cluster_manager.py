@@ -422,6 +422,8 @@ def setup_clustermgr_commands(args, idx, machines, node, commandslist, dirmap, f
     scriptf.write(cmdpat % (confpath, 'prometheus_path', '%s/program_binaries/${PROMETHEUS_DIR}' % mach['basedir']))
     if 'prometheus_port_start' in node:
         scriptf.write(cmdpat % (confpath, 'prometheus_port_start', node['prometheus_port_start']))
+    if 'brpc_raft_election_timeout_ms' in node:
+        scriptf.write(cmdpat % (confpath, 'brpc_raft_election_timeout_ms', node['brpc_raft_election_timeout_ms']))
     scriptf.close()
     addNodeToFilesListMap(filesmap, node, script_name, '.')
     addToCommandsList(commandslist, node['ip'], '.', "bash ./%s" % script_name)
@@ -1032,6 +1034,7 @@ def setup_metanodes_multidc(jscfg, metanodes, my_metaname, metaobj):
     if len(meta['nodes']) > 0:
         j = 0
         elements = []
+        meta['fullsync_level'] = len(dc_meta_map[dcprimary['name']]) + len(dcsecondarylist) - 1
         for node in dc_meta_map[dcprimary['name']]:
             fname = '%s.%d' % (my_metaname, i)
             metaf = open(r'clustermgr/%s' % fname, 'w')

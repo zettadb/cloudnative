@@ -1119,6 +1119,18 @@ def validate_and_set_config3(jscfg, machines, args):
         for dc in dcnames:
             if dc not in dc_clustermgr_map or len(dc_clustermgr_map[dc]) < 2:
                 raise ValueError('Error: there must be at least two clustermgr nodes in datacenter %s during bootstrap!' % dc)
+        # set weight
+        # nodes in primary has the highest weight
+        # nodes in secondaries has middle weight
+        # nodes in standby has the lowest weight
+        for node in dc_clustermgr_map[dcprimary['name']]:
+            node['brpc_raft_election_timeout_ms'] = 3000
+        for dc in dcsecondarylist:
+            for node in dc_clustermgr_map[dc['name']]:
+                node['brpc_raft_election_timeout_ms'] = 6000
+        for dc in dcstandbylist:
+            for node in dc_clustermgr_map[dc['name']]:
+                node['brpc_raft_election_timeout_ms'] = 9000
 
     if 'ha_mode' not in meta:
         meta['ha_mode'] = 'rbr'
