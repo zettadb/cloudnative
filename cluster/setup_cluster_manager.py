@@ -10,33 +10,6 @@ import argparse
 import platform
 from cluster_common import *
 
-def check_version_to_major(version, mver):
-    vers = version.split('.')
-    major = int(vers[0])
-    if major >= mver:
-        return True
-    else:
-        return False
-
-def check_version_to_minor(version, majorv, minorv):
-    vers = version.split('.')
-    major = int(vers[0])
-    minor = int(vers[1])
-    if major > majorv or (major == majorv and minor >= minorv):
-        return True
-    else:
-        return False
-
-def check_version_to_patch(version, majorv, minorv, patchv):
-    vers = version.split('.')
-    major = int(vers[0])
-    minor = int(vers[1])
-    patch = int(vers[2])
-    if major > majorv or (major == majorv and minor > minorv) or (major == majorv and minor == minorv and patch >= patchv):
-        return True
-    else:
-        return False
-
 def purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist):
     process_dirmap(comf, dirmap, machines, args)
     process_fileslistmap(comf, filesmap, machines, 'clustermgr', args)
@@ -1157,8 +1130,8 @@ def install_with_config(jscfg, comf, machines, args):
         clustermgrips.add(node['ip'])
         members.append("%s:%d:0" % (node['ip'], node['brpc_raft_port']))
     initmember = clustermgr.get('raft_group_member_init_config', '')
-    if initmember == '':
-        initmember = "%s," % ",".join(members)
+    initmember = "%s%s," % (initmember, ",".join(members))
+    my_print('raft_group_member_init_config:%s' % initmember)
 
     haproxyips = get_haproxy_ips(jscfg)
     workips = set()
@@ -1329,7 +1302,7 @@ def install_with_config(jscfg, comf, machines, args):
         addNodeToFilesListMap(filesmap, node, reg_metaname, "%s/%s/scripts" % (node['program_dir'], serverdir))
         addNodeToFilesListMap(filesmap, node, fname, "%s/%s" % (targetdir, my_metaname))
         addNodeToFilesListMap(filesmap, node, xpanel_sqlfile, targetdir)
-        cmd = cmdpat % (my_metaname, i, cluster_name, shard_id, i+1, fullsync)
+        cmd = cmdpat % (my_metaname, idx, cluster_name, shard_id, i+1, fullsync)
         if node.get('is_primary', False):
             pries.append([node['ip'], targetdir, cmd])
             vareles.append({"ip": node['ip'], 'port':node['port'],

@@ -11,6 +11,33 @@ if sys.version_info.major == 2:
 else:
     import urllib.request as ulib
 
+def check_version_to_major(version, mver):
+    vers = version.split('.')
+    major = int(vers[0])
+    if major >= mver:
+        return True
+    else:
+        return False
+
+def check_version_to_minor(version, majorv, minorv):
+    vers = version.split('.')
+    major = int(vers[0])
+    minor = int(vers[1])
+    if major > majorv or (major == majorv and minor >= minorv):
+        return True
+    else:
+        return False
+
+def check_version_to_patch(version, majorv, minorv, patchv):
+    vers = version.split('.')
+    major = int(vers[0])
+    minor = int(vers[1])
+    patch = int(vers[2])
+    if major > majorv or (major == majorv and minor > minorv) or (major == majorv and minor == minorv and patch >= patchv):
+        return True
+    else:
+        return False
+
 def output_info(comf, str):
     comf.write("cat <<EOF\n")
     comf.write("%s\n" % str)
@@ -1124,13 +1151,16 @@ def validate_and_set_config3(jscfg, machines, args):
         # nodes in secondaries has middle weight
         # nodes in standby has the lowest weight
         for node in dc_clustermgr_map[dcprimary['name']]:
-            node['brpc_raft_election_timeout_ms'] = 3000
+            if check_version_to_minor(args.product_version, 1, 2):
+                node['brpc_raft_election_timeout_ms'] = 3000
         for dc in dcsecondarylist:
             for node in dc_clustermgr_map[dc['name']]:
-                node['brpc_raft_election_timeout_ms'] = 6000
+                if check_version_to_minor(args.product_version, 1, 2):
+                    node['brpc_raft_election_timeout_ms'] = 6000
         for dc in dcstandbylist:
             for node in dc_clustermgr_map[dc['name']]:
-                node['brpc_raft_election_timeout_ms'] = 9000
+                if check_version_to_minor(args.product_version, 1, 2):
+                    node['brpc_raft_election_timeout_ms'] = 9000
 
     if 'ha_mode' not in meta:
         meta['ha_mode'] = 'rbr'
@@ -1165,13 +1195,10 @@ def validate_and_set_config3(jscfg, machines, args):
         for dc in dcnames:
             if dc not in dc_meta_map or len(dc_meta_map[dc]) < 2:
                 raise ValueError('Error: there must be at least two meta nodes in datacenter %s during bootstrap!' % dc)
-        meta_addrlist = []
         pdcmetanodes = dc_meta_map[dcprimary['name']]
         pdcmetanodes[0]['is_primary'] = True
-        for node in pdcmetanodes:
-            meta_addrlist.append('%s:%d' % (node['ip'], node['port']))
-        for dc in dcsecondarylist:
-            node = dc_meta_map[dc['name']][0]
+        meta_addrlist = []
+        for node in meta['nodes']:
             meta_addrlist.append('%s:%d' % (node['ip'], node['port']))
         meta_addrs = ",".join(meta_addrlist)
         meta['group_seeds'] = meta_addrs
