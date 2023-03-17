@@ -286,9 +286,8 @@ def install_nodemgr_env(comf, mach, machines, args):
     progname = "kunlun-node-manager-%s" % args.product_version
     ip = mach['ip']
     # Set up the files
-    if not args.cloud:
-        process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
-        process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
+    process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
+    process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
 
 def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, filesmap, metaseeds, hasHDFS):
     cmdpat = "bash change_config.sh %s \"%s\" \"%s\"\n"
@@ -370,9 +369,8 @@ def install_clustermgr_env(comf, mach, machines, args):
     progname = "kunlun-cluster-manager-%s" % args.product_version
     ip = mach['ip']
     # Set up the files
-    if not args.cloud:
-        process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
-        process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
+    process_file(comf, args, machines, ip, 'clustermgr/%s.tgz' % progname, mach['basedir'])
+    process_command_noenv(comf, args, machines, ip, mach['basedir'], 'tar -xzf %s.tgz' % progname)
 
 def setup_clustermgr_commands(args, idx, machines, node, commandslist, dirmap, filesmap, metaseeds, initmember, initcommon):
     cmdpat = "bash change_config.sh %s \"%s\" \"%s\"\n"
@@ -1406,9 +1404,7 @@ def clean_with_config(jscfg, comf, machines, args):
     storagedir = "kunlun-storage-%s" % args.product_version
     storagedirpfx = "kunlun-storage-"
     clustermgrdir = "kunlun-cluster-manager-%s" % args.product_version
-    clustermgrdirpfx = "kunlun-cluster-manager-"
     nodemgrdir = "kunlun-node-manager-%s" % args.product_version
-    nodemgrdirpfx = "kunlun-node-manager-"
     sudopfx=""
     if args.sudo:
         sudopfx="sudo "
@@ -1449,6 +1445,7 @@ def clean_with_config(jscfg, comf, machines, args):
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-storage*.service' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/start-storage*.sh' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/stop-storage*.sh' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s' % (mach['basedir'], nodemgrdir))
         for item in ["server_datadirs", "storage_datadirs", "storage_logdirs", "storage_waldirs"]:
             nodedirs = node[item].strip()
             for d in nodedirs.split(","):
@@ -1460,7 +1457,6 @@ def clean_with_config(jscfg, comf, machines, args):
             generate_systemctl_clean(servname, node['ip'], commandslist)
         if not args.cloud:
             addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/program_binaries' % mach['basedir'])
-            addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s*' % (mach['basedir'], nodemgrdirpfx))
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     rnames = None
@@ -1478,12 +1474,12 @@ def clean_with_config(jscfg, comf, machines, args):
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/instance_binaries' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-cluster-manager*.service' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/setup_clustermgr*.sh' % mach['basedir'])
+        addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s' % (mach['basedir'], clustermgrdir))
         if args.autostart:
             servname = 'kunlun-cluster-manager-%d.service' % node['brpc_raft_port']
             generate_systemctl_clean(servname, node['ip'], commandslist)
         if not args.cloud:
             addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/program_binaries' % mach['basedir'])
-            addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/%s*' % (mach['basedir'], clustermgrdirpfx))
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     worknode = None
