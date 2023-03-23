@@ -1184,20 +1184,35 @@ def install_with_config(jscfg, comf, machines, args):
 	    meta['group_uuid'] = getuuid()
     metaf = open(r'clustermgr/%s' % reg_metaname, 'w')
     objs = []
-    for addr in metaseeds.split(','):
-        parts = addr.split(':')
-        obj = {}
-        obj['is_primary'] = False
-        obj['data_dir_path'] = ''
-        obj['nodemgr_bin_path'] = ''
-        obj['ip'] = parts[0]
-        if len(parts) > 1:
-            obj['port'] = int(parts[1])
-        else:
-            obj['port'] = 3306
-        obj['user'] = "pgx"
-        obj['password'] = "pgx_pwd"
-        objs.append(obj)
+    if len(meta['nodes']) > 0:
+        for node in meta['nodes']:
+            mach = machines.get(node['ip'])
+            obj = {}
+            obj['is_primary'] = node.get('is_primary', False)
+            obj['data_dir_path'] = node['data_dir_path']
+            obj['nodemgr_bin_path'] = "%s/%s/bin" % (mach['basedir'], nodemgrdir)
+            obj['ip'] = node['ip']
+            obj['port'] = node['port']
+            obj['user'] = "pgx"
+            obj['password'] = "pgx_pwd"
+            if 'master_priority' in node:
+                obj['master_priority'] = node['master_priority']
+            objs.append(obj)
+    elif not metaseeds == '': # For case just providing the seeds.
+        for addr in metaseeds.split(','):
+            parts = addr.split(':')
+            obj = {}
+            obj['is_primary'] = False
+            obj['data_dir_path'] = ''
+            obj['nodemgr_bin_path'] = ''
+            obj['ip'] = parts[0]
+            if (len(parts) > 1):
+                obj['port'] = int(parts[1])
+            else:
+                obj['port'] = 3306
+            obj['user'] = "pgx"
+            obj['password'] = "pgx_pwd"
+            objs.append(obj)
     json.dump(objs, metaf, indent=4)
     metaf.close()
 
