@@ -222,6 +222,7 @@ def generate_hdfs_coresite_xml(args, host, port):
 
 def generate_node_env(comf, args, machines, ip, idx):
     mach = machines.get(ip)
+    nodemgrdir = "kunlun-node-manager-%s" % args.product_version
     filemap = get_3rdpackages_filemap(args)
     jdkdir = filemap['jdk'][1]
     hadoopdir = filemap['hadoop'][1]
@@ -247,6 +248,7 @@ def generate_node_env(comf, args, machines, ip, idx):
     envf.write("export MYSQLDRIVER_FILE=%s; #KUNLUN_SET_ENV\n" % mysqldriver_file)
     envf.write("export KUNLUN_VERSION=%s; #KUNLUN_SET_ENV\n" % args.product_version)
     envf.write("JAVA_HOME=%s/program_binaries/%s; #KUNLUN_SET_ENV\n" % (mach['basedir'], jdkdir))
+    envf.write("PATH=%s/%s/bin/util:$PATH; #KUNLUN_SET_ENV\n" % (mach['basedir'], nodemgrdir))
     envf.write("PATH=$JAVA_HOME/bin:$PATH; #KUNLUN_SET_ENV\n")
     envf.write("HADOOP_HOME=%s/program_binaries/%s; #KUNLUN_SET_ENV\n" % (mach['basedir'], hadoopdir))
     envf.write("PATH=$HADOOP_HOME/bin:$PATH; #KUNLUN_SET_ENV\n")
