@@ -139,7 +139,7 @@ def process_ssh(conn, sshobj):
     meta_cursor0 = conn.cursor()
     meta_cursor0.execute("start transaction")
     stmt = "insert into backup_storage(name, stype, hostaddr, port, user_name, extra) values(%s,%s,%s,%s,%s,%s)"
-    meta_cursor0.execute(stmt, ("ssh_backup1", "SSH", data.host, data.port, data.user, data.targetRoot))
+    meta_cursor0.execute(stmt, ("ssh_backup1", "SSH", data['host'], data['port'], data['user'], data['targetRoot']))
     meta_cursor0.execute("commit")
     meta_cursor0.close()
 
