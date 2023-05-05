@@ -853,7 +853,7 @@ def validate_and_set_config2(jscfg, machines, args):
             nodemgrobj = nodemgrmaps.get(node['ip'])
             fix_nodemgr_nodetype(args, nodemgrobj, 'server')
             if 'port' not in node:
-                node['port'] = get_nodemgr_nextport(args, nodemgrobj, "server", 2)
+                node['port'] = get_nodemgr_nextport(args, nodemgrobj, "server", 1)
             addPortToMachine(portmap, node['ip'], node['port'])
             addto_usedports(args, nodemgrobj, 'server', node['port'])
             if 'mysql_port' not in node:

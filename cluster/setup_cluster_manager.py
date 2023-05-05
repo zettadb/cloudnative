@@ -113,6 +113,8 @@ def generate_clustermgr_startstop(args, machines, node, idx, filesmap):
     startf.write("#! /bin/bash\n")
     startf.write("cd %s || exit 1\n" % mach['basedir'])
     startf.write("cd %s/bin || exit 1\n" % clsutermgrdir)
+    if node['valgrind']:
+        startf.write("export USE_VALGRIND=1\n")
     startf.write("bash start_cluster_mgr.sh\n")
     startf.close()
     addNodeToFilesListMap(filesmap, node, startname, './%s' % startname_to)
@@ -166,6 +168,8 @@ def generate_nodemgr_startstop(args, machines, node, idx, filesmap):
     startf.write("cd %s || exit 1\n" % mach['basedir'])
     startf.write("test -f %s && . ./%s\n" % (envfname, envfname))
     startf.write("cd %s/bin || exit 1\n" % nodemgrdir)
+    if node['valgrind']:
+        startf.write("export USE_VALGRIND=1\n")
     startf.write("bash start_node_mgr.sh\n")
     startf.close()
     addNodeToFilesListMap(filesmap, node, startname, './%s' % startname_to)
@@ -1400,7 +1404,10 @@ def install_with_config(jscfg, comf, machines, args):
     purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
     output_info(comf, "starting cluster_mgr nodes ...")
     for node in clustermgr['nodes']:
-        addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash start_cluster_mgr.sh </dev/null >& start.log &")
+        envpfx = ""
+        if node['valgrind']:
+            envpfx = "export USE_VALGRIND=1;"
+        addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "%s bash start_cluster_mgr.sh </dev/null >& start.log &" % envpfx)
     purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # install xpanel
@@ -1452,6 +1459,9 @@ def clean_with_config(jscfg, comf, machines, args):
         addNodeToFilesListMap(filesmap, node, 'clear_instance.sh', '.')
         addToCommandsList(commandslist, node['ip'], ".", 'bash ./clear_instances.sh %s %s >& clear.log || true' % (
             mach['basedir'], args.product_version))
+        addToCommandsList(commandslist, node['ip'], ".",
+            "ps -fe | grep node_exporter | grep ':%d' | awk '{print \\$2}' | while read f; do kill -9 \\$f; done" % (
+            node['prometheus_port_start']))
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/instance_binaries' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-node-manager*.service' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/setup_nodemgr*.sh' % mach['basedir'])
@@ -1488,6 +1498,9 @@ def clean_with_config(jscfg, comf, machines, args):
         mach = machines.get(node['ip'])
         output_info(comf, "Cleaning cluster_mgr on %s ..." % node['ip'])
         addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash stop_cluster_mgr.sh")
+        addToCommandsList(commandslist, node['ip'], ".",
+            "ps -fe | grep prometheus | grep ':%d' | awk '{print \\$2}' | while read f; do kill -9 \\$f; done" % (
+            node['prometheus_port_start']))
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/instance_binaries' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/kunlun-cluster-manager*.service' % mach['basedir'])
         addToCommandsList(commandslist, node['ip'], ".", 'rm -fr %s/setup_clustermgr*.sh' % mach['basedir'])
@@ -1534,6 +1547,7 @@ def clean_with_config(jscfg, comf, machines, args):
             generate_systemctl_clean(servname, node['ip'], commandslist)
         # skip it if it is processed by nodemgr clean routine.
         if not nodemgrobj['skip']:
+            purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
             continue
         output_info(comf, "Cleaning meta node on %s ..." % node['ip'])
         targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
@@ -1586,6 +1600,9 @@ def stop_with_config(jscfg, comf, machines, args):
         addNodeToFilesListMap(filesmap, node, 'stop_instances.sh', '.')
         addToCommandsList(commandslist, node['ip'], ".", 'bash ./stop_instances.sh %s %s >& stop.log || true' % (
             mach['basedir'], args.product_version))
+        addToCommandsList(commandslist, node['ip'], ".",
+            "ps -fe | grep node_exporter | grep ':%d' | awk '{print \\$2}' | while read f; do kill -9 \\$f; done" % (
+            node['prometheus_port_start']))
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     if 'clusters' in jscfg and len(jscfg['clusters']) > 0:
@@ -1602,6 +1619,9 @@ def stop_with_config(jscfg, comf, machines, args):
             generate_systemctl_stop(servname, node['ip'], commandslist)
         else:
             addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash stop_cluster_mgr.sh")
+        addToCommandsList(commandslist, node['ip'], ".",
+            "ps -fe | grep prometheus | grep ':%d' | awk '{print \\$2}' | while read f; do kill -9 \\$f; done" % (
+            node['prometheus_port_start']))
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     for node in meta['nodes']:
@@ -1685,7 +1705,10 @@ def start_with_config(jscfg, comf, machines, args):
             servname = 'kunlun-cluster-manager-%d.service' % node['brpc_raft_port']
             generate_systemctl_start(servname, node['ip'], commandslist)
         else:
-            addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "bash start_cluster_mgr.sh")
+            envpfx = ""
+            if node['valgrind']:
+                envpfx = "export USE_VALGRIND=1;"
+            addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "%s bash start_cluster_mgr.sh" % envpfx)
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # start xpanel

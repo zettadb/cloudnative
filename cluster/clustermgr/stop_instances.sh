@@ -18,6 +18,9 @@ ls | while read p; do
 	export PATH=`pwd`/../bin:$PATH
 	export LD_LIBRARY_PATH=`pwd`/../lib:$LD_LIBRARY_PATH
 	bash stopmysql.sh $p
+	# stop mysqld_exporter
+	pp=`expr $p + 1`
+	ps -fe | grep mysqld_exporter | grep ":$pp" | awk '{print $2}' | while read f; do kill -9 $f; done
 )
 done
 
@@ -31,5 +34,8 @@ ls | while read p; do
 	datadir=`cat ../etc/instances_list.txt | sed '/^$/d' | sed 's/.*==>//g'`
 	test "$datadir" = "" && exit 1
 	pg_ctl -D $datadir stop -m immediate
+	# stop postgres_exporter
+	pp=`expr $p + 2`
+	ps -fe | grep postgres_exporter | grep ":$pp" | awk '{print $2}' | while read f; do kill -9 $f; done
 )
 done
