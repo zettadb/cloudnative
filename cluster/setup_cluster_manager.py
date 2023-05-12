@@ -365,6 +365,12 @@ def setup_nodemgr_commands(args, idx, machines, node, commandslist, dirmap, file
         scriptf.write(cmdpat % (confpath, 'proxysql_prog_package_name', proxysqldir))
     if 'prometheus_port_start' in node:
         scriptf.write(cmdpat % (confpath, 'prometheus_port_start', node['prometheus_port_start']))
+    if node['verbose_log']:
+        for cname in ['template.cnf', 'template-small.cnf', 'template-rbr.cnf', 'template-rbr-small.cnf']:
+            cpath = "program_binaries/%s/dba_tools/%s" % (storagedir, cname)
+            scriptf.write(cmdpat % (cpath, 'general_log', 'ON'))
+        cpath = "program_binaries/%s/resources/postgresql.conf" % serverdir
+        scriptf.write(cmdpat % (cpath, 'enable_sql_log', 'true'))
     scriptf.close()
     addNodeToFilesListMap(filesmap, node, script_name, '.')
     addNodeToFilesListMap(filesmap, node, 'clear_instances.sh', '.')
@@ -488,8 +494,10 @@ def start_clustermgr_int(args, machine_func, validate_func):
     comf.write("cat /dev/null > lastlog\n")
     if args.verbose:
         comf.write("trap 'cat lastlog' DEBUG\n")
+        comf.write("trap 'exit 1' ERR\n")
     else:
         comf.write("trap 'cat lastlog >> runlog' DEBUG\n")
+        comf.write("trap 'cat lastlog; exit 1' ERR\n")
     start_with_config(jscfg, comf, machines, args)
     output_info(comf, "Start action completed !")
     comf.close()
@@ -756,8 +764,13 @@ def get_cluster_memo_asjson(cluster):
             "max_connections": str(cluster['max_connections']),
             "max_storage_size": str(cluster['max_storage_size_GB']),
             "nodes": str(len(cluster['data'][0]['nodes'])),
-            "shards": str(len(cluster['data']))
+            "shards": str(len(cluster['data'])),
+            "conf_degrade_time": str(cluster['degrade_time'])
             }
+    if cluster['enable_degrade']:
+        mobj['conf_degrade_state'] = 'ON'
+    else:
+        mobj['conf_degrade_state'] = 'OFF'
     return mobj
 
 def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metaname, metaseeds, comf, metaobj, args):
@@ -791,7 +804,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         memo_obj = get_cluster_memo_asjson(cluster)
         memoeles.append({"name": cluster_name, "memo": memo_obj})
         # Storage nodes
-        cmdpat = 'python2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d'
+        cmdpat = 'python2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d --fullsync=%d'
         cmdpat += ' --meta_addrs=%s ' % metaseeds
         if cluster['storage_template'] == 'small':
             cmdpat += ' --dbcfg=./template-small.cnf'
@@ -819,7 +832,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
                 targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
                 addNodeToFilesListMap(filesmap, node, my_shardname, targetdir)
                 mach = machines.get(node['ip'])
-                cmd = cmdpat % (my_shardname, k, cluster_name, shard_id, k+1)
+                cmd = cmdpat % (my_shardname, k, cluster_name, shard_id, k+1, node['fullsync'])
                 generate_storage_startstop(args, machines, node, k, filesmap)
                 if node.get('is_primary', False):
                     pnode = node
@@ -855,6 +868,8 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         j = 1
         for shard in cluster['data']:
             obj = {'shard_name': 'shard_%d' % j}
+            obj['enable_degrade'] = cluster['enable_degrade']
+            obj['degrade_time'] = cluster['degrade_time']
             j += 1
             nodes = []
             for node in shard['nodes']:
@@ -884,9 +899,13 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         cmdpat = r'%spython2 add_comp_self.py  --meta_config=./%s --cluster_name=%s --user=%s --password=%s --hostname=%s --port=%d --mysql_port=%d --datadir=%s --install --ha_mode=%s'
         idx=0
         for node in cluster['comp']['nodes']:
+            mach = machines.get(node['ip'])
+            if cluster['enable_global_mvcc'] and check_version_to_minor(args.product_version, 1, 2):
+                targetfile='%s/%s/resources/postgresql.conf' % (node['program_dir'], serverdir)
+                cfgpat =  "bash change_config.sh %s '%s' '%s'"
+                addToCommandsList(commandslist, node['ip'], mach['basedir'], cfgpat % (targetfile, "enable_global_mvcc", "true"))
             targetdir='%s/%s/scripts' % (node['program_dir'], serverdir)
             addNodeToFilesListMap(filesmap, node, reg_metaname, targetdir)
-            mach = machines.get(node['ip'])
             absenvfname = '%s/env.sh.node' % (mach['basedir'])
             envpfx = "test -f %s && . %s; " % (absenvfname, absenvfname)
             addToCommandsList(commandslist, node['ip'], targetdir, cmdpat % (envpfx, reg_metaname, cluster_name,
@@ -1400,14 +1419,14 @@ def install_with_config(jscfg, comf, machines, args):
     for node in nodemgr['nodes']:
         if node['skip']:
             continue
-        addToCommandsList(commandslist, node['ip'], ".", "bash start-nodemgr-%d.sh </dev/null >& run.log &" % node['brpc_http_port'])
+        addToCommandsList(commandslist, node['ip'], ".", "bash start-nodemgr-%d.sh </dev/null >& nodemgr_start.log" % node['brpc_http_port'])
     purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
     output_info(comf, "starting cluster_mgr nodes ...")
     for node in clustermgr['nodes']:
         envpfx = ""
         if node['valgrind']:
             envpfx = "export USE_VALGRIND=1;"
-        addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "%s bash start_cluster_mgr.sh </dev/null >& start.log &" % envpfx)
+        addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "%s bash start_cluster_mgr.sh </dev/null >& start.log" % envpfx)
     purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # install xpanel
@@ -1675,7 +1694,7 @@ def start_with_config(jscfg, comf, machines, args):
             addNodeToFilesListMap(filesmap, node, 'start_instances.sh', '.')
             addToCommandsList(commandslist, node['ip'], ".", 'bash ./start_instances.sh %s %s >& start.log || true' % (
                 mach['basedir'], args.product_version))
-            addToCommandsList(commandslist, node['ip'], '.', "bash start-nodemgr-%d.sh </dev/null >& run.log &" % node['brpc_http_port'])
+            addToCommandsList(commandslist, node['ip'], '.', "bash start-nodemgr-%d.sh </dev/null >& nodemgr_start.log" % node['brpc_http_port'])
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     for node in meta['nodes']:
@@ -1708,7 +1727,7 @@ def start_with_config(jscfg, comf, machines, args):
             envpfx = ""
             if node['valgrind']:
                 envpfx = "export USE_VALGRIND=1;"
-            addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "%s bash start_cluster_mgr.sh" % envpfx)
+            addToCommandsList(commandslist, node['ip'], "%s/bin" % clustermgrdir, "%s bash start_cluster_mgr.sh </dev/null >& start.log" % envpfx)
         purge_cache_commands(args, comf, machines, dirmap, filesmap, commandslist)
 
     # start xpanel

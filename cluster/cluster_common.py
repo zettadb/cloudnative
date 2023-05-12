@@ -675,6 +675,8 @@ def validate_and_set_config2(jscfg, machines, args):
             node['storage_portrange'] = args.defstorage_portrange_nodemgr
         if 'server_portrange' not in node:
             node['server_portrange'] = args.defserver_portrange_nodemgr
+        if 'verbose_log' not in node:
+            node['verbose_log'] = False
         # validate other configurations
         if 'storage_curport' not in node:
             range1 = node['storage_portrange'].split('-')
@@ -802,6 +804,8 @@ def validate_and_set_config2(jscfg, machines, args):
             node['imageType'] = 'url'
         if node['imageType'] == 'file':
             node['image'] = 'kunlun-xpanel:%s' % args.product_version
+        else:
+            node['image'] = node['image'].replace('VERSION', args.product_version)
         if 'imageFile' not in node:
             node['imageFile'] = 'kunlun-xpanel-%s.tar.gz' % args.product_version
 
@@ -821,6 +825,12 @@ def validate_and_set_config2(jscfg, machines, args):
             raise ValueError('Error: the name of cluster must be specified!')
         if  'ha_mode' not in cluster:
             cluster['ha_mode'] = 'rbr'
+        if 'enable_degrade' not in cluster:
+            cluster['enable_degrade'] = False
+        if 'enable_global_mvcc' not in cluster:
+            cluster['enable_global_mvcc'] = False
+        if 'degrade_time' not in cluster:
+            cluster['degrade_time'] = 15
         if 'storage_template' not in cluster:
             cluster['storage_template'] = 'normal'
         if 'innodb_buffer_pool_size_MB' not in cluster:
@@ -881,6 +891,8 @@ def validate_and_set_config2(jscfg, machines, args):
                 fix_nodemgr_nodetype(args, nodemgrobj, 'storage')
                 if 'port' not in node:
                     node['port'] = get_nodemgr_nextport(args, nodemgrobj, "storage", 2)
+                if 'fullsync' not in node:
+                    node['fullsync'] = 1
                 addPortToMachine(portmap, node['ip'], node['port'])
                 addto_usedports(args, nodemgrobj, 'storage', node['port'])
                 set_storage_using_nodemgr(machines, node, nodemgrobj, '%dMB' % innodb_sizeMB)
@@ -1225,6 +1237,8 @@ def validate_and_set_config3(jscfg, machines, args):
             xpanel['imageType'] = 'url'
         if xpanel['imageType'] == 'file':
             xpanel['image'] = 'kunlun-xpanel:%s' % args.product_version
+        else:
+            xpanel['image'] = xpanel['image'].replace('VERSION', args.product_version)
         if 'imageFile' not in xpanel:
             xpanel['imageFile'] = 'kunlun-xpanel-%s.tar.gz' % args.product_version
         for node in xpanel['nodes']:
