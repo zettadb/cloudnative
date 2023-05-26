@@ -9,4 +9,5 @@ name="$2"
 value="$3"
 
 sed -i "/$name.*=/d" $cfile
+echo >> $cfile
 echo "$name = $value" >> $cfile

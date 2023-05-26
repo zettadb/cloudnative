@@ -187,11 +187,11 @@ def get_json_from_file(filepath):
     jsconf.close()
     return jscfg
 
-def addMachineToMap(map, ip, user, basedir, haspg=False):
+def addMachineToMap(map, ip, user, basedir, sshport, haspg=False):
     # We can add logic here to check if the item exsits, new added should be unique to existing.
     if ip in map:
         return
-    mac={"ip":ip, "user":user, "basedir":basedir, "haspg": haspg}
+    mac={"ip":ip, "user":user, "basedir":basedir, "sshport":sshport, "haspg": haspg}
     map[ip] = mac
 
 def gethostip():
@@ -393,7 +393,8 @@ def setup_machines1(jscfg, machines, args):
         ip=mach['ip']
         user=mach.get('user', args.defuser)
         base=mach.get('basedir', args.defbase)
-        addMachineToMap(machines, ip, user, base)
+        sshport = mach.get('sshport', 22)
+        addMachineToMap(machines, ip, user, base, sshport)
     for node in meta['nodes']:
         addIpToMachineMap(machines, node['ip'], args)
     for shard in datas:
@@ -474,6 +475,11 @@ def validate_and_set_config1(jscfg, machines, args):
             raise ValueError('Error: No primary found in meta shard, there should be one and only one primary specified !')
     else:
         node['is_primary'] = True
+
+    if 'enable_rocksdb' not in meta:
+        meta['enable_rocksdb'] = True
+    if 'enable_rocksdb' not in cluster:
+        cluster['enable_rocksdb'] = True
 
     for node in comps:
         mach = machines.get(node['ip'])
@@ -570,7 +576,8 @@ def setup_machines2(jscfg, machines, args):
         ip=mach['ip']
         user=mach.get('user', args.defuser)
         base=mach.get('basedir', args.defbase)
-        addMachineToMap(machines, ip, user, base)
+        sshport = mach.get('sshport', 22)
+        addMachineToMap(machines, ip, user, base, sshport)
     for node in metanodes:
         addIpToMachineMap(machines, node['ip'], args)
     for node in nodemgrnodes:
@@ -777,6 +784,8 @@ def validate_and_set_config2(jscfg, machines, args):
 
     if (len(meta_addrs) > 0):
         meta['group_seeds'] = ",".join(meta_addrs)
+    if 'enable_rocksdb' not in meta:
+        meta['enable_rocksdb'] = True
 
     if 'backup' in jscfg:
         if 'hdfs' in jscfg['backup']:
@@ -844,6 +853,8 @@ def validate_and_set_config2(jscfg, machines, args):
             cluster['max_storage_size_GB'] = 20
         if 'storage_cpu_cores' not in cluster:
             cluster['storage_cpu_cores'] = 8
+        if 'enable_rocksdb' not in cluster:
+            cluster['enable_rocksdb'] = True
         cluster['dbcfg'] = 0
         if cluster['storage_template'] == 'small':
             cluster['dbcfg'] = 1
@@ -944,7 +955,8 @@ def setup_machines3(jscfg, machines, args):
         ip=mach['ip']
         user=mach.get('user', args.defuser)
         base=mach.get('basedir', args.defbase)
-        addMachineToMap(machines, ip, user, base)
+        sshport = mach.get('sshport', 22)
+        addMachineToMap(machines, ip, user, base, sshport)
     for node in metanodes:
         addIpToMachineMap(machines, node['ip'], args)
     for node in nodemgrnodes:
@@ -1202,6 +1214,9 @@ def validate_and_set_config3(jscfg, machines, args):
             node['election_weight'] = 50
         node['is_primary'] = False
     jscfg['dc_meta_map'] = dc_meta_map
+
+    if 'enable_rocksdb' not in meta:
+        meta['enable_rocksdb'] = True
 
     if firstboot:
         for dc in dcnames:

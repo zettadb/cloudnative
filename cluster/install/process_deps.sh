@@ -18,14 +18,9 @@ while test "$loop" -lt "$loops"; do
         		done
 			let cur++
 		done
-		while true; do
-			$f --help > $tempfile 2>&1 
-			grep "symbol lookup error" $tempfile >/dev/null 2>/dev/null || break
-			libsopath=`cat $tempfile | sed 's/.*\(symbol lookup error:[^:]*\):.*/\1/g' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g'`
-			soname="`basename $libsopath`"
-			test ! -f "deps/$soname" && test -d private && mv -f private private.saved && break
-			cp deps/`basename $libsopath` . || break
-		done
+		$f --help > $tempfile 2>&1
+		grep "EVP_KDF_ctrl" $tempfile >/dev/null 2>/dev/null || continue
+		test -d private && mv -f private private.saved
 	done
 	let loop++
 done

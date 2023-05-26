@@ -139,8 +139,10 @@ def generate_install_scripts(jscfg, args):
     metaf.close()
 
     cmdpat = 'python2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d'
+    template_file = "./template.cnf"
     if args.small:
-        cmdpat += ' --dbcfg=./template-small.cnf'
+        template_file = "./template-small.cnf"
+    cmdpat += ' --dbcfg=%s' % template_file
     # commands like:
     # python2 install-mysql.py --config=./mysql_meta.json --target_node_index=0 --server_id=[int]
     targetdir='%s/dba_tools' % storagedir
@@ -153,6 +155,8 @@ def generate_install_scripts(jscfg, args):
     for node in meta['nodes']:
         meta_addrs.append("%s:%s" % (node['ip'], str(node['port'])))
         addNodeToFilesMap(filesmap, node, my_metaname, targetdir)
+        if not meta['enable_rocksdb']:
+            addToCommandsList(commandslist, node['ip'], targetdir, 'sed -i /rocksdb/d %s' % template_file)
         cmd = cmdpat % (my_metaname, i, cluster_name, shard_id, i+1)
         if node.get('is_primary', False):
             mpries.append([node['ip'], targetdir, cmd])
@@ -182,6 +186,8 @@ def generate_install_scripts(jscfg, args):
 	    j = 0
 	    for node in shard['nodes']:
                 addNodeToFilesMap(filesmap, node, my_shardname, targetdir)
+                if not cluster['enable_rocksdb']:
+                    addToCommandsList(commandslist, node['ip'], targetdir, 'sed -i /rocksdb/d %s' % template_file)
                 cmd = cmdpat % (my_shardname, j, cluster_name, shard_id, j+1)
                 if node.get('is_primary', False):
                     pries.append([node['ip'], targetdir, cmd])

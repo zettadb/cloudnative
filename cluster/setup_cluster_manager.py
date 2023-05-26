@@ -806,8 +806,10 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         # Storage nodes
         cmdpat = 'python2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d --fullsync=%d'
         cmdpat += ' --meta_addrs=%s ' % metaseeds
+        template_file = "./template.cnf"
         if cluster['storage_template'] == 'small':
-            cmdpat += ' --dbcfg=./template-small.cnf'
+            template_file = "./template-small.cnf"
+        cmdpat += ' --dbcfg=%s' % template_file
         extraopt = " --ha_mode=%s" % cluster['ha_mode']
         j = 1
         pries = []
@@ -831,6 +833,8 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
                         "type":"integer", 'value':cluster['fullsync_level']})
                 targetdir='%s/%s/dba_tools' % (node['program_dir'], storagedir)
                 addNodeToFilesListMap(filesmap, node, my_shardname, targetdir)
+                if not cluster['enable_rocksdb']:
+                    addToCommandsList(commandslist, node['ip'], targetdir, 'sed -i /rocksdb/d %s' % template_file)
                 mach = machines.get(node['ip'])
                 cmd = cmdpat % (my_shardname, k, cluster_name, shard_id, k+1, node['fullsync'])
                 generate_storage_startstop(args, machines, node, k, filesmap)
@@ -1314,8 +1318,10 @@ def install_with_config(jscfg, comf, machines, args):
 
     cmdpat = 'python2 install-mysql.py --config=./%s --target_node_index=%d --cluster_id=%s --shard_id=%s --server_id=%d --fullsync=%d'
     cmdpat += ' --meta_addrs=%s ' % metaseeds
+    template_file = "./template.cnf"
     if args.small:
-        cmdpat += ' --dbcfg=./template-small.cnf'
+        template_file = './template-small.cnf'
+    cmdpat += ' --dbcfg=%s' % template_file
     shard_id = 'meta'
     pries = []
     secs = []
@@ -1340,6 +1346,8 @@ def install_with_config(jscfg, comf, machines, args):
         addNodeToFilesListMap(filesmap, node, reg_metaname, "%s/%s/scripts" % (node['program_dir'], serverdir))
         addNodeToFilesListMap(filesmap, node, fname, "%s/%s" % (targetdir, my_metaname))
         addNodeToFilesListMap(filesmap, node, xpanel_sqlfile, targetdir)
+        if not meta['enable_rocksdb']:
+            addToCommandsList(commandslist, node['ip'], targetdir, 'sed -i /rocksdb/d %s' % template_file)
         cmd = cmdpat % (my_metaname, idx, cluster_name, shard_id, i+1, fullsync)
         if node.get('is_primary', False):
             pries.append([node['ip'], targetdir, cmd])

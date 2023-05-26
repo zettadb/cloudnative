@@ -24,8 +24,9 @@ sleep=0
 iteration=1000
 tty=false
 # connectionTimeout for scp/ssh
-contimeout=15
+contimeout=60
 sshport=22
+echofail="true"
 
 while test "$isarg" = "1"; do
 	isarg=1
@@ -38,6 +39,7 @@ while test "$isarg" = "1"; do
 		--hosts=*) hosts=`get_option_value "$1" "--hosts="` ;;
 		--blockhosts=*) blockhosts=`get_option_value "$1" "--blockhosts="` ;;
 		--sshpass*) SSHPASS="sshpass" ;;
+		--noechofail*) echofail="false";;
 		--noclear*) clear=false;;
 		--sleep=*) sleep=`get_option_value "$1" "--sleep="` ;;
 		--iteration=*) iteration=`get_option_value "$1" "--iteration="` ;;
