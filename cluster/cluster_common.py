@@ -187,7 +187,7 @@ def get_json_from_file(filepath):
     jsconf.close()
     return jscfg
 
-def addMachineToMap(map, ip, user, basedir, sshport, haspg=False):
+def addMachineToMap(map, ip, user, basedir, sshport=22, haspg=False):
     # We can add logic here to check if the item exsits, new added should be unique to existing.
     if ip in map:
         return
@@ -838,6 +838,8 @@ def validate_and_set_config2(jscfg, machines, args):
             cluster['enable_degrade'] = False
         if 'enable_global_mvcc' not in cluster:
             cluster['enable_global_mvcc'] = False
+        if 'max_files_per_process' not in cluster:
+            cluster['max_files_per_process'] = 10000
         if 'degrade_time' not in cluster:
             cluster['degrade_time'] = 15
         if 'storage_template' not in cluster:
@@ -1081,6 +1083,8 @@ def validate_and_set_config3(jscfg, machines, args):
             node['valgrind'] = False
         if 'skip' not in node:
             node['skip'] = False
+        if 'verbose_log' not in node:
+            node['verbose_log'] = False
         # default 8 cpus
         if 'total_cpu_cores' not in node:
             node['total_cpu_cores'] = 8
