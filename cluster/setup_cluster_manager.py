@@ -827,6 +827,7 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
             pnode = None
             snodes = []
             for node in shard['nodes']:
+                mach = machines.get(node['ip'])
                 if 'fullsync_level' in cluster and cluster['fullsync_level'] != 1:
                     vareles.append({"ip": node['ip'], 'port':node['port'],
                         'variable_name':'fullsync_consistency_level',
@@ -835,7 +836,10 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
                 addNodeToFilesListMap(filesmap, node, my_shardname, targetdir)
                 if not cluster['enable_rocksdb']:
                     addToCommandsList(commandslist, node['ip'], targetdir, 'sed -i /rocksdb/d %s' % template_file)
-                mach = machines.get(node['ip'])
+                cfgpat =  "bash change_config.sh %s '%s' '%s'"
+                if 'max_binlog_size' in node:
+                    targetfile = '%s/%s' % (targetdir, template_file)
+                    addToCommandsList(commandslist, node['ip'], mach['basedir'], cfgpat % (targetfile, "max_binlog_size", str(node['max_binlog_size'])))
                 cmd = cmdpat % (my_shardname, k, cluster_name, shard_id, k+1, node['fullsync'])
                 generate_storage_startstop(args, machines, node, k, filesmap)
                 if node.get('is_primary', False):
@@ -904,10 +908,20 @@ def install_clusters(jscfg, machines, dirmap, filesmap, commandslist, reg_metana
         idx=0
         for node in cluster['comp']['nodes']:
             mach = machines.get(node['ip'])
+            targetfile='%s/%s/resources/postgresql.conf' % (node['program_dir'], serverdir)
+            cfgpat =  "bash change_config.sh %s '%s' '%s'"
             if cluster['enable_global_mvcc'] and check_version_to_minor(args.product_version, 1, 2):
-                targetfile='%s/%s/resources/postgresql.conf' % (node['program_dir'], serverdir)
-                cfgpat =  "bash change_config.sh %s '%s' '%s'"
                 addToCommandsList(commandslist, node['ip'], mach['basedir'], cfgpat % (targetfile, "enable_global_mvcc", "true"))
+            if 'max_files_per_process' in cluster:
+                addToCommandsList(commandslist, node['ip'], mach['basedir'], cfgpat % (targetfile, "max_files_per_process", str(cluster['max_files_per_process'])))
+            if 'statement_timeout' in cluster:
+                addToCommandsList(commandslist, node['ip'], mach['basedir'], cfgpat % (targetfile, "statement_timeout", str(cluster['statement_timeout'])))
+            if 'enable_parallel_append' in cluster:
+                addToCommandsList(commandslist, node['ip'], mach['basedir'], cfgpat % (targetfile, "enable_parallel_append", str(cluster['enable_parallel_append'])))
+            if 'enable_parallel_hash' in cluster:
+                addToCommandsList(commandslist, node['ip'], mach['basedir'], cfgpat % (targetfile, "enable_parallel_hash", str(cluster['enable_parallel_hash'])))
+            if 'enable_parallel_remotescan' in cluster:
+                addToCommandsList(commandslist, node['ip'], mach['basedir'], cfgpat % (targetfile, "enable_parallel_remotescan", str(cluster['enable_parallel_remotescan'])))
             targetdir='%s/%s/scripts' % (node['program_dir'], serverdir)
             addNodeToFilesListMap(filesmap, node, reg_metaname, targetdir)
             absenvfname = '%s/env.sh.node' % (mach['basedir'])
