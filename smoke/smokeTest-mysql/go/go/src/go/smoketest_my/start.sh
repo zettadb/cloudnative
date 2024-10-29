@@ -1,4 +1,4 @@
-Running this script requires two parameters
+# Running this script requires two parameters
 if [[ $# -le 1 ]]
 then
 	echo 'running this script requires two parameters, like : bash start.sh 192.168.0.113 5665'
